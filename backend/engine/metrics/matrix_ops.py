@@ -360,3 +360,127 @@ def apply_macro_anchoring(
         return Result.success((float(adj_win_prob), float(adj_tail_risk)))
     except Exception as e:
         return Result.failure(reason=f"Macro anchoring failed: {e}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. OPTIONS & GREEKS MATH
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CMMath:
+    """Stateless mathematical kernels for dealer GEX / DAGEX and tail-aware Kelly."""
+
+    @staticmethod
+    def gex_institutional(
+        gamma: FloatArray,
+        oi: FloatArray,
+        spot: float,
+        multiplier: float = 100.0,
+        is_call: bool | FloatArray = True,
+    ) -> Result[FloatArray]:
+        """Institutional GEX (S²): Gamma * OI * mult * S² * sign(call/put)."""
+        try:
+            sign = np.where(is_call, 1.0, -1.0)
+            res = np.asarray(gamma * oi * multiplier * (spot**2) * sign, dtype=np.float64)
+            return Result.success(res)
+        except Exception as e:
+            return Result.failure(reason=f"Institutional GEX calculation failed: {e}")
+
+    @staticmethod
+    def dagex(
+        gamma: FloatArray,
+        delta: FloatArray,
+        oi: FloatArray,
+        spot: float,
+        multiplier: float = 100.0,
+        is_call: bool | FloatArray = True,
+    ) -> Result[FloatArray]:
+        """Delta-adjusted gamma exposure."""
+        try:
+            sign = np.where(is_call, 1.0, -1.0)
+            res = np.asarray(gamma * np.abs(delta) * oi * multiplier * spot * sign, dtype=np.float64)
+            return Result.success(res)
+        except Exception as e:
+            return Result.failure(reason=f"DAGEX calculation failed: {e}")
+
+    @staticmethod
+    def proximitiy_weight(tte_years: FloatArray) -> Result[FloatArray]:
+        """Expiry proximity weight w = exp(-TTE * 52)."""
+        try:
+            res = np.exp(-tte_years * 52.0)
+            return Result.success(res)
+        except Exception as e:
+            return Result.failure(reason=f"Proximity weight calculation failed: {e}")
+
+    @staticmethod
+    def vrp_log_ratio(iv: FloatArray | float, hv: FloatArray | float) -> Result[FloatArray | float]:
+        """Log VRP ln(IV/HV) with numerical floors."""
+        try:
+            iv_safe = np.maximum(iv, 1e-6)
+            hv_safe = np.maximum(hv, 1e-6)
+            out = np.log(iv_safe / hv_safe)
+            if isinstance(out, np.ndarray):
+                return Result.success(np.asarray(out, dtype=np.float64))
+            return Result.success(float(out))
+        except Exception as e:
+            return Result.failure(reason=f"VRP log ratio calculation failed: {e}")
+
+    @staticmethod
+    def kelly_fat_tail(
+        mu: float,
+        sigma: float,
+        kurtosis: float,
+        fraction: float = 0.5,
+    ) -> Result[float]:
+        """Kelly fraction damped for excess kurtosis."""
+        try:
+            if sigma <= 1e-9:
+                return Result.failure(reason="Sigma too low for Kelly calculation")
+            raw_kelly = mu / (sigma**2)
+            tail_adj = 1.0 / (1.0 + max(0.0, kurtosis) / 6.0)
+            return Result.success(float(np.clip(raw_kelly * tail_adj * fraction, 0.0, 1.0)))
+        except Exception as e:
+            return Result.failure(reason=f"Kelly fat tail calculation failed: {e}")
+
+    @staticmethod
+    def markov_projection(transition_matrix: FloatArray, current_state_idx: int, n_steps: int) -> Result[FloatArray]:
+        """Chapman–Kolmogorov: distribution after n_steps."""
+        try:
+            t_n = np.linalg.matrix_power(transition_matrix, n_steps)
+            v0 = np.zeros(transition_matrix.shape[0])
+            v0[current_state_idx] = 1.0
+            return Result.success(np.asarray(v0 @ t_n, dtype=np.float64))
+        except Exception as e:
+            return Result.failure(reason=f"Markov projection failed: {e}")
+
+
+def compute_vanna_vol_drift(vanna_exposure: float, iv_change: float) -> Result[float]:
+    """Vol-drift contribution from vanna exposure."""
+    try:
+        return Result.success(float(vanna_exposure * iv_change))
+    except Exception as e:
+        return Result.failure(reason=f"Vanna vol drift calculation failed: {e}")
+
+
+def compute_charm_price_bias(charm_exposure: float, time_decay: float) -> Result[float]:
+    """Price-bias contribution from charm exposure."""
+    try:
+        return Result.success(float(charm_exposure * time_decay))
+    except Exception as e:
+        return Result.failure(reason=f"Charm price bias calculation failed: {e}")
+
+
+def calculate_probabilistic_gex_gating(
+    current_gex: float,
+    vanna_flow: float,
+    regime_confidence: float,
+    threshold: float = 0.5,
+) -> Result[bool]:
+    """Heuristic stability gate: positive GEX/vanna support + regime confidence."""
+    try:
+        gex_aligned = current_gex > 0
+        vanna_aligned = vanna_flow > 0
+        stability_score = (
+            0.4 * float(gex_aligned) + 0.4 * float(vanna_aligned) + 0.2 * regime_confidence
+        )
+        return Result.success(stability_score >= threshold)
+    except Exception as e:
+        return Result.failure(reason=f"Probabilistic GEX gating calculation failed: {e}")
