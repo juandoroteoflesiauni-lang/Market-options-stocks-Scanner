@@ -128,8 +128,11 @@ class MarketDataSettings(BaseSettings):
     fmp_api_key: SecretStr          # Loaded from FMP_API_KEY env var
     massive_api_key: SecretStr      # Loaded from MASSIVE_API_KEY env var
     massive_ws_url: str             # Loaded from MASSIVE_WS_URL env var
+    alpaca_api_key: SecretStr       # Loaded from ALPACA_API_KEY env var
+    alpaca_secret_key: SecretStr    # Loaded from ALPACA_SECRET_KEY env var
+    alpaca_base_url: str            # Loaded from ALPACA_BASE_URL env var
 
-    @field_validator("fmp_api_key", "massive_api_key")
+    @field_validator("fmp_api_key", "massive_api_key", "alpaca_api_key", "alpaca_secret_key")
     @classmethod
     def validate_key_not_empty(cls, value: SecretStr) -> SecretStr:
         if not value.get_secret_value().strip():
@@ -151,7 +154,7 @@ class MarketDataHub:
         Blocks system initialization if any key is missing or malformed.
         """
         # pydantic-settings already validated at parse time via @field_validator
-        logger.info("MarketDataHub initialized. Providers: FMP, Massive.")
+        logger.info("MarketDataHub initialized. Providers: FMP, Massive, Alpaca.")
 ```
 
 ---
@@ -228,10 +231,11 @@ class FmpNormalizer:
 ## 8. PROVIDER FAILOVER STRATEGY
 
 ```
-Primary:   FMP REST API
-Secondary: Massive REST API
-Tertiary:  Graceful degradation (log + skip ticker for this cycle)
+Primary REST (Global/Financials):    FMP REST API
+Secondary REST (US Market Data):     Alpaca REST API
+Exclusive Streaming (Phase D WS):    Massive WebSocket
+Tertiary Failover/Degradation:       Graceful degradation (log + skip ticker for this cycle)
 
-Failover logic lives ENTIRELY in MarketDataHub.
+Failover/routing logic lives ENTIRELY in MarketDataHub.
 Engines receive a MarketSnapshot regardless of which provider served it.
 ```
