@@ -1,0 +1,147 @@
+# ============================================================
+# TRADING TERMINAL — .gitignore completo
+# ============================================================
+
+# ── SECRETOS — CRÍTICO ────────────────────────────────────
+.env
+.env.local
+.env.production
+.env.staging
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+api_keys.txt
+
+# ── PYTHON ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Entornos virtuales
+.venv
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Testing Python
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+nosetests.xml
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# ── NODE / FRONTEND ───────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+.stylelintcache
+
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+.cache/
+
+# Testing JS
+coverage/
+.nyc_output/
+
+# ── BASES DE DATOS LOCALES ────────────────────────────────
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# ── LOGS ─────────────────────────────────────────────────
+*.log
+logs/
+!logs/.gitkeep    # Mantener la carpeta pero ignorar los logs
+
+# ── IDEs ─────────────────────────────────────────────────
+# JetBrains
+.idea/
+*.iml
+*.iws
+
+# VS Code (configuración personal, no compartir)
+.vscode/settings.json.local
+.vscode/*.code-snippets
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ── SISTEMA OPERATIVO ────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── DOCKER ───────────────────────────────────────────────
+# No ignorar docker-compose.yml (se comparte)
+# Ignorar archivos de override locales
+docker-compose.override.yml
+docker-compose.local.yml
+
+# ── DATOS DE TRADING ─────────────────────────────────────
+backtest_results/
+market_data/
+historical_data/
+trading_cache/
+*.csv.gz         # Datos históricos comprimidos
+
+# ── MISC ─────────────────────────────────────────────────
+.temp/
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup

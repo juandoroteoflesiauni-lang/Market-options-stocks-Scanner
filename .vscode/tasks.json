@@ -1,0 +1,158 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // ═══════════════════════════════════════
+    // BACKEND TASKS
+    // ═══════════════════════════════════════
+    {
+      "label": "🐍 Backend: Iniciar servidor de desarrollo",
+      "type": "shell",
+      "command": "cd backend && source venv/bin/activate && uvicorn app.main:app --reload --port 8000",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "isBackground": true
+    },
+    {
+      "label": "🧪 Backend: Ejecutar todos los tests",
+      "type": "shell",
+      "command": "cd backend && source venv/bin/activate && pytest tests/ -v --tb=short",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "📊 Backend: Tests con cobertura",
+      "type": "shell",
+      "command": "cd backend && source venv/bin/activate && pytest tests/ --cov=app --cov-report=html && echo 'Cobertura en backend/htmlcov/index.html'",
+      "group": "test",
+      "presentation": { "reveal": "always" }
+    },
+    {
+      "label": "🗄️ DB: Aplicar migraciones",
+      "type": "shell",
+      "command": "cd backend && source venv/bin/activate && alembic upgrade head",
+      "group": "build",
+      "presentation": { "reveal": "always" }
+    },
+    {
+      "label": "🗄️ DB: Crear nueva migración",
+      "type": "shell",
+      "command": "cd backend && source venv/bin/activate && alembic revision --autogenerate -m '${input:migrationName}'",
+      "group": "build",
+      "presentation": { "reveal": "always" }
+    },
+    {
+      "label": "🔍 Backend: Type check (mypy)",
+      "type": "shell",
+      "command": "cd backend && source venv/bin/activate && mypy app/ --ignore-missing-imports",
+      "group": "test"
+    },
+    {
+      "label": "✨ Backend: Formatear código (black + ruff)",
+      "type": "shell",
+      "command": "cd backend && source venv/bin/activate && black app/ tests/ && ruff check app/ tests/ --fix",
+      "group": "build"
+    },
+
+    // ═══════════════════════════════════════
+    // FRONTEND TASKS
+    // ═══════════════════════════════════════
+    {
+      "label": "⚛️ Frontend: Iniciar servidor de desarrollo",
+      "type": "shell",
+      "command": "cd frontend && npm run dev",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "isBackground": true
+    },
+    {
+      "label": "🧪 Frontend: Ejecutar tests",
+      "type": "shell",
+      "command": "cd frontend && npm run test",
+      "group": "test",
+      "presentation": { "reveal": "always" }
+    },
+    {
+      "label": "📦 Frontend: Build de producción",
+      "type": "shell",
+      "command": "cd frontend && npm run build",
+      "group": "build",
+      "presentation": { "reveal": "always" }
+    },
+    {
+      "label": "🔍 Frontend: Type check",
+      "type": "shell",
+      "command": "cd frontend && npx tsc --noEmit",
+      "group": "test"
+    },
+
+    // ═══════════════════════════════════════
+    // DOCKER TASKS
+    // ═══════════════════════════════════════
+    {
+      "label": "🐳 Docker: Iniciar PostgreSQL + Redis",
+      "type": "shell",
+      "command": "docker-compose up -d postgres redis && echo '✅ DB y Redis iniciados'",
+      "group": "build",
+      "presentation": { "reveal": "always" }
+    },
+    {
+      "label": "🐳 Docker: Detener todos los servicios",
+      "type": "shell",
+      "command": "docker-compose down",
+      "group": "build"
+    },
+    {
+      "label": "🐳 Docker: Ver logs de PostgreSQL",
+      "type": "shell",
+      "command": "docker-compose logs -f postgres",
+      "presentation": { "reveal": "always", "panel": "new" }
+    },
+
+    // ═══════════════════════════════════════
+    // GIT TASKS
+    // ═══════════════════════════════════════
+    {
+      "label": "💾 Git: Ver estado del repositorio",
+      "type": "shell",
+      "command": "git status && git log --oneline -5",
+      "presentation": { "reveal": "always" }
+    },
+    {
+      "label": "💾 Git: Commit con mensaje",
+      "type": "shell",
+      "command": "git add . && git commit -m '${input:commitMessage}'",
+      "presentation": { "reveal": "always" }
+    },
+
+    // ═══════════════════════════════════════
+    // TAREA COMPUESTA — INICIO RÁPIDO
+    // ═══════════════════════════════════════
+    {
+      "label": "🚀 INICIO: Levantar todo el entorno de desarrollo",
+      "dependsOn": [
+        "🐳 Docker: Iniciar PostgreSQL + Redis",
+        "🗄️ DB: Aplicar migraciones",
+        "🐍 Backend: Iniciar servidor de desarrollo",
+        "⚛️ Frontend: Iniciar servidor de desarrollo"
+      ],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ],
+
+  "inputs": [
+    {
+      "id": "commitMessage",
+      "description": "Mensaje del commit (ej: feat(orders): implementar órdenes MARKET)",
+      "type": "promptString"
+    },
+    {
+      "id": "migrationName",
+      "description": "Nombre de la migración (ej: add_positions_table)",
+      "type": "promptString"
+    }
+  ]
+}

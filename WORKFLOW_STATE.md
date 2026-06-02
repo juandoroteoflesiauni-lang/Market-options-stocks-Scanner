@@ -1,0 +1,144 @@
+# 🔄 WORKFLOW STATE — TRADING TERMINAL
+> Actualizar en CADA sesión de trabajo. Este archivo es la memoria del proyecto.
+
+---
+
+## 📊 ESTADO ACTUAL
+
+```yaml
+fecha_ultima_sesion: "2025-06-01"
+fase_global: "SETUP"
+modulo_activo: "Configuración inicial"
+completado_pct: 0%
+```
+
+---
+
+## ✅ MÓDULOS COMPLETADOS
+
+```
+Ninguno aún — proyecto en fase de configuración inicial
+```
+
+---
+
+## 🟡 EN PROGRESO
+
+```
+[ ] Setup del entorno de desarrollo
+    - [ ] Instalar Python 3.11+
+    - [ ] Instalar Node 18+
+    - [ ] Instalar Docker Desktop
+    - [ ] Crear estructura de directorios
+    - [ ] Crear .env con variables vacías
+    - [ ] Inicializar git repository
+```
+
+---
+
+## 🔴 PENDIENTE (En orden de prioridad)
+
+```
+CRÍTICO:
+[ ] MÓDULO-001: Autenticación (JWT + registro de usuario)
+[ ] MÓDULO-002: Estructura base FastAPI + conexión DB
+
+ALTA:
+[ ] MÓDULO-003: Feed de precios en tiempo real (WebSocket)
+[ ] MÓDULO-004: Order Book en tiempo real
+[ ] MÓDULO-005: Formulario de órdenes (buy/sell)
+[ ] MÓDULO-006: Gestión de riesgo (validaciones)
+
+MEDIA:
+[ ] MÓDULO-007: Portfolio y posiciones
+[ ] MÓDULO-008: Historial de operaciones
+[ ] MÓDULO-009: Gráficos TradingView
+[ ] MÓDULO-010: Alertas de precio
+
+BAJA:
+[ ] MÓDULO-011: Backtesting básico
+[ ] MÓDULO-012: Dashboard de estadísticas
+[ ] MÓDULO-013: Configuración de usuario
+```
+
+---
+
+## 🐛 BUGS CONOCIDOS
+
+```
+Ninguno aún
+```
+
+---
+
+## ⚠️ DEUDA TÉCNICA
+
+```
+Ninguna aún
+```
+
+---
+
+## 📝 NOTAS DE LA ÚLTIMA SESIÓN
+
+```
+Sesión inicial: Creación del sistema de reglas y configuración del proyecto.
+Los archivos de reglas (.cursor/rules/, .antigravity/, .vscode/) están listos.
+Próximo paso: Inicializar la estructura real del proyecto con la IA.
+```
+
+---
+
+## 🔑 DECISIONES ARQUITECTÓNICAS TOMADAS
+
+| Decisión | Alternativas consideradas | Razón |
+|----------|--------------------------|-------|
+| FastAPI para backend | Django, Flask | Async nativo, OpenAPI auto, tipado |
+| SQLAlchemy async | Tortoise ORM | Estándar, mejor soporte mypy |
+| Zustand para estado | Redux, Context | Más simple, sin boilerplate |
+| TradingView LWC | Recharts, Chart.js | Hecho para trading, libre |
+| PostgreSQL | MySQL, SQLite | Soporte Decimal nativo, performance |
+
+---
+
+## 📦 DEPENDENCIAS EXTERNAS A CONFIGURAR
+
+```
+[ ] Cuenta en Binance Testnet (para desarrollo sin dinero real)
+    URL: https://testnet.binance.vision/
+
+[ ] PostgreSQL corriendo localmente o en Docker
+[ ] Redis corriendo localmente o en Docker
+
+OPCIONAL:
+[ ] Cuenta MT5/MT4 demo (para Forex)
+[ ] TradingView webhook URL (para señales)
+```
+
+---
+
+## 🚀 PASOS PARA INICIAR EL PROYECTO
+
+```bash
+# 1. Clonar/crear el repositorio
+git init trading-terminal
+cd trading-terminal
+
+# 2. Copiar todos los archivos de reglas a su lugar
+
+# 3. Crear entorno Python
+python -m venv venv
+source venv/bin/activate  # Mac/Linux
+# venv\Scripts\activate    # Windows
+
+# 4. Crear proyecto React
+npm create vite@latest frontend -- --template react-ts
+cd frontend && npm install
+
+# 5. Copiar .env.example a .env y completar variables
+
+# 6. Iniciar bases de datos con Docker
+docker-compose up -d
+
+# 7. Decirle a la IA: "Inicia el MÓDULO-001: Autenticación"
+```

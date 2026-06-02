@@ -1,0 +1,310 @@
+---
+description: Reglas específicas para desarrollo Python/FastAPI en el backend de trading
+globs: ["backend/**/*.py"]
+alwaysApply: false
+---
+
+# 🐍 PYTHON/FASTAPI — TRADING TERMINAL BACKEND
+
+## CONFIGURACIÓN DEL PROYECTO PYTHON
+
+### Estructura de dependencias:
+```
+requirements.txt          ← Producción
+requirements-dev.txt      ← Solo desarrollo
+```
+
+```txt
+# requirements.txt
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+sqlalchemy[asyncio]==2.0.29
+asyncpg==0.29.0
+alembic==1.13.1
+pydantic==2.7.1
+pydantic-settings==2.2.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+redis[asyncio]==5.0.4
+httpx==0.27.0
+structlog==24.1.0
+python-binance==1.0.19
+slowapi==0.1.9
+
+# requirements-dev.txt
+pytest==8.1.1
+pytest-asyncio==0.23.6
+pytest-cov==5.0.0
+black==24.4.2
+ruff==0.4.2
+mypy==1.10.0
+```
+
+---
+
+## ⚙️ CONFIGURACIÓN (Settings Pattern)
+
+```python
+# core/config.py — PATRÓN OBLIGATORIO
+
+from pydantic_settings import BaseSettings
+from pydantic import validator
+from typing import Optional
+
+class Settings(BaseSettings):
+    """
+    Todas las configuraciones vienen de variables de entorno.
+    Nunca valores hardcodeados aquí.
+    """
+    # Base de datos
+    DATABASE_URL: str
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
+    # Seguridad
+    SECRET_KEY: str
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60
+    
+    # APIs de Trading
+    BINANCE_API_KEY: Optional[str] = None
+    BINANCE_API_SECRET: Optional[str] = None
+    MT5_LOGIN: Optional[str] = None
+    MT5_PASSWORD: Optional[str] = None
+    MT5_SERVER: Optional[str] = None
+    
+    # App
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = False
+    ALLOWED_ORIGINS: str = "http://localhost:5173"
+    
+    @validator('SECRET_KEY')
+    def secret_key_must_be_strong(cls, v):
+        if len(v) < 32:
+            raise ValueError('SECRET_KEY debe tener al menos 32 caracteres')
+        return v
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+settings = Settings()  # Singleton — importar este objeto
+```
+
+---
+
+## 🗄️ MODELOS DE BASE DE DATOS
+
+```python
+# models/order.py — SQLAlchemy async
+
+from sqlalchemy import Column, String, Numeric, Enum, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from datetime import datetime
+import uuid
+import enum
+
+from core.database import Base
+
+class OrderStatus(str, enum.Enum):
+    PENDING = "pending"
+    OPEN = "open"
+    FILLED = "filled"
+    CANCELLED = "cancelled"
+    REJECTED = "rejected"
+
+class Order(Base):
+    __tablename__ = "orders"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    symbol = Column(String(20), nullable=False, index=True)
+    side = Column(String(4), nullable=False)          # BUY / SELL
+    order_type = Column(String(20), nullable=False)   # MARKET / LIMIT
+    status = Column(String(20), nullable=False, default=OrderStatus.PENDING)
+    
+    quantity = Column(Numeric(precision=20, scale=8), nullable=False)
+    price = Column(Numeric(precision=20, scale=8), nullable=True)
+    fill_price = Column(Numeric(precision=20, scale=8), nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    filled_at = Column(DateTime(timezone=True), nullable=True)
+    
+    exchange_order_id = Column(String(100), nullable=True, unique=True)
+    
+    # Relaciones
+    user = relationship("User", back_populates="orders")
+    
+    def __repr__(self):
+        return f"<Order {self.id}: {self.side} {self.quantity} {self.symbol} @ {self.price}>"
+```
+
+---
+
+## 🔗 ENDPOINTS FASTAPI
+
+```python
+# api/v1/orders.py — Patrón completo de endpoint
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.deps import get_current_user, get_db
+from schemas.order_schema import OrderCreate, OrderResponse, OrderListResponse
+from services.order_service import OrderService
+from core.exceptions import InsufficientFundsError, RiskViolationError
+from core.logger import logger
+
+router = APIRouter(prefix="/orders", tags=["orders"])
+order_service = OrderService()
+
+@router.post("/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
+async def create_order(
+    order_data: OrderCreate,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Crear nueva orden de trading.
+    
+    Valida riesgo, verifica fondos y envía al exchange.
+    """
+    try:
+        order = await order_service.create_order(
+            db=db,
+            order_data=order_data,
+            user_id=current_user.id
+        )
+        logger.info("order.created", order_id=str(order.id), user_id=str(current_user.id))
+        return order
+        
+    except InsufficientFundsError as e:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=str(e)
+        )
+    except RiskViolationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error("order.creation.failed", error=str(e), user_id=str(current_user.id))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno al procesar la orden"
+        )
+
+@router.get("/", response_model=OrderListResponse)
+async def list_orders(
+    status: Optional[str] = None,
+    symbol: Optional[str] = None,
+    limit: int = 50,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Listar órdenes del usuario actual con filtros opcionales."""
+    orders = await order_service.list_orders(
+        db=db,
+        user_id=current_user.id,
+        status=status,
+        symbol=symbol,
+        limit=limit
+    )
+    return {"orders": orders, "total": len(orders)}
+```
+
+---
+
+## 🗃️ MIGRACIONES CON ALEMBIC
+
+```bash
+# Crear nueva migración
+alembic revision --autogenerate -m "descripcion del cambio"
+
+# Aplicar migraciones
+alembic upgrade head
+
+# Ver estado
+alembic current
+
+# Rollback
+alembic downgrade -1
+```
+
+```python
+# alembic/env.py — Configuración para async
+from alembic import context
+from sqlalchemy.ext.asyncio import create_async_engine
+from app.core.config import settings
+from app.models import Base  # Importar todos los modelos
+
+target_metadata = Base.metadata
+```
+
+---
+
+## 🐛 MANEJO DE EXCEPCIONES
+
+```python
+# core/exceptions.py — Excepciones del dominio
+
+class TradingError(Exception):
+    """Base para todas las excepciones del dominio trading."""
+    pass
+
+class InsufficientFundsError(TradingError):
+    """Fondos insuficientes para la operación."""
+    pass
+
+class RiskViolationError(TradingError):
+    """La operación viola las reglas de gestión de riesgo."""
+    pass
+
+class OrderExecutionError(TradingError):
+    """Error al ejecutar la orden en el exchange."""
+    pass
+
+class ExchangeConnectionError(TradingError):
+    """Error de conexión con el exchange."""
+    pass
+
+class InvalidOrderError(TradingError):
+    """Los parámetros de la orden son inválidos."""
+    pass
+
+# En main.py — Handler global
+@app.exception_handler(TradingError)
+async def trading_error_handler(request, exc: TradingError):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": str(exc), "type": type(exc).__name__}
+    )
+```
+
+---
+
+## ⚡ PERFORMANCE — Async Best Practices
+
+```python
+# ✅ CORRECTO — Operaciones paralelas cuando son independientes
+import asyncio
+
+async def get_portfolio_data(user_id: str) -> dict:
+    # Ejecutar en paralelo, no en secuencia
+    balance, positions, orders = await asyncio.gather(
+        portfolio_repo.get_balance(user_id),
+        portfolio_repo.get_positions(user_id),
+        order_repo.get_open_orders(user_id)
+    )
+    return {"balance": balance, "positions": positions, "orders": orders}
+
+# ❌ INCORRECTO — En secuencia cuando podrían ser paralelas
+async def get_portfolio_data_slow(user_id: str) -> dict:
+    balance = await portfolio_repo.get_balance(user_id)
+    positions = await portfolio_repo.get_positions(user_id)  # Espera a balance
+    orders = await order_repo.get_open_orders(user_id)       # Espera a positions
+    return {"balance": balance, "positions": positions, "orders": orders}
+```

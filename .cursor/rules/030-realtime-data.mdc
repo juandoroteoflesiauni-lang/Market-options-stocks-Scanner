@@ -1,0 +1,324 @@
+---
+description: Reglas para manejo de datos en tiempo real, WebSockets y feeds de mercado
+globs: ["**/websocket*", "**/stream*", "**/hooks/use*", "**/store/*Store*"]
+alwaysApply: false
+---
+
+# ⚡ DATOS EN TIEMPO REAL — TRADING TERMINAL
+
+## PRINCIPIOS DE TRADING EN TIEMPO REAL
+
+Los datos de mercado llegan miles de veces por segundo.
+Un error en este módulo = datos incorrectos = decisiones de trading equivocadas = pérdidas.
+
+---
+
+## 🔌 ARQUITECTURA WEBSOCKET BACKEND
+
+```python
+# backend/app/websockets/market_feed.py
+
+from fastapi import WebSocket, WebSocketDisconnect
+from typing import Dict, Set
+import asyncio
+import json
+
+class MarketFeedManager:
+    """
+    Gestiona todas las conexiones WebSocket de clientes.
+    Patrón: PubSub — un stream de exchange, N clientes.
+    """
+    
+    def __init__(self):
+        # symbol -> set de websockets conectados
+        self._subscribers: Dict[str, Set[WebSocket]] = {}
+        self._lock = asyncio.Lock()
+    
+    async def subscribe(self, websocket: WebSocket, symbol: str) -> None:
+        """Suscribir cliente a un símbolo."""
+        async with self._lock:
+            if symbol not in self._subscribers:
+                self._subscribers[symbol] = set()
+                # Iniciar feed del exchange si es el primero
+                asyncio.create_task(self._start_exchange_feed(symbol))
+            self._subscribers[symbol].add(websocket)
+    
+    async def unsubscribe(self, websocket: WebSocket, symbol: str) -> None:
+        """Desuscribir cliente — SIEMPRE llamar en disconnect."""
+        async with self._lock:
+            if symbol in self._subscribers:
+                self._subscribers[symbol].discard(websocket)
+                if not self._subscribers[symbol]:
+                    # Limpiar stream si no hay más clientes
+                    del self._subscribers[symbol]
+    
+    async def broadcast(self, symbol: str, data: dict) -> None:
+        """Enviar datos a todos los clientes suscritos."""
+        if symbol not in self._subscribers:
+            return
+        
+        dead_connections = set()
+        message = json.dumps(data)
+        
+        for websocket in self._subscribers[symbol].copy():
+            try:
+                await websocket.send_text(message)
+            except Exception:
+                dead_connections.add(websocket)
+        
+        # Limpiar conexiones muertas
+        for ws in dead_connections:
+            await self.unsubscribe(ws, symbol)
+    
+    async def _start_exchange_feed(self, symbol: str) -> None:
+        """Conectar al exchange y retransmitir datos."""
+        try:
+            async for tick in exchange.get_price_stream(symbol):
+                if symbol not in self._subscribers:
+                    break  # No hay más suscriptores
+                await self.broadcast(symbol, {
+                    "type": "tick",
+                    "symbol": symbol,
+                    "price": str(tick.price),
+                    "volume": str(tick.volume),
+                    "timestamp": tick.timestamp.isoformat()
+                })
+        except Exception as e:
+            logger.error(f"Exchange feed error for {symbol}: {e}")
+
+feed_manager = MarketFeedManager()
+
+# Endpoint WebSocket
+@router.websocket("/ws/market/{symbol}")
+async def market_websocket(websocket: WebSocket, symbol: str):
+    await websocket.accept()
+    await feed_manager.subscribe(websocket, symbol)
+    try:
+        while True:
+            # Mantener conexión viva con heartbeat
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await feed_manager.unsubscribe(websocket, symbol)
+```
+
+---
+
+## 🔌 ARQUITECTURA WEBSOCKET FRONTEND
+
+```typescript
+// hooks/useMarketFeed.ts
+
+import { useEffect, useRef, useCallback } from 'react';
+import { useMarketStore } from '@/store/marketStore';
+
+interface MarketFeedOptions {
+  symbol: string;
+  onError?: (error: Event) => void;
+}
+
+export const useMarketFeed = ({ symbol, onError }: MarketFeedOptions) => {
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const updateTick = useMarketStore(s => s.updateTick);
+  
+  const connect = useCallback(() => {
+    // Limpiar conexión anterior
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.close();
+    }
+    
+    const ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/market/${symbol}`);
+    wsRef.current = ws;
+    
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'tick') {
+          updateTick(data.symbol, {
+            price: parseFloat(data.price),
+            volume: parseFloat(data.volume),
+            timestamp: new Date(data.timestamp)
+          });
+        }
+      } catch (e) {
+        console.error('Error parsing market data:', e);
+      }
+    };
+    
+    ws.onerror = (error) => {
+      console.error(`WS Error for ${symbol}:`, error);
+      onError?.(error);
+    };
+    
+    ws.onclose = (event) => {
+      if (!event.wasClean) {
+        // Reconexión automática con backoff exponencial
+        reconnectTimeoutRef.current = setTimeout(connect, 3000);
+      }
+    };
+  }, [symbol, updateTick, onError]);
+  
+  useEffect(() => {
+    connect();
+    
+    // CRÍTICO: cleanup en unmount para evitar memory leaks
+    return () => {
+      clearTimeout(reconnectTimeoutRef.current);
+      wsRef.current?.close(1000, 'Component unmounted');
+      wsRef.current = null;
+    };
+  }, [connect]);
+};
+```
+
+---
+
+## 🗃️ MARKET STORE — Estado de mercado en tiempo real
+
+```typescript
+// store/marketStore.ts
+
+import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
+
+interface TickData {
+  price: number;
+  volume: number;
+  timestamp: Date;
+  change24h?: number;
+  high24h?: number;
+  low24h?: number;
+}
+
+interface MarketState {
+  ticks: Record<string, TickData>;        // symbol → últimos datos
+  orderBooks: Record<string, OrderBook>;  // symbol → order book
+  
+  // Acciones
+  updateTick: (symbol: string, tick: TickData) => void;
+  updateOrderBook: (symbol: string, book: OrderBook) => void;
+  
+  // Selectores computados
+  getPrice: (symbol: string) => number | null;
+}
+
+export const useMarketStore = create<MarketState>()(
+  subscribeWithSelector((set, get) => ({
+    ticks: {},
+    orderBooks: {},
+    
+    updateTick: (symbol, tick) => set((state) => ({
+      ticks: { ...state.ticks, [symbol]: tick }
+    })),
+    
+    updateOrderBook: (symbol, book) => set((state) => ({
+      orderBooks: { ...state.orderBooks, [symbol]: book }
+    })),
+    
+    getPrice: (symbol) => get().ticks[symbol]?.price ?? null,
+  }))
+);
+```
+
+---
+
+## 📊 NORMALIZACIÓN DE DATOS DE MERCADO
+
+```python
+# services/market_normalizer.py
+
+from decimal import Decimal
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class NormalizedTick:
+    """Formato interno estándar para ticks de precio."""
+    symbol: str
+    price: Decimal
+    bid: Decimal
+    ask: Decimal
+    volume_24h: Decimal
+    change_24h_pct: Decimal
+    timestamp: datetime
+    exchange: str
+
+class BinanceNormalizer:
+    """Convierte respuestas de Binance al formato interno."""
+    
+    @staticmethod
+    def normalize_ticker(raw: dict) -> NormalizedTick:
+        return NormalizedTick(
+            symbol=raw['symbol'],
+            price=Decimal(raw['lastPrice']),
+            bid=Decimal(raw['bidPrice']),
+            ask=Decimal(raw['askPrice']),
+            volume_24h=Decimal(raw['volume']),
+            change_24h_pct=Decimal(raw['priceChangePercent']),
+            timestamp=datetime.fromtimestamp(raw['closeTime'] / 1000),
+            exchange='binance'
+        )
+
+# SIEMPRE normalizar datos externos antes de usarlos internamente
+# Esto permite cambiar de exchange sin tocar el resto del código
+```
+
+---
+
+## ⚡ RENDIMIENTO EN TIEMPO REAL
+
+### Reglas de rendimiento para trading:
+
+```typescript
+// ✅ Usar memo para evitar re-renders en componentes de precio
+const PriceCell = React.memo(({ symbol }: { symbol: string }) => {
+  // Solo re-renderiza cuando cambia el precio de ESTE símbolo
+  const price = useMarketStore(s => s.ticks[symbol]?.price);
+  return <span>${price?.toFixed(2) ?? '---'}</span>;
+});
+
+// ✅ Throttle para updates de UI muy frecuentes (>10/seg)
+// No necesitamos actualizar la UI 100 veces por segundo
+const useThrottledPrice = (symbol: string, ms: number = 100) => {
+  const price = useMarketStore(s => s.ticks[symbol]?.price);
+  return useThrottle(price, ms);
+};
+
+// ❌ NUNCA suscribirse a todo el store en un componente
+// Esto re-renderiza con CADA cambio de cualquier precio
+const BadComponent = () => {
+  const allTicks = useMarketStore(s => s); // ← RE-RENDERIZA TODO
+  ...
+};
+```
+
+---
+
+## 🔄 RECONNECTION Y RESILIENCIA
+
+```typescript
+// utils/wsReconnect.ts — Backoff exponencial
+
+export class ReconnectStrategy {
+  private attempts = 0;
+  private maxAttempts = 10;
+  private baseDelay = 1000;  // 1 segundo
+  private maxDelay = 30000;  // 30 segundos
+  
+  getDelay(): number {
+    const delay = Math.min(
+      this.baseDelay * Math.pow(2, this.attempts),
+      this.maxDelay
+    );
+    // Jitter para evitar thundering herd
+    return delay + Math.random() * 1000;
+  }
+  
+  shouldRetry(): boolean {
+    return this.attempts < this.maxAttempts;
+  }
+  
+  increment(): void { this.attempts++; }
+  reset(): void { this.attempts = 0; }
+}
+```

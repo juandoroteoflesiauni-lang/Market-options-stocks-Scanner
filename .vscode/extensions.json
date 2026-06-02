@@ -1,0 +1,81 @@
+{
+  "recommendations": [
+    // ── IA Coding ─────────────────────────────────────────────────
+    // Copilot para autocomplete inline mientras escribís
+    "GitHub.copilot",
+    // Copilot Chat con las instrucciones del proyecto cargadas
+    "GitHub.copilot-chat",
+    // Claude Code para VS Code (alternativa a Copilot)
+    "claude.claude-vscode",
+
+    // ── Python & Backend ──────────────────────────────────────────
+    // Soporte Python completo: syntax, debugging, venv
+    "ms-python.python",
+    // Pylance: type checking en tiempo real (como spell-check para tipos)
+    "ms-python.vscode-pylance",
+    // Black: formateo automático de Python al guardar
+    "ms-python.black-formatter",
+    // Ruff: linter ultrarrápido, reemplaza pylint + isort + más
+    "charliermarsh.ruff",
+    // mypy: detecta errores de tipos antes de correr el código
+    "ms-python.mypy-type-checker",
+    // isort: organiza imports de Python automáticamente
+    "ms-python.isort",
+    // Pytest: runner de tests integrado en VS Code
+    "ms-python.pytest",
+
+    // ── Frontend & TypeScript ─────────────────────────────────────
+    // Tailwind v4: autocompletado de clases CSS
+    "bradlc.vscode-tailwindcss",
+    // ESLint: detecta errores de TypeScript/React
+    "dbaeumer.vscode-eslint",
+    // Prettier: formateo automático de TypeScript/JS/CSS
+    "esbenp.prettier-vscode",
+    // Snippets de React (props, hooks, componentes rápidos)
+    "dsznajder.es7-react-js-snippets",
+    // Autocomplete de rutas de archivos
+    "christian-kohler.path-intellisense",
+    // Vitest: runner de tests de frontend integrado
+    "vitest.explorer",
+
+    // ── Base de Datos ─────────────────────────────────────────────
+    // SQL Tools: editor y runner de queries SQL
+    "mtxr.sqltools",
+    // Driver PostgreSQL para SQL Tools
+    "mtxr.sqltools-driver-pg",
+
+    // ── Git & CI ──────────────────────────────────────────────────
+    // GitLens: blame, historial, comparaciones inline
+    "eamodio.gitlens",
+    // Git Graph: visualización del árbol de commits
+    "mhutchie.git-graph",
+    // GitHub Actions: validación de YAML de workflows
+    "github.vscode-github-actions",
+
+    // ── Docker & Infraestructura ──────────────────────────────────
+    // Docker: manejo de containers y docker-compose
+    "ms-azuretools.vscode-docker",
+    // YAML: syntax para docker-compose, GitHub Actions
+    "redhat.vscode-yaml",
+
+    // ── DX & Calidad del Código ───────────────────────────────────
+    // Error Lens: muestra errores inline sin necesidad de hover (ESENCIAL)
+    "usernamehw.errorlens",
+    // Code Spell Checker: detecta typos en variable names y comentarios
+    "streetsidesoftware.code-spell-checker",
+    // TODO Tree: panel visual de TODO, FIXME, CHECKPOINT en el proyecto
+    "gruntfuggly.todo-tree",
+    // Markdown All in One: preview de CLAUDE.md y documentos
+    "yzhang.markdown-all-in-one",
+    // Mermaid en Markdown: renderiza diagramas en los docs
+    "bierner.markdown-mermaid",
+
+    // ── Variables de Entorno ──────────────────────────────────────
+    // Syntax highlighting para archivos .env
+    "mikestead.dotenv",
+
+    // ── Seguridad ────────────────────────────────────────────────
+    // Snyk: escanea dependencias en busca de vulnerabilidades
+    "snyk-security.snyk-vulnerability-scanner"
+  ]
+}

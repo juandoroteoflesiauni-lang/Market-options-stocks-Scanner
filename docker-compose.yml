@@ -1,0 +1,81 @@
+version: '3.8'
+
+# ============================================================
+# TRADING TERMINAL — Docker Compose para Desarrollo
+# Uso: docker-compose up -d
+# ============================================================
+
+services:
+  # === BASE DE DATOS PRINCIPAL ===
+  postgres:
+    image: postgres:15-alpine
+    container_name: trading_postgres
+    environment:
+      POSTGRES_DB: trading_db
+      POSTGRES_USER: trading_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_cambiar}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trading_user -d trading_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # === CACHÉ Y COLAS (Redis) ===
+  redis:
+    image: redis:7-alpine
+    container_name: trading_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # === VISUALIZADOR DE DB (Desarrollo) ===
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: trading_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@trading.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - tools  # Solo iniciar con: docker-compose --profile tools up
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ============================================================
+# COMANDOS ÚTILES:
+# 
+# Iniciar todo:
+#   docker-compose up -d
+#
+# Ver logs:
+#   docker-compose logs -f postgres
+#
+# Conectar a PostgreSQL:
+#   docker exec -it trading_postgres psql -U trading_user -d trading_db
+#
+# Detener todo:
+#   docker-compose down
+#
+# Eliminar datos (¡cuidado!):
+#   docker-compose down -v
+# ============================================================

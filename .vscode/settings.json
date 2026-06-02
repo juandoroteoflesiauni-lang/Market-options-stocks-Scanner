@@ -1,0 +1,206 @@
+{
+  // ══════════════════════════════════════════════════════════════════
+  // DEEP TRADING TERMINAL — VS Code Settings v3.0
+  // Compartir en el repositorio (sin datos personales)
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── Editor Core ───────────────────────────────────────────────
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "never"   // Ruff maneja esto para Python
+  },
+  "editor.rulers": [100],
+  "editor.tabSize": 2,
+  "editor.detectIndentation": false,
+  "editor.insertSpaces": true,
+  "editor.trimAutoWhitespace": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // ── Tema: Terminal Financiera Oscura ──────────────────────────
+  "workbench.colorTheme": "GitHub Dark Default",
+  "editor.fontFamily": "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace",
+  "editor.fontLigatures": true,
+  "editor.fontSize": 14,
+  "editor.lineHeight": 22,
+
+  // ── Python: Black + Ruff + mypy ────────────────────────────────
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "black-formatter.args": ["--line-length", "100"],
+  "ruff.lint.args": ["--config", "pyproject.toml"],
+  "ruff.fixAll": true,
+  "mypy-type-checker.args": ["--config-file", "pyproject.toml"],
+  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.autoImportCompletions": true,
+
+  // ── TypeScript / Next.js ──────────────────────────────────────
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.formatOnSave": false,
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 100
+  },
+  "typescript.preferences.strictNullChecks": true,
+  "typescript.preferences.noImplicitAny": true,
+
+  // ── Tailwind v4 ────────────────────────────────────────────────
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cn\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["className:\\s*[\"'`]([^\"'`]*)[\"'`]"]
+  ],
+  "tailwindCSS.includeLanguages": {
+    "typescript": "html",
+    "typescriptreact": "html"
+  },
+
+  // ── Archivos a excluir del explorador ─────────────────────────
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/node_modules": true,
+    "**/.pytest_cache": true,
+    "**/dist": true,
+    "**/.next": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/coverage": true
+  },
+
+  // ── File Nesting (explorador más limpio) ──────────────────────
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "*.ts": "${capture}.js, ${capture}.d.ts, ${capture}.test.ts, ${capture}.spec.ts",
+    "*.tsx": "${capture}.test.tsx, ${capture}.spec.tsx, ${capture}.stories.tsx",
+    "*.py": "test_${capture}.py",
+    "package.json": "package-lock.json, .npmrc, .nvmrc",
+    "pyproject.toml": "poetry.lock, .python-version, setup.py",
+    "next.config.ts": "next-env.d.ts, next.config.js",
+    "tailwind.config.ts": "postcss.config.js",
+    "CLAUDE.md": "PROJECT_CONFIG.md, WORKFLOW_STATE.md",
+    "docker-compose.yml": "docker-compose.*.yml",
+    ".env.local.example": ".env.local, .env"
+  },
+
+  // ── Error Lens (errores inline sin hover) ─────────────────────
+  "errorLens.enabledDiagnosticLevels": ["error", "warning"],
+  "errorLens.fontSize": "12px",
+
+  // ── TODO Tree: rastrear CHECKPOINT entre sesiones ─────────────
+  "todo-tree.general.tags": [
+    "TODO", "FIXME", "HACK", "BUG", "WARN",
+    "CHECKPOINT",
+    "PD-",
+    "SEC-",
+    "ARCH-"
+  ],
+  "todo-tree.highlights.customHighlight": {
+    "CHECKPOINT": {
+      "foreground": "#00d4aa",
+      "type": "tag",
+      "iconColour": "#00d4aa",
+      "icon": "bookmark"
+    },
+    "PD-": {
+      "foreground": "#ff4d6d",
+      "type": "tag",
+      "iconColour": "#ff4d6d",
+      "icon": "shield"
+    },
+    "SEC-": {
+      "foreground": "#f59e0b",
+      "type": "tag",
+      "iconColour": "#f59e0b",
+      "icon": "lock"
+    },
+    "ARCH-": {
+      "foreground": "#818cf8",
+      "type": "tag",
+      "iconColour": "#818cf8",
+      "icon": "circuit-board"
+    }
+  },
+
+  // ── Terminal con PYTHONPATH correcto ──────────────────────────
+  "terminal.integrated.env.linux": {
+    "PYTHONPATH": "${workspaceFolder}/backend"
+  },
+  "terminal.integrated.env.osx": {
+    "PYTHONPATH": "${workspaceFolder}/backend"
+  },
+  "terminal.integrated.env.windows": {
+    "PYTHONPATH": "${workspaceFolder}/backend"
+  },
+
+  // ── Búsqueda: excluir ruido de resultados ─────────────────────
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/__pycache__": true,
+    "**/.venv": true,
+    "**/coverage": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true
+  },
+
+  // ── Seguridad: ocultar .env del file watcher ──────────────────
+  "files.watcherExclude": {
+    "**/.env": true,
+    "**/.env.local": true
+  },
+
+  // ── GitHub Copilot: Instrucciones del Proyecto en Español ─────
+  // Estas instrucciones se cargan automáticamente en Copilot Chat
+  "github.copilot.chat.codeGeneration.instructions": [
+    {
+      "text": "PROYECTO: Estás desarrollando 'Deep Trading Terminal', una terminal de trading cuantitativo profesional. El sistema analiza mercados financieros en tiempo real para generar señales de trading en opciones y futuros. El usuario habla español y tiene nivel cero de programación. SIEMPRE explicar en español."
+    },
+    {
+      "text": "ARQUITECTURA: Sistema de 4 fases (Phase A Scanner → Phase B Microestructura VPIN/OFI → Phase C Options Analysis → Phase D Live Monitor WebSocket). Backend Python/FastAPI con capas: Router → Service → Repository. Frontend TypeScript/Next.js con Zustand. PostgreSQL + Redis. MarketDataHub es el ÚNICO componente que toca APIs externas (Anti-Corruption Layer)."
+    },
+    {
+      "text": "PD-1 — SECRETS: NUNCA hardcodear API keys, tokens, passwords o cualquier credencial. SIEMPRE usar os.getenv() desde .env con validación. Si la variable no existe, lanzar ValueError con mensaje claro. Esta regla es absoluta y sin excepciones."
+    },
+    {
+      "text": "PD-2 — DINERO: NUNCA usar float para precios, cantidades, P&L o cualquier cálculo financiero. SIEMPRE usar Decimal (Python) con ROUND_HALF_UP. En TypeScript, precios como string, convertir a Decimal solo para cálculos. Un error de float en producción = pérdida de dinero real."
+    },
+    {
+      "text": "PD-3 — PROCESO: SIEMPRE Blueprint (plan completo con lista de archivos, esquema de datos y tests) antes de escribir una sola línea de código. Esperar aprobación explícita del usuario. Nunca asumir que el usuario quiere que empieces a codear sin mostrar el plan."
+    },
+    {
+      "text": "PD-4 — ARCHIVOS: MÁXIMO 2 archivos por turno de conversación. Código COMPLETO en cada archivo (nunca fragmentos ni '... resto del código ...'). Todos los imports al inicio. Manejo de errores explícito. Type hints en TODAS las funciones."
+    },
+    {
+      "text": "PYTHON STANDARDS: Type hints obligatorios. Pydantic v2 con frozen=True para datos de mercado. async/await para todo I/O. Logging en TODA operación financiera (logger.info ANTES de enviar órdenes). Backoff exponencial en llamadas a APIs. Máximo 300 líneas por archivo."
+    },
+    {
+      "text": "TYPESCRIPT STANDARDS: Nunca 'any'. Tipos explícitos siempre. Zustand para todo estado global (nunca useState para datos compartidos). useEffect con cleanup return para WebSockets. Precios como string en interfaces, Decimal para cálculos."
+    },
+    {
+      "text": "WEBSOCKETS: Siempre implementar reconnect automático con backoff exponencial (máximo 30 segundos entre reintentos). Siempre cleanup en useEffect return. Siempre manejar onclose, onerror y onopen. Publicar estado de conexión al Zustand store."
+    },
+    {
+      "text": "FIN DE SESIÓN: Al terminar, SIEMPRE: (1) Agregar comentario CHECKPOINT en el código indicando dónde continuar. (2) Actualizar PROJECT_CONFIG.md con módulos completados y próximo paso. (3) Proponer mensaje de commit semántico (feat/fix/refactor/test). (4) Listar TODO y FIXME agregados."
+    }
+  ]
+}

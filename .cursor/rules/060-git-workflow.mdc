@@ -1,0 +1,253 @@
+---
+description: Reglas de Git y control de versiones — punto de recuperación ante errores del vibecoding
+globs: ["**/.git*", "**/CHANGELOG*"]
+alwaysApply: false
+---
+
+# 🔀 GIT WORKFLOW — TRADING TERMINAL
+
+## GIT ES TU RED DE SEGURIDAD
+
+En vibecoding, la IA puede equivocarse y romper cosas.
+Git es la única forma de volver a un estado funcional.
+**Hacer commit frecuente = poder deshacer errores de la IA.**
+
+---
+
+## 📋 CONVENCIÓN DE COMMITS (Conventional Commits)
+
+```bash
+# Formato: tipo(módulo): descripción corta en español
+
+# Tipos:
+feat:     Nueva funcionalidad
+fix:      Corrección de bug
+refactor: Reorganización sin cambiar comportamiento
+test:     Agregar/modificar tests
+docs:     Documentación
+style:    Formato, espacios (sin cambios de lógica)
+chore:    Tareas de mantenimiento
+security: Cambios de seguridad
+
+# Ejemplos:
+git commit -m "feat(orders): implementar creación de órdenes MARKET"
+git commit -m "fix(auth): corregir expiración de JWT en zona horaria UTC"
+git commit -m "security(api): agregar rate limiting en endpoints de órdenes"
+git commit -m "test(risk): agregar tests para validación de tamaño de posición"
+```
+
+---
+
+## 🌿 ESTRATEGIA DE BRANCHES
+
+```
+main
+├── Es el código en producción
+├── NUNCA commitear directamente
+└── Solo recibe merges de develop
+
+develop
+├── Código integrado y testeado
+├── Base para nuevas features
+└── Merge a main cuando el módulo está completo
+
+feature/[nombre-del-módulo]
+├── Desarrollo de cada módulo
+├── Ejemplos:
+│   ├── feature/auth-jwt
+│   ├── feature/order-management
+│   ├── feature/realtime-feed
+│   └── feature/portfolio-tracker
+└── Merge a develop cuando está testeado
+```
+
+### Comandos de gestión de branches:
+```bash
+# Crear branch para nuevo módulo
+git checkout develop
+git pull
+git checkout -b feature/nombre-del-modulo
+
+# Cuando el módulo está listo
+git checkout develop
+git merge feature/nombre-del-modulo
+git push
+
+# Ver estado actual
+git status
+git log --oneline -10
+```
+
+---
+
+## ⏱️ CUÁNDO HACER COMMIT
+
+```
+✅ Hacer commit:
+- Al terminar cada archivo nuevo
+- Al hacer pasar un test
+- Antes de un refactor grande
+- Al final de cada sesión de trabajo
+- Cuando algo funciona (¡aunque sea parcial!)
+
+❌ NO hacer commit:
+- Código que no compila/tiene errores de sintaxis
+- Con secrets o API keys (verificar .gitignore)
+- Con console.log de debug masivos
+- Cuando los tests están fallando
+```
+
+---
+
+## 🆘 COMANDOS DE EMERGENCIA
+
+```bash
+# Ver qué archivos cambiaron
+git status
+git diff
+
+# DESHACER cambios en un archivo (volver al último commit)
+git checkout -- nombre-del-archivo.py
+
+# DESHACER TODOS los cambios no commiteados (¡irreversible!)
+git checkout -- .
+
+# Volver al commit anterior (sin perder los cambios - safe)
+git reset HEAD~1 --soft
+
+# Volver al commit anterior (perdiendo cambios - destructivo)
+git reset HEAD~1 --hard
+
+# Ver historial
+git log --oneline -20
+
+# Volver a un commit específico (solo para ver)
+git checkout [hash-del-commit]
+
+# Crear branch desde un commit anterior (para recuperar código)
+git checkout -b recovery/[descripcion] [hash-del-commit]
+```
+
+---
+
+## 🗂️ .GITIGNORE COMPLETO PARA TRADING TERMINAL
+
+```gitignore
+# ============================================================
+# TRADING TERMINAL — .gitignore
+# ============================================================
+
+# === SECRETOS (NUNCA COMMITEAR) ===
+.env
+.env.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.p12
+secrets/
+credentials/
+
+# === PYTHON ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# === NODE / FRONTEND ===
+node_modules/
+dist/
+.next/
+.nuxt/
+*.local
+
+# === BASES DE DATOS LOCALES ===
+*.sqlite
+*.db
+*.db-journal
+
+# === IDEs ===
+.idea/
+.vscode/settings.json     # Solo settings personales, no compartir
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === LOGS ===
+*.log
+logs/
+!logs/.gitkeep            # Mantener carpeta pero no los logs
+
+# === TRADING ESPECÍFICO ===
+backtest_results/
+trading_data/
+market_cache/
+```
+
+---
+
+## 🔄 WORKFLOW COMPLETO DE SESIÓN
+
+```bash
+# === INICIO DE SESIÓN ===
+git status                           # Ver estado actual
+git pull                             # Traer cambios remotos
+git checkout feature/modulo-actual   # Ir al branch del módulo
+
+# === DURANTE EL DESARROLLO ===
+# ... La IA escribe código ...
+git add [archivo-específico]         # Agregar archivo específico
+git commit -m "feat(módulo): ..."    # Commit descriptivo
+
+# === FIN DE SESIÓN ===
+git status                           # Verificar nada quedó sin commitear
+git add .
+git commit -m "wip(módulo): checkpoint final de sesión"
+git push                             # Subir al remoto
+
+# === CUANDO UN MÓDULO ESTÁ COMPLETO ===
+git checkout develop
+git merge feature/nombre-del-modulo
+git push
+git branch -d feature/nombre-del-modulo  # Borrar branch terminado
+```
+
+---
+
+## 📝 CHANGELOG
+
+Mantener `CHANGELOG.md` actualizado:
+
+```markdown
+# Changelog
+
+## [Unreleased]
+
+### Agregado
+- feat(auth): Sistema de autenticación JWT con refresh tokens
+- feat(orders): Endpoint para crear órdenes MARKET y LIMIT
+
+### Modificado  
+- refactor(risk): Extraer validaciones a RiskService separado
+
+### Corregido
+- fix(websocket): Memory leak en reconexión automática
+
+## [0.1.0] - 2025-06-01
+
+### Agregado
+- Estructura inicial del proyecto
+- Configuración de entorno de desarrollo
+```

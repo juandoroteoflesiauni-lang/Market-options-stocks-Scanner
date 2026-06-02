@@ -1,0 +1,315 @@
+---
+description: Reglas de seguridad críticas para la terminal de trading — dinero real en juego
+globs: ["backend/**/*.py", "**/*.env*", "**/config*", "**/auth*"]
+alwaysApply: false
+---
+
+# 🔴 SEGURIDAD — TRADING TERMINAL
+## ESTAS REGLAS PROTEGEN DINERO REAL. NO NEGOCIABLES.
+
+---
+
+## 🔑 GESTIÓN DE SECRETOS — REGLA #1
+
+### JAMÁS en el código fuente:
+```python
+# ❌ CRÍTICO — NUNCA HACER ESTO
+BINANCE_API_KEY = "abc123xyz..."
+db_password = "mi_password_secreta"
+JWT_SECRET = "supersecret"
+
+# ✅ SIEMPRE así
+import os
+from core.config import settings
+
+BINANCE_API_KEY = settings.BINANCE_API_KEY  # Lee desde .env
+```
+
+### Archivo `.env` — Template obligatorio:
+```env
+# ============================================================
+# TRADING TERMINAL — VARIABLES DE ENTORNO
+# NUNCA commitear este archivo. Está en .gitignore.
+# ============================================================
+
+# Base de datos
+DATABASE_URL=postgresql://trading_user:CAMBIAR_PASSWORD@localhost:5432/trading_db
+REDIS_URL=redis://localhost:6379/0
+
+# Autenticación JWT
+SECRET_KEY=GENERAR_CON_openssl_rand_hex_32
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=60
+
+# APIs de Trading (dejar vacío, completar manualmente)
+BINANCE_API_KEY=
+BINANCE_API_SECRET=
+MT5_LOGIN=
+MT5_PASSWORD=
+MT5_SERVER=
+
+# Entorno
+ENVIRONMENT=development
+DEBUG=false
+ALLOWED_ORIGINS=http://localhost:5173
+```
+
+### `.gitignore` obligatorio:
+```gitignore
+# CRÍTICO — NUNCA commitear
+.env
+.env.local
+.env.production
+*.pem
+*.key
+secrets/
+```
+
+---
+
+## 🛡️ AUTENTICACIÓN Y AUTORIZACIÓN
+
+### JWT Implementation:
+```python
+# core/security.py
+
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from core.config import settings
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_access_token(data: dict) -> str:
+    """Crear JWT con expiración."""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "type": "access"
+    })
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+def verify_token(token: str) -> dict:
+    """Verificar JWT — lanza excepción si inválido."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            raise ValueError("Invalid token type")
+        return payload
+    except JWTError:
+        raise UnauthorizedError("Token inválido o expirado")
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
+```
+
+### Dependency para proteger endpoints:
+```python
+# api/deps.py
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+security = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> User:
+    """Dependencia que valida JWT en TODOS los endpoints protegidos."""
+    token = credentials.credentials
+    payload = verify_token(token)
+    user = await user_repo.get_by_id(db, payload["sub"])
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Usuario no autorizado")
+    return user
+
+# Uso en endpoints:
+@router.post("/orders")
+async def create_order(
+    order_data: OrderCreate,
+    current_user: User = Depends(get_current_user)  # ← SIEMPRE
+):
+    ...
+```
+
+---
+
+## 🚦 RATE LIMITING — Protección contra abuso
+
+```python
+# Instalar: pip install slowapi
+
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+
+# En endpoints críticos de trading:
+@router.post("/orders")
+@limiter.limit("10/minute")  # Máx 10 órdenes por minuto
+async def create_order(...):
+    ...
+
+@router.post("/auth/login")
+@limiter.limit("5/minute")   # Anti-brute force
+async def login(...):
+    ...
+```
+
+---
+
+## ✅ VALIDACIÓN DE INPUTS — Prevenir inyecciones
+
+```python
+# schemas/order_schema.py
+from pydantic import BaseModel, validator, Field
+from decimal import Decimal
+from typing import Literal
+
+class OrderCreate(BaseModel):
+    symbol: str = Field(..., regex=r'^[A-Z]{2,10}USDT?$', example="BTCUSDT")
+    side: Literal["BUY", "SELL"]
+    order_type: Literal["MARKET", "LIMIT", "STOP_LIMIT"]
+    quantity: Decimal = Field(..., gt=0, le=1000000)
+    price: Optional[Decimal] = Field(None, gt=0)
+    
+    @validator('quantity')
+    def validate_quantity_precision(cls, v):
+        # Máximo 8 decimales para crypto
+        if abs(v.as_tuple().exponent) > 8:
+            raise ValueError('Máximo 8 decimales en quantity')
+        return v
+    
+    @validator('price', always=True)
+    def price_required_for_limit(cls, v, values):
+        if values.get('order_type') == 'LIMIT' and v is None:
+            raise ValueError('Price requerido para órdenes LIMIT')
+        return v
+```
+
+---
+
+## 📋 LOGGING DE AUDITORÍA — Obligatorio para todas las operaciones
+
+```python
+# core/logger.py
+import logging
+import json
+from datetime import datetime
+
+class TradingAuditLogger:
+    """Logger específico para operaciones financieras."""
+    
+    def __init__(self):
+        self.logger = logging.getLogger('trading.audit')
+    
+    def log_order(self, user_id: str, action: str, order_data: dict, result: dict):
+        """Registrar TODAS las operaciones de órdenes."""
+        self.logger.info(json.dumps({
+            "timestamp": datetime.utcnow().isoformat(),
+            "type": "ORDER_ACTION",
+            "user_id": user_id,
+            "action": action,         # CREATE, CANCEL, FILL
+            "order": order_data,
+            "result": result,
+            "ip": request.client.host
+        }))
+    
+    def log_auth(self, user_id: str, action: str, success: bool, ip: str):
+        """Registrar intentos de autenticación."""
+        ...
+
+audit_logger = TradingAuditLogger()
+```
+
+---
+
+## 🔒 CORS — Solo orígenes permitidos
+
+```python
+# main.py
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS.split(","),  # Desde .env
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+# NUNCA: allow_origins=["*"] en producción
+```
+
+---
+
+## 💰 VALIDACIONES FINANCIERAS CRÍTICAS
+
+```python
+# services/risk_service.py
+
+class RiskService:
+    """Todas las validaciones de riesgo antes de ejecutar órdenes."""
+    
+    MAX_ORDER_VALUE_USD = Decimal("10000")
+    MAX_DAILY_VOLUME_USD = Decimal("50000")
+    MAX_POSITION_SIZE_PCT = Decimal("0.25")  # 25% del portfolio
+    
+    async def validate_order(
+        self, 
+        order: OrderCreate, 
+        user_portfolio: Portfolio,
+        current_price: Decimal
+    ) -> None:
+        """
+        Valida riesgo ANTES de enviar orden al exchange.
+        Lanza RiskViolationError si alguna regla se incumple.
+        """
+        order_value = order.quantity * current_price
+        
+        # 1. Límite por orden
+        if order_value > self.MAX_ORDER_VALUE_USD:
+            raise RiskViolationError(
+                f"Orden ${order_value:.2f} excede límite de ${self.MAX_ORDER_VALUE_USD}"
+            )
+        
+        # 2. Verificar fondos disponibles
+        if order.side == "BUY":
+            if user_portfolio.available_usd < order_value:
+                raise InsufficientFundsError(
+                    f"Fondos disponibles ${user_portfolio.available_usd:.2f} < ${order_value:.2f}"
+                )
+        
+        # 3. Tamaño máximo de posición
+        position_pct = order_value / user_portfolio.total_value
+        if position_pct > self.MAX_POSITION_SIZE_PCT:
+            raise RiskViolationError(
+                f"Posición {position_pct:.1%} excede máximo {self.MAX_POSITION_SIZE_PCT:.1%}"
+            )
+        
+        # 4. Volumen diario
+        daily_volume = await self._get_daily_volume(order.user_id)
+        if daily_volume + order_value > self.MAX_DAILY_VOLUME_USD:
+            raise RiskViolationError("Límite de volumen diario alcanzado")
+```
+
+---
+
+## ❌ PROHIBICIONES ABSOLUTAS DE SEGURIDAD
+
+```
+🔴 NUNCA exponer stack traces al cliente (solo en logs del servidor)
+🔴 NUNCA retornar API keys o secrets en responses
+🔴 NUNCA usar MD5 o SHA1 para passwords (usar bcrypt)
+🔴 NUNCA logs con passwords o API keys
+🔴 NUNCA SQL queries con string concatenation (usar ORM/parameterized)
+🔴 NUNCA deshabilitar SSL/TLS en producción
+🔴 NUNCA endpoints de trading sin autenticación
+🔴 NUNCA permitir cantidades negativas en órdenes
+🔴 NUNCA asumir que los datos del cliente son válidos
+```

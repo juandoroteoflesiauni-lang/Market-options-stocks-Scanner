@@ -1,0 +1,332 @@
+---
+description: Reglas para integración con exchanges — Binance, MT5 y adaptadores genéricos
+globs: ["backend/app/services/exchange*", "backend/app/adapters/**/*.py", "**/exchange/**/*.py"]
+alwaysApply: false
+---
+
+# 🔗 INTEGRACIÓN CON EXCHANGES — TRADING TERMINAL
+
+## PRINCIPIO: ADAPTADOR UNIVERSAL
+
+El sistema NUNCA debe depender directamente de la API de un exchange específico.
+Todos los exchanges se acceden a través de un adaptador que implementa la misma interfaz.
+Esto permite cambiar de Binance a MT5 sin tocar el resto del código.
+
+---
+
+## 🏗️ INTERFAZ BASE DEL EXCHANGE
+
+```python
+# adapters/base_exchange.py
+
+from abc import ABC, abstractmethod
+from decimal import Decimal
+from typing import AsyncIterator
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class OrderResult:
+    order_id: str
+    symbol: str
+    side: str
+    order_type: str
+    quantity: Decimal
+    fill_price: Decimal
+    status: str
+    timestamp: datetime
+    exchange: str
+
+@dataclass
+class Ticker:
+    symbol: str
+    price: Decimal
+    bid: Decimal
+    ask: Decimal
+    volume_24h: Decimal
+    change_24h_pct: Decimal
+    timestamp: datetime
+
+@dataclass
+class Balance:
+    asset: str
+    free: Decimal
+    locked: Decimal
+    
+    @property
+    def total(self) -> Decimal:
+        return self.free + self.locked
+
+class BaseExchangeAdapter(ABC):
+    """
+    Interfaz que TODOS los exchanges deben implementar.
+    
+    Si agregas un exchange nuevo, implementa esta clase.
+    No modifiques el código que llama a esta interfaz.
+    """
+    
+    @abstractmethod
+    async def get_ticker(self, symbol: str) -> Ticker:
+        """Obtener precio actual y datos de mercado."""
+        ...
+    
+    @abstractmethod
+    async def get_balances(self) -> list[Balance]:
+        """Obtener todos los balances de la cuenta."""
+        ...
+    
+    @abstractmethod
+    async def place_order(
+        self,
+        symbol: str,
+        side: str,          # "BUY" o "SELL"
+        order_type: str,    # "MARKET" o "LIMIT"
+        quantity: Decimal,
+        price: Decimal | None = None
+    ) -> OrderResult:
+        """Enviar orden al exchange."""
+        ...
+    
+    @abstractmethod
+    async def cancel_order(self, symbol: str, order_id: str) -> bool:
+        """Cancelar orden pendiente."""
+        ...
+    
+    @abstractmethod
+    async def get_order_status(self, symbol: str, order_id: str) -> OrderResult:
+        """Consultar estado de una orden."""
+        ...
+    
+    @abstractmethod
+    async def stream_prices(self, symbol: str) -> AsyncIterator[Ticker]:
+        """Stream de precios en tiempo real."""
+        ...
+```
+
+---
+
+## 🟡 ADAPTADOR BINANCE
+
+```python
+# adapters/binance_adapter.py
+
+from binance import AsyncClient
+from binance.exceptions import BinanceAPIException
+from decimal import Decimal
+from typing import AsyncIterator
+import asyncio
+
+from adapters.base_exchange import BaseExchangeAdapter, OrderResult, Ticker, Balance
+from core.config import settings
+from core.exceptions import ExchangeConnectionError, OrderExecutionError
+from core.logger import logger
+
+class BinanceAdapter(BaseExchangeAdapter):
+    """Adaptador para Binance Spot Trading."""
+    
+    def __init__(self):
+        self._client: AsyncClient | None = None
+    
+    async def _get_client(self) -> AsyncClient:
+        """Lazy initialization del cliente."""
+        if self._client is None:
+            try:
+                self._client = await AsyncClient.create(
+                    api_key=settings.BINANCE_API_KEY,
+                    api_secret=settings.BINANCE_API_SECRET,
+                    testnet=settings.ENVIRONMENT != "production"  # Testnet en dev!
+                )
+            except Exception as e:
+                raise ExchangeConnectionError(f"No se pudo conectar a Binance: {e}")
+        return self._client
+    
+    async def get_ticker(self, symbol: str) -> Ticker:
+        client = await self._get_client()
+        try:
+            data = await client.get_ticker(symbol=symbol)
+            return Ticker(
+                symbol=symbol,
+                price=Decimal(data['lastPrice']),
+                bid=Decimal(data['bidPrice']),
+                ask=Decimal(data['askPrice']),
+                volume_24h=Decimal(data['volume']),
+                change_24h_pct=Decimal(data['priceChangePercent']),
+                timestamp=datetime.fromtimestamp(data['closeTime'] / 1000)
+            )
+        except BinanceAPIException as e:
+            logger.error("binance.ticker.error", symbol=symbol, error=str(e))
+            raise ExchangeConnectionError(f"Error obteniendo precio de {symbol}: {e}")
+    
+    async def get_balances(self) -> list[Balance]:
+        client = await self._get_client()
+        try:
+            account = await client.get_account()
+            return [
+                Balance(
+                    asset=b['asset'],
+                    free=Decimal(b['free']),
+                    locked=Decimal(b['locked'])
+                )
+                for b in account['balances']
+                if Decimal(b['free']) > 0 or Decimal(b['locked']) > 0
+            ]
+        except BinanceAPIException as e:
+            raise ExchangeConnectionError(f"Error obteniendo balances: {e}")
+    
+    async def place_order(
+        self,
+        symbol: str,
+        side: str,
+        order_type: str,
+        quantity: Decimal,
+        price: Decimal | None = None
+    ) -> OrderResult:
+        client = await self._get_client()
+        try:
+            params = {
+                "symbol": symbol,
+                "side": side,
+                "type": order_type,
+                "quantity": str(quantity),
+            }
+            if order_type == "LIMIT" and price:
+                params["price"] = str(price)
+                params["timeInForce"] = "GTC"
+            
+            logger.info("binance.order.sending", **params)
+            result = await client.create_order(**params)
+            
+            return OrderResult(
+                order_id=str(result['orderId']),
+                symbol=result['symbol'],
+                side=result['side'],
+                order_type=result['type'],
+                quantity=Decimal(result['executedQty'] or result['origQty']),
+                fill_price=Decimal(result.get('price', '0') or '0'),
+                status=result['status'],
+                timestamp=datetime.fromtimestamp(result['transactTime'] / 1000),
+                exchange='binance'
+            )
+        except BinanceAPIException as e:
+            logger.error("binance.order.failed", symbol=symbol, error=str(e), code=e.code)
+            raise OrderExecutionError(f"Binance rechazó la orden: {e.message}")
+    
+    async def cancel_order(self, symbol: str, order_id: str) -> bool:
+        client = await self._get_client()
+        try:
+            await client.cancel_order(symbol=symbol, orderId=order_id)
+            return True
+        except BinanceAPIException as e:
+            if e.code == -2011:  # Order not found / already cancelled
+                return False
+            raise ExchangeConnectionError(f"Error cancelando orden: {e}")
+    
+    async def get_order_status(self, symbol: str, order_id: str) -> OrderResult:
+        client = await self._get_client()
+        result = await client.get_order(symbol=symbol, orderId=order_id)
+        return OrderResult(
+            order_id=str(result['orderId']),
+            symbol=result['symbol'],
+            side=result['side'],
+            order_type=result['type'],
+            quantity=Decimal(result['executedQty']),
+            fill_price=Decimal(result.get('price', '0')),
+            status=result['status'],
+            timestamp=datetime.fromtimestamp(result['time'] / 1000),
+            exchange='binance'
+        )
+    
+    async def stream_prices(self, symbol: str) -> AsyncIterator[Ticker]:
+        """Stream WebSocket de precios desde Binance."""
+        client = await self._get_client()
+        bm = BinanceSocketManager(client)
+        async with bm.trade_socket(symbol) as stream:
+            async for msg in stream:
+                yield Ticker(
+                    symbol=symbol,
+                    price=Decimal(msg['p']),
+                    bid=Decimal('0'),
+                    ask=Decimal('0'),
+                    volume_24h=Decimal('0'),
+                    change_24h_pct=Decimal('0'),
+                    timestamp=datetime.fromtimestamp(msg['T'] / 1000)
+                )
+```
+
+---
+
+## 🔵 FACTORY DE EXCHANGES
+
+```python
+# adapters/exchange_factory.py
+
+from adapters.base_exchange import BaseExchangeAdapter
+from adapters.binance_adapter import BinanceAdapter
+from core.config import settings
+
+class ExchangeFactory:
+    """
+    Factory para obtener el adaptador correcto según configuración.
+    Agregar nuevos exchanges aquí sin tocar el resto del código.
+    """
+    
+    _instances: dict[str, BaseExchangeAdapter] = {}
+    
+    @classmethod
+    def get_adapter(cls, exchange: str = "binance") -> BaseExchangeAdapter:
+        if exchange not in cls._instances:
+            if exchange == "binance":
+                cls._instances[exchange] = BinanceAdapter()
+            elif exchange == "mt5":
+                from adapters.mt5_adapter import MT5Adapter
+                cls._instances[exchange] = MT5Adapter()
+            else:
+                raise ValueError(f"Exchange no soportado: {exchange}")
+        return cls._instances[exchange]
+
+# Uso en services:
+# from adapters.exchange_factory import ExchangeFactory
+# exchange = ExchangeFactory.get_adapter("binance")
+# ticker = await exchange.get_ticker("BTCUSDT")
+```
+
+---
+
+## ⚠️ REGLAS CRÍTICAS PARA EXCHANGES
+
+```python
+# REGLA 1: Siempre usar testnet en desarrollo
+# En .env: ENVIRONMENT=development → usa testnet automáticamente
+# En .env: ENVIRONMENT=production  → usa mainnet con dinero real
+
+# REGLA 2: Retry logic para errores de red
+import asyncio
+from functools import wraps
+
+def with_retry(max_attempts=3, delay=1.0):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return await func(*args, **kwargs)
+                except ExchangeConnectionError as e:
+                    if attempt == max_attempts - 1:
+                        raise
+                    wait = delay * (2 ** attempt)  # Backoff exponencial
+                    logger.warning(f"Retry {attempt+1}/{max_attempts} en {wait}s: {e}")
+                    await asyncio.sleep(wait)
+        return wrapper
+    return decorator
+
+# REGLA 3: Circuit breaker — si el exchange falla muchas veces, parar
+# Evita acumular errores cuando el exchange está caído
+
+# REGLA 4: Nunca loggear API keys o secrets en llamadas al exchange
+# Log: {"symbol": "BTCUSDT", "side": "BUY", ...}  ← OK
+# Log: {"api_key": "abc123", ...}                  ← NUNCA
+
+# REGLA 5: Verificar que la orden fue realmente ejecutada
+# No asumir que si no hay error = orden completada
+# Siempre consultar el estado final de la orden
+```
