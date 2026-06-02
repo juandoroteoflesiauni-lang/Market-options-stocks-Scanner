@@ -202,5 +202,6 @@
     {
       "text": "FIN DE SESIÓN: Al terminar, SIEMPRE: (1) Agregar comentario CHECKPOINT en el código indicando dónde continuar. (2) Actualizar PROJECT_CONFIG.md con módulos completados y próximo paso. (3) Proponer mensaje de commit semántico (feat/fix/refactor/test). (4) Listar TODO y FIXME agregados."
     }
-  ]
+  ],
+  "snyk.advanced.autoSelectOrganization": true
 }

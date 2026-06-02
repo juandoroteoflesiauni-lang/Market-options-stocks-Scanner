@@ -1,0 +1,67 @@
+[tool.poetry]
+name = "deep-funnel-station"
+version = "0.1.0"
+description = "Deep Trading Terminal - Funnel Station Quantitative Engine"
+authors = ["Antigravity Agent"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.111.0"
+uvicorn = "^0.30.1"
+pydantic = "^2.7.4"
+pydantic-settings = "^2.3.3"
+sqlalchemy = "^2.0.31"
+asyncpg = "^0.29.0"
+redis = "^5.0.7"
+httpx = "^0.27.0"
+websockets = "^12.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+pytest-asyncio = "^0.23.7"
+ruff = "^0.6.9"
+mypy = "^1.10.0"
+black = "^24.4.2"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = [
+    "*.md",
+    ".gemini",
+    "brain",
+    "node_modules",
+    ".venv",
+    "venv"
+]
+
+[tool.ruff.lint]
+# Reglas básicas y recomendadas para proyectos profesionales
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "SIM",  # flake8-simplify
+    "RUF"   # Ruff-specific rules
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+warn_unused_configs = true
+show_error_codes = true
