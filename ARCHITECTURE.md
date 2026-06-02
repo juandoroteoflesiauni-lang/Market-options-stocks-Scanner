@@ -10,59 +10,60 @@
 ## 1. SYSTEM OVERVIEW
 
 `deep-funnel-station` is a **4-phase asymmetric data funnel** for quantitative
-trading. It processes thousands of market tickers down to a critical set of
-high-liquidity contracts suitable for real-time execution.
+trading. It processes thousands of global high-liquidity market tickers (primarily US Equities & Options) down to a critical set of contracts suitable for real-time execution.
 
 The architecture is **event-driven, async-first and strictly layered**.
 No phase may bypass the next in sequence. No engine may touch the network directly.
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        EXTERNAL UNIVERSE                            │
-│   REST: FMP API · Massive API          WebSocket: Massive Advanced  │
-└──────────────┬──────────────────────────────────────┬──────────────┘
-               │                                      │
-               ▼                                      │
-┌──────────────────────────────────┐                  │
-│         MARKET DATA HUB          │  Anti-Corruption │
-│  (Anti-Corruption Layer / ACL)   │       Layer      │
-│  • Exponential Backoff            │                  │
-│  • Circuit Breaker               │                  │
-│  • Normalizes → MarketSnapshot   │                  │
-│  • Validates lineage + schema    │                  │
-└──────────────┬───────────────────┘                  │
-               │ MarketSnapshot (frozen Pydantic)     │
-               ▼                                      │
-┌──────────────────────────────────┐                  │
-│            PHASE A               │                  │
-│   Scanner / Filter (Polling)     │                  │
-│  • WorkerPool + API key sharding │                  │
-│  • Processes thousands of tickers│                  │
-│  • Output: ≤ 300 candidates      │                  │
-└──────────────┬───────────────────┘                  │
-               │ DataFrame[MarketSnapshot]            │
-               ▼                                      │
-┌──────────────────────────────────┐                  │
-│            PHASE B               │                  │
-│  Microstructure Engine (Local)   │                  │
-│  • VPIN / OFI matrix processing  │                  │
-│  • Zero network calls (isolated) │                  │
-│  • Output: Top 20 assets         │                  │
-└──────────────┬───────────────────┘                  │
-               │ List[MarketSnapshot]                 │
-               ▼                                      │
-┌──────────────────────────────────┐                  │
-│            PHASE C               │                  │
-│  Derivatives Engine (Selective)  │                  │
-│  • Options chains via Hub only   │                  │
-│  • Strike/Expiration selection   │                  │
-│  • Output: Top 5 OptionContracts │                  │
-└──────────────┬───────────────────┘                  │
-               │                                      │
-               ▼                                      │
-┌──────────────────────────────────┐                  │
-│          EVENT BUS               │◄─────────────────┘
-│   (asyncio.Queue / Pub-Sub)      │  WebSocket feeds
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   EXTERNAL UNIVERSE                                    │
+│   FMP (Primary REST)  ·  Alpaca (US Market/Order Routing)  ·  Massive (Exclusive WS)   │
+└──────────────┬─────────────────────────────────────────────────┬───────────────────────┘
+               │                                                 │
+               ▼                                                 │
+┌──────────────────────────────────┐                             │
+│         MARKET DATA HUB          │  Anti-Corruption            │
+│  (Anti-Corruption Layer / ACL)   │       Layer                 │
+│  • Exponential Backoff            │                             │
+│  • Circuit Breaker               │                             │
+│  • Normalizes → MarketSnapshot   │                             │
+│  • Validates lineage + schema    │                             │
+│  • Orchestrates FMP/Alpaca/Massive                             │
+└──────────────┬───────────────────┘                             │
+               │ MarketSnapshot (frozen Pydantic)                │
+               ▼                                                 │
+┌──────────────────────────────────┐                             │
+│            PHASE A               │                             │
+│   Scanner / Filter (Polling)     │                             │
+│  • WorkerPool + API key sharding │                             │
+│  • Processes global liquid assets│                             │
+│  • Output: ≤ 300 candidates      │                             │
+└──────────────┬───────────────────┘                             │
+               │ DataFrame[MarketSnapshot]                       │
+               ▼                                                 │
+┌──────────────────────────────────┐                             │
+│            PHASE B               │                             │
+│  Microstructure Engine (Local)   │                             │
+│  • QuantitativeEngine (isolated) │                             │
+│  • VPIN / OFI matrix processing  │                             │
+│  • Zero network calls (isolated) │                             │
+│  • Output: Top 20 assets         │                             │
+└──────────────┬───────────────────┘                             │
+               │ List[MarketSnapshot]                            │
+               ▼                                                 │
+┌──────────────────────────────────┐                             │
+│            PHASE C               │                             │
+│  Derivatives Engine (Selective)  │                             │
+│  • Options chains via Hub only   │                             │
+│  • Strike/Expiration selection   │                             │
+│  • Output: Top 5 OptionContracts │                             │
+└──────────────┬───────────────────┘                             │
+               │                                                 │
+               ▼                                                 │
+┌──────────────────────────────────┐                             │
+│          EVENT BUS               │◄────────────────────────────┘
+│   (asyncio.Queue / Pub-Sub)      │  Massive WebSocket feeds
 │  • Decouples producers/consumers │  injected directly
 │  • Backpressure: Drop Oldest     │  into Bus for Phase D
 │  • Priority lane for Phase D     │
@@ -119,7 +120,8 @@ backend/
 │   │   ├── scanner.py        # WorkerPool + API key sharding
 │   │   └── worker_pool.py
 │   ├── phase_b/
-│   │   ├── microstructure_engine.py  # VPIN/OFI (NO network imports)
+│   │   ├── microstructure_engine.py  # VPIN/OFI wrapper
+│   │   ├── quantitative_engine.py    # Immutable mathematical engine (VPIN, OFI, matrices)
 │   │   └── matrix_processor.py
 │   ├── phase_c/
 │   │   ├── derivatives_engine.py     # Options chain analysis (NO network)

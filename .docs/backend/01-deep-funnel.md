@@ -24,9 +24,9 @@ architectural violation and will be rejected.
 
 ### Phase A — Scanner / Filter (Polling)
 ```
-Source   : REST API (FMP / Massive) via MarketDataHub
+Source   : REST API (FMP for financials/history / Alpaca for US market data) via MarketDataHub
 Technique: WorkerPool with API key sharding
-Input    : Universe of market tickers (~5,000)
+Input    : Universe of market tickers (~5,000 global liquid assets, US Equities/Options)
 Output   : DataFrame of ≤ 300 candidate MarketSnapshot objects
 Rules    :
   - Phase A owns "dirty data." It must discard any ticker that fails
@@ -34,12 +34,13 @@ Rules    :
   - The WorkerPool must shard API keys to stay within rate limits.
   - Each worker processes an isolated key shard (no key sharing).
   - Concurrency: asyncio tasks, not threads.
+  - Focuses strictly on high-liquidity global assets.
 ```
 
 ### Phase B — Microstructure Engine (Local Analysis)
 ```
 Source   : MarketSnapshot objects injected by MarketDataHub (NOT fetched directly)
-Technique: Matrix-based local processing — VPIN / OFI
+Technique: Matrix-based local processing — VPIN / OFI encapsulated in QuantitativeEngine
 Input    : Up to 300 MarketSnapshot candidates
 Output   : List of 20 assets with highest execution probability
 Rules    :
@@ -47,6 +48,9 @@ Rules    :
   - All data arrives via dependency injection from Phase A pipeline.
   - CPU-bound calculations run in ProcessPoolExecutor (never block event loop).
   - Parameters (VPIN bucket size, OFI window) live in config/, not here.
+  - ANTI-SPAGHETTI: Copying/pasting legacy code directly is strictly forbidden.
+    All legacy mathematical logic (matrices, OFI, VPIN) must be disassembled and
+    encapsulated strictly within the immutable `QuantitativeEngine` container, isolating the network entirely.
 ```
 
 ### Phase C — Derivatives Engine (Selective)
@@ -65,7 +69,7 @@ Rules    :
 
 ### Phase D — Real-Time Monitor (WebSocket)
 ```
-Source   : Exclusive WebSocket connections (Massive Advanced)
+Source   : Exclusive WebSocket connections (Massive Advanced only)
 Technique: Low-latency tick-by-tick subscription
 Input    : Top 5 contracts selected by Phase C
 Output   : ExecutionSignal objects published to Priority Queue → Frontend
