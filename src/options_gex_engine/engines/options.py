@@ -12,11 +12,11 @@ import math
 import numpy as np
 import numpy.typing as npt
 
-from .bsm import BlackScholesPricer
-from .derivatives import GEXMath
-from .gamma_flip_probability import estimate_gamma_flip_probability
-from .iv_primitives import atm_iv_from_chain
-from .options_models import (
+from ..math.bsm import BlackScholesPricer
+from ..math.derivatives import GEXMath
+from ..math.gamma_flip_probability import estimate_gamma_flip_probability
+from ..math.iv_primitives import atm_iv_from_chain
+from ..domain.options_models import (
     DealerExposures,
     ExposureRegime,
     GreekSurface,
@@ -109,16 +109,12 @@ class OptionsEngine:
             mid_iv = np.where(np.isfinite(mid_iv) & (mid_iv > 0), mid_iv, max(atm_iv, 1e-4))
             surface = GreekSurface(
                 speed=np.nan_to_num(BlackScholesPricer.speed_vec(spot, strikes, tte, r, mid_iv))
-                .round(8)
                 .tolist(),
                 zomma=np.nan_to_num(BlackScholesPricer.zomma_vec(spot, strikes, tte, r, mid_iv))
-                .round(8)
                 .tolist(),
                 color=np.nan_to_num(BlackScholesPricer.color_vec(spot, strikes, tte, r, mid_iv))
-                .round(8)
                 .tolist(),
                 ultima=np.nan_to_num(BlackScholesPricer.ultima_vec(spot, strikes, tte, r, mid_iv))
-                .round(8)
                 .tolist(),
             )
 
@@ -185,13 +181,3 @@ class OptionsEngine:
             return 0.0
         shares = (call_oi + put_oi) / total
         return float(np.sum(shares**2))
-
-
-# ─────────────────────────────────────────────────────────────
-# MIGRATION AUDIT — SECTOR: OPCIONES
-# Archivo      : options.py
-# Sub-capa     : Orchestrator (Options Engine)
-# Eliminado    : Referencias a Mypy/Torch detectadas en archivos de sistema erróneos.
-# Preservado   : Lógica orquestadora GEX/VEX/CEX, Max Pain, HHI Positioning.
-# Pendientes   : Integrar PDF analytics de derivatives.bl_pdf en el ciclo principal.
-# ─────────────────────────────────────────────────────────────
