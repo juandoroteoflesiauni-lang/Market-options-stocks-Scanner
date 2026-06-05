@@ -87,13 +87,3 @@ class OptionsSignal(BaseModel):
     cex_score: float = 0.0
     skewness_premium: float = 0.0
     regime: ExposureRegime = ExposureRegime.NEUTRAL
-
-
-# ─────────────────────────────────────────────────────────────
-# MIGRATION AUDIT — SECTOR: OPCIONES
-# Archivo      : options_models.py
-# Sub-capa     : Modelo (Domain Models)
-# Eliminado    : Referencias QuantumBeta V1 / Docstrings legacy.
-# Preservado   : ExposureRegime, GreekSurface, PDFAnalytics, DealerExposures.
-# Pendientes   : Integración con IVSurface fitters.
-# ─────────────────────────────────────────────────────────────
