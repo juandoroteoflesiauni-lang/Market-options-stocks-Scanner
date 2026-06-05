@@ -144,7 +144,7 @@ VITE_WS_URL=ws://localhost:8000/ws
 ```
 Última sesión: 2026-06-05
 Fase actual:   CONSTRUCT
-Módulo activo: MÓDULO 3 (Feedback Calibration Engine refactoring)
+Módulo activo: MÓDULO 3 (Sentiment Engine refactoring)
 Bloqueadores:  Ninguno
-Próximo paso:  Integrar los motores de calibración y ponderación en el pipeline principal.
+Próximo paso:  Integrar los motores analíticos en el pipeline principal.
 ```
