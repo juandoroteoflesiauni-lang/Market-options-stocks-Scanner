@@ -144,7 +144,7 @@ VITE_WS_URL=ws://localhost:8000/ws
 ```
 Última sesión: 2026-06-05
 Fase actual:   CONSTRUCT
-Módulo activo: MÓDULO 3 (Cross-Asset Correlation Engine refactoring)
+Módulo activo: MÓDULO 3 (Regime Weights Engine refactoring)
 Bloqueadores:  Ninguno
 Próximo paso:  Integrar los motores analíticos de la Fase B/C en el pipeline principal.
 ```
