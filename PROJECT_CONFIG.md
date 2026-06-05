@@ -144,7 +144,7 @@ VITE_WS_URL=ws://localhost:8000/ws
 ```
 Última sesión: 2026-06-05
 Fase actual:   CONSTRUCT
-Módulo activo: MÓDULO 3 (Sentiment Engine refactoring)
+Módulo activo: MÓDULO 3 (Catalyst NLP Engine refactoring)
 Bloqueadores:  Ninguno
 Próximo paso:  Integrar los motores analíticos en el pipeline principal.
 ```
