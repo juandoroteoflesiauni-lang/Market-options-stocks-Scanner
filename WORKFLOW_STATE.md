@@ -8,7 +8,7 @@
 ```yaml
 fecha_ultima_sesion: "2026-06-05"
 fase_global: "CONSTRUCT"
-modulo_activo: "MÓDULO-005 (DeltaWeightedFlow, COR3M, SqueezeIgnition and VolumeProfile Engines refactoring)"
+modulo_activo: "MÓDULO 1 (Options Volume/OI Dynamics refactoring)"
 completado_pct: 100%
 ```
 
@@ -17,7 +17,8 @@ completado_pct: 100%
 ## ✅ MÓDULOS COMPLETADOS
 
 ```
-Ninguno aún — proyecto en fase de configuración inicial
+- Módulo 1 (Options Volume/OI Dynamics refactoring) - Completado
+- Módulo 3 (Fear & Greed Engine refactoring) - Completado
 ```
 
 ---
@@ -82,8 +83,7 @@ Ninguna aún
 ## 📝 NOTAS DE LA ÚLTIMA SESIÓN
 
 ```
-Se completó la migración de los motores COR3M, DeltaWeightedFlow, SqueezeIgnition y VolumeProfile (MÓDULO-005) a diseños stateless y vectorizados con Pydantic/NumPy, eliminando la dependencia de Pandas.
-Se implementaron en backend/engine/metrics/cor3m.py, backend/engine/metrics/delta_weighted_flow.py, backend/engine/metrics/squeeze_ignition.py y backend/engine/metrics/volume_profile.py, y se validaron con tests unitarios correspondientes.
+Se completó la migración del motor FearGreedEngine a un diseño síncrono, stateless e inmutable con Pydantic. Se creó el archivo backend/engine/metrics/fear_greed.py y se validó con un set exhaustivo de 13 pruebas unitarias en backend/tests/unit/test_fear_greed.py, sumando 34 pruebas exitosas en total para la suite del backend.
 ```
 
 ---
