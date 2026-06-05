@@ -36,6 +36,8 @@ class MultimodalModelConfig(BaseModel):
     n_layers: int = 2
     n_classes: int = 3
     dropout: float = 0.0
+    sequence_length: int = 20
+    prediction_horizon: int = 1
 
 
 class MultimodalPredictionResult(BaseModel):
@@ -127,14 +129,18 @@ class QuantumAlphaEngine:
                 event_dim=5,
                 n_layers=config.n_layers,
                 n_classes=3,
-                dropout=config.dropout
+                dropout=config.dropout,
+                sequence_length=config.sequence_length,
+                prediction_horizon=config.prediction_horizon,
             )
 
         self.config = config or MultimodalModelConfig(
             hidden_channels=32,
             event_dim=5,  # OHLCV
             n_layers=2,
-            n_classes=3   # 0: BEARISH, 1: NEUTRAL, 2: BULLISH
+            n_classes=3,  # 0: BEARISH, 1: NEUTRAL, 2: BULLISH
+            sequence_length=20,
+            prediction_horizon=1,
         )
         self.model = QuantumAlphaLSTM(self.config)
         self.model.eval()

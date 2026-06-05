@@ -144,7 +144,7 @@ VITE_WS_URL=ws://localhost:8000/ws
 ```
 Última sesión: 2026-06-04
 Fase actual:   CONSTRUCT
-Módulo activo: MÓDULO-005 (QuantumAlphaEngine refactoring)
+Módulo activo: MÓDULO-005 (MultimodalPredictiveEngine refactoring)
 Bloqueadores:  Ninguno
-Próximo paso:  Completar el resto del MÓDULO-005 e integración de predicciones.
+Próximo paso:  Completar el resto del MÓDULO-005 (integraciones y conectores).
 ```
