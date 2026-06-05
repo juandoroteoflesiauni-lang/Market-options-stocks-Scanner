@@ -144,7 +144,7 @@ VITE_WS_URL=ws://localhost:8000/ws
 ```
 Última sesión: 2026-06-04
 Fase actual:   CONSTRUCT
-Módulo activo: MÓDULO-005 (MultimodalPredictiveEngine refactoring)
+Módulo activo: MÓDULO-005 (FactorCalibrationEngine refactoring)
 Bloqueadores:  Ninguno
-Próximo paso:  Completar el resto del MÓDULO-005 (integraciones y conectores).
+Próximo paso:  Integración y conector final para MÓDULO-005.
 ```
