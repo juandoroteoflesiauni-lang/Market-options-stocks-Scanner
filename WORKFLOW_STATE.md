@@ -8,7 +8,7 @@
 ```yaml
 fecha_ultima_sesion: "2026-06-05"
 fase_global: "CONSTRUCT"
-modulo_activo: "MÓDULO 1 (Options Volume/OI Dynamics refactoring)"
+modulo_activo: "MÓDULO 1 (Delta Exposure (DEX) Engine refactoring)"
 completado_pct: 100%
 ```
 
@@ -17,6 +17,7 @@ completado_pct: 100%
 ## ✅ MÓDULOS COMPLETADOS
 
 ```
+- Módulo 1 (Delta Exposure (DEX) Engine refactoring) - Completado
 - Módulo 1 (Options Volume/OI Dynamics refactoring) - Completado
 - Módulo 3 (Fear & Greed Engine refactoring) - Completado
 ```

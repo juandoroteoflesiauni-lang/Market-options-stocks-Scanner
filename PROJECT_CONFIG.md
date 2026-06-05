@@ -144,7 +144,7 @@ VITE_WS_URL=ws://localhost:8000/ws
 ```
 Última sesión: 2026-06-05
 Fase actual:   CONSTRUCT
-Módulo activo: MÓDULO 1 (Options Volume/OI Dynamics refactoring)
+Módulo activo: MÓDULO 1 (Delta Exposure (DEX) Engine refactoring)
 Bloqueadores:  Ninguno
 Próximo paso:  Integrar los motores analíticos al pipeline principal de la Fase B/C.
 ```
