@@ -8,7 +8,7 @@
 ```yaml
 fecha_ultima_sesion: "2026-06-05"
 fase_global: "CONSTRUCT"
-modulo_activo: "MÓDULO-005 (DeltaWeightedFlow, COR3M and SqueezeIgnition Signal Engines refactoring)"
+modulo_activo: "MÓDULO-005 (DeltaWeightedFlow, COR3M, SqueezeIgnition and VolumeProfile Engines refactoring)"
 completado_pct: 100%
 ```
 
@@ -82,8 +82,8 @@ Ninguna aún
 ## 📝 NOTAS DE LA ÚLTIMA SESIÓN
 
 ```
-Se completó la migración de los motores COR3M, DeltaWeightedFlow y SqueezeIgnition (MÓDULO-005) a diseños completamente stateless y vectorizados con Pydantic/NumPy, eliminando el estado interno.
-Se implementaron en backend/engine/metrics/cor3m.py, backend/engine/metrics/delta_weighted_flow.py y backend/engine/metrics/squeeze_ignition.py, y se validaron con tests unitarios correspondientes.
+Se completó la migración de los motores COR3M, DeltaWeightedFlow, SqueezeIgnition y VolumeProfile (MÓDULO-005) a diseños stateless y vectorizados con Pydantic/NumPy, eliminando la dependencia de Pandas.
+Se implementaron en backend/engine/metrics/cor3m.py, backend/engine/metrics/delta_weighted_flow.py, backend/engine/metrics/squeeze_ignition.py y backend/engine/metrics/volume_profile.py, y se validaron con tests unitarios correspondientes.
 ```
 
 ---

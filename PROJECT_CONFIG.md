@@ -144,7 +144,7 @@ VITE_WS_URL=ws://localhost:8000/ws
 ```
 Última sesión: 2026-06-05
 Fase actual:   CONSTRUCT
-Módulo activo: MÓDULO-005 (DeltaWeightedFlow, COR3M and SqueezeIgnition Engines refactoring)
+Módulo activo: MÓDULO-005 (DeltaWeightedFlow, COR3M, SqueezeIgnition and VolumeProfile Engines refactoring)
 Bloqueadores:  Ninguno
 Próximo paso:  Integrar los motores stateless refactorizados al orquestador del Deep Funnel y continuar con el desarrollo de la FASE 2.
 ```
