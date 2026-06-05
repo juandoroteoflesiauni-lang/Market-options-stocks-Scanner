@@ -144,7 +144,7 @@ VITE_WS_URL=ws://localhost:8000/ws
 ```
 Última sesión: 2026-06-05
 Fase actual:   CONSTRUCT
-Módulo activo: MÓDULO-005 / MÓDULO-003 (COR3M Signal Engine refactoring)
+Módulo activo: MÓDULO-005 (DeltaWeightedFlow and COR3M Engines refactoring)
 Bloqueadores:  Ninguno
-Próximo paso:  Integrar el motor COR3M con el pipeline asíncrono y continuar con los siguientes módulos de optimización y señales.
+Próximo paso:  Integrar los motores stateless refactorizados al orquestador del Deep Funnel y continuar con el desarrollo de la FASE 2.
 ```

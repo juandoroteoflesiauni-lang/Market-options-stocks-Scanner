@@ -8,7 +8,7 @@
 ```yaml
 fecha_ultima_sesion: "2026-06-05"
 fase_global: "CONSTRUCT"
-modulo_activo: "MÓDULO-005 / MÓDULO-003 (COR3M Signal Engine refactoring)"
+modulo_activo: "MÓDULO-005 (DeltaWeightedFlow and COR3M Signal Engines refactoring)"
 completado_pct: 100%
 ```
 
@@ -82,8 +82,8 @@ Ninguna aún
 ## 📝 NOTAS DE LA ÚLTIMA SESIÓN
 
 ```
-Se completó la migración del motor COR3M (MÓDULO-005/MÓDULO-003) a un diseño completamente stateless y vectorizado con numpy (sin pandas).
-Se implementó en backend/engine/metrics/cor3m.py y se validó con tests unitarios en backend/tests/unit/test_cor3m.py.
+Se completó la migración del motor COR3M y el motor DeltaWeightedFlow (MÓDULO-005) a diseños completamente stateless y vectorizados con NumPy, erradicando la dependencia de Pandas.
+Se implementaron en backend/engine/metrics/cor3m.py y backend/engine/metrics/delta_weighted_flow.py, y se validaron con tests unitarios correspondientes.
 ```
 
 ---
