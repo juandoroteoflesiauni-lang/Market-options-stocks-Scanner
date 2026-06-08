@@ -6,7 +6,7 @@ de opciones (GEX Walls, ZGL, Max Pain).
 
 from __future__ import annotations
 
-from ..domain.confluence_models import GEXLevels, OptionsSMCConfluenceResult
+from ...domain.confluence.confluence_models import GEXLevels, OptionsSMCConfluenceResult
 
 
 class OptionsConfluenceEngine:

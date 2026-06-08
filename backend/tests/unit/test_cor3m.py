@@ -2,12 +2,14 @@ from datetime import datetime, UTC
 import numpy as np
 import pytest
 
-from backend.engine.metrics.cor3m import (
+
+from src.quant_engine.engines.technical.cor3m import (
     COR3M_Signal_Engine,
     EngineConfig,
     MarketState,
     SignalType,
 )
+
 from backend.models.result import Result
 
 

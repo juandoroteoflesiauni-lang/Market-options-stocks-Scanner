@@ -20,7 +20,7 @@ import torch as _torch
 import torch.nn as _nn
 from pydantic import BaseModel, ConfigDict
 
-from backend.engine.metrics.matrix_ops import calculate_probabilistic_gex_gating
+from src.quant_engine.math.technical.matrix_ops import calculate_probabilistic_gex_gating
 from backend.engine.metrics.quantum_alpha import (
     MultimodalModelConfig,
     QuantumAlphaEngine,

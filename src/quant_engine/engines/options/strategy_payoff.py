@@ -6,13 +6,13 @@ from datetime import UTC, datetime
 
 import numpy as np
 
-from ..domain.strategy_models import (
+from ...domain.options.strategy_models import (
     OptionLeg,
     OptionPayoffScenario,
     OptionStrategy,
     PayoffCurve,
 )
-from ..math.bsm import BlackScholesPricer, OptionType
+from ...math.options.bsm import BlackScholesPricer, OptionType
 
 
 class StrategyPayoffEngine:

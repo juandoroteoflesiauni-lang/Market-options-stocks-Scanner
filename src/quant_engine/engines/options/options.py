@@ -12,11 +12,11 @@ import math
 import numpy as np
 import numpy.typing as npt
 
-from ..math.bsm import BlackScholesPricer
-from ..math.derivatives import GEXMath
-from ..math.gamma_flip_probability import estimate_gamma_flip_probability
-from ..math.iv_primitives import atm_iv_from_chain
-from ..domain.options_models import (
+from ...math.options.bsm import BlackScholesPricer
+from ...math.options.derivatives import GEXMath
+from ...math.options.gamma_flip_probability import estimate_gamma_flip_probability
+from ...math.options.iv_primitives import atm_iv_from_chain
+from ...domain.options.options_models import (
     DealerExposures,
     ExposureRegime,
     GreekSurface,

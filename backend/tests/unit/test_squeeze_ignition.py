@@ -1,4 +1,4 @@
-from backend.engine.metrics.squeeze_ignition import (
+from src.quant_engine.engines.technical.squeeze_ignition import (
     OptionChainData,
     SignalType,
     SqueezeIgnitionEngine,
