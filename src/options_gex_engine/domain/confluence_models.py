@@ -140,3 +140,25 @@ class MicrostructureConfluenceResult(BaseModel):
 
     ok:              bool = True
     error:           str | None = None
+
+
+class GEXLevels(BaseModel):
+    """Niveles mecánicos de GEX de la cadena de opciones."""
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    put_wall: float
+    zero_gamma_level: float
+    volatility_magnet: float | None = None
+    max_pain: float
+
+
+class OptionsSMCConfluenceResult(BaseModel):
+    """Resultado del mapeo de confluencia entre los motores técnico (SMC) y de derivados."""
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    is_ob_validated: bool = False
+    is_sweep_confirmed: bool = False
+    is_magnet_active: bool = False
+    confluence_score: float = 0.0
+    summary: str = "NO CONFLUENCE"
+
