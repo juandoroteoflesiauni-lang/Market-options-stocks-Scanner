@@ -161,4 +161,3 @@ class OptionsSMCConfluenceResult(BaseModel):
     is_magnet_active: bool = False
     confluence_score: float = 0.0
     summary: str = "NO CONFLUENCE"
-

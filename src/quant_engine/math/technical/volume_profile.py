@@ -1,211 +1,302 @@
-"""
-backend/engine/metrics/volume_profile.py
-Sector: IA / Probabilístico
-[ARCH-1, PD-4]
+"""Núcleo matemático de Volume Profile — Sector Técnico.
 
-Volume Profile Engine — identifies price magnets and walls (HVN/LVN).
-Stateless and vectorized implementation without pandas.
+Histograma de alta fidelidad sobre pares (precio, volumen) para detección de
+POC, Value Area (VAH/VAL), High Volume Nodes (HVN) y Low Volume Nodes (LVN).
+
+Restricciones:
+- Exclusivamente numpy.  Sin pandas, pydantic, logging ni capas de dominio.
+- Toda división regularizada con _EPS para evitar divisiones por cero.
+- API orientada a arrays: recibe ndarray, devuelve dataclasses ligeros.
 """
 
 from __future__ import annotations
 
-import logging
+from dataclasses import dataclass, field
 
 import numpy as np
-import numpy.typing as npt
-from pydantic import BaseModel, ConfigDict
 
-from backend.models.result import Result
+_EPS: float = 1e-12
 
-logger = logging.getLogger("quantumbeta.engines.volume_profile")
+# Parámetros por defecto
+_DEFAULT_BINS: int = 100
+_VALUE_AREA_PCT: float = 0.70       # 70 % del volumen total → Value Area
+_MIN_OBSERVATIONS: int = 5          # Mínimo de barras para un perfil significativo
+_HVN_PERCENTILE: float = 70.0       # Umbral percentil para High Volume Nodes
+_LVN_PERCENTILE: float = 30.0       # Umbral percentil para Low Volume Nodes
 
-type FloatArray = npt.NDArray[np.float64]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# §1  RESULT TYPES (dataclasses ligeras — sin Pydantic)
+# ─────────────────────────────────────────────────────────────────────────────
 
 
-class VolumeNode(BaseModel):
-    """Single node in the volume profile representing a price bin."""
-    model_config = ConfigDict(frozen=True)
+@dataclass(frozen=True, slots=True)
+class VolumeNode:
+    """Un nivel de precio en el histograma de volumen."""
 
     price: float
-    volume_pct: float
-    node_type: str  # "HVN" | "LVN" | "POC" | "NORMAL"
+    volume: float
+    node_type: str  # "POC" | "HVN" | "LVN"
 
 
-class VolumeProfileReport(BaseModel):
-    """Aggregate volume profile report for an asset."""
-    model_config = ConfigDict(frozen=True)
+@dataclass(frozen=True, slots=True)
+class VolumeProfileReport:
+    """Resultado completo del análisis de Perfil de Volumen."""
 
     symbol: str
-    poc: float          # Point of Control
-    vah: float          # Value Area High (70% vol)
-    val: float          # Value Area Low
-    hvn_levels: list[float] = []
-    lvn_levels: list[float] = []
-    profile: list[VolumeNode] = []
-    nodes_found: int = 0
+    poc: float
+    vah: float
+    val: float
+    profile: tuple[VolumeNode, ...]
+    hvn_levels: tuple[float, ...]
+    lvn_levels: tuple[float, ...]
+    nodes_found: int
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisResult:
+    """Contenedor Result<T, E> para la API del motor."""
+
+    _report: VolumeProfileReport | None
+    _reason: str | None
+    is_success: bool
+
+    @property
+    def is_failure(self) -> bool:
+        return not self.is_success
+
+    @property
+    def reason(self) -> str:
+        return self._reason or ""
+
+    def unwrap(self) -> VolumeProfileReport:
+        if self._report is None:
+            raise RuntimeError(f"AnalysisResult is a failure: {self._reason}")
+        return self._report
+
+    @classmethod
+    def ok(cls, report: VolumeProfileReport) -> AnalysisResult:
+        return cls(_report=report, _reason=None, is_success=True)
+
+    @classmethod
+    def fail(cls, reason: str) -> AnalysisResult:
+        return cls(_report=None, _reason=reason, is_success=False)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# §2  VolumeProfileEngine
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 class VolumeProfileEngine:
-    """
-    Calculates Volume Profile (Volume at Price) to identify liquidity nodes.
-    Purely stateless and vectorized.
+    """Motor matemático puro de Volume Profile.
+
+    Método principal
+    ----------------
+    analyze(symbol, price_volume_data, bins) -> AnalysisResult
+        price_volume_data : ndarray de shape (n, 2) — columnas [price, volume].
     """
 
     def analyze(
         self,
         symbol: str,
-        price_volume_data: FloatArray,
-        bins: int = 50,
-    ) -> Result[VolumeProfileReport]:
-        """
-        Analyzes volume distribution across price levels.
+        price_volume_data: np.ndarray,
+        bins: int = _DEFAULT_BINS,
+        value_area_pct: float = _VALUE_AREA_PCT,
+    ) -> AnalysisResult:
+        """Valida datos y calcula el perfil de volumen completo."""
+        # Validación de entrada
+        err = self._validate(price_volume_data)
+        if err:
+            return AnalysisResult.fail(err)
 
-        Parameters
-        ----------
-        symbol : str
-            Symbol of the asset.
-        price_volume_data : FloatArray
-            2D NumPy array with shape (N, 2) where:
-            0 = price
-            1 = volume
-        bins : int
-            Number of price buckets/bins.
+        prices = price_volume_data[:, 0].astype(np.float64)
+        volumes = price_volume_data[:, 1].astype(np.float64)
 
-        Returns
-        -------
-        Result[VolumeProfileReport]
-            The VolumeProfileReport wrapped in a Result monad.
-        """
-        try:
-            # 1. Validations
-            if price_volume_data.ndim != 2 or price_volume_data.shape[1] != 2:
-                return Result.failure(
-                    reason=(
-                        f"price_volume_data must be a 2D array of shape (N, 2), "
-                        f"got shape {price_volume_data.shape}"
-                    )
-                )
-
-            n = len(price_volume_data)
-            if n == 0:
-                return Result.failure(reason="price_volume_data is empty")
-
-            if np.any(np.isnan(price_volume_data)):
-                return Result.failure(reason="Input data contains NaN values")
-
-            prices = price_volume_data[:, 0]
-            volumes = price_volume_data[:, 1]
-
-            if np.any(volumes < 0.0):
-                return Result.failure(reason="Volumes must be non-negative")
-
-            if n < 5:
-                # Return a safe neutral report
-                return Result.success(
-                    VolumeProfileReport(
-                        symbol=symbol,
-                        poc=0.0,
-                        vah=0.0,
-                        val=0.0,
-                        hvn_levels=[],
-                        lvn_levels=[],
-                        profile=[],
-                        nodes_found=0,
-                    )
-                )
-
-            price_min = float(np.min(prices))
-            price_max = float(np.max(prices))
-
-            if price_min == price_max:
-                # Return safe report with single level
-                single_node = VolumeNode(price=price_min, volume_pct=1.0, node_type="POC")
-                return Result.success(
-                    VolumeProfileReport(
-                        symbol=symbol,
-                        poc=price_min,
-                        vah=price_min,
-                        val=price_min,
-                        hvn_levels=[],
-                        lvn_levels=[],
-                        profile=[single_node],
-                        nodes_found=0,
-                    )
-                )
-
-            # 2. Binning vectorizado en C
-            counts, bin_edges = np.histogram(prices, bins=bins, weights=volumes)
-            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            bin_size = (price_max - price_min) / bins
-
-            total_volume = float(np.sum(counts))
-            if total_volume == 0.0:
-                return Result.failure(reason="Total volume is zero")
-
-            volume_pcts = counts / total_volume
-
-            # 3. Find POC
-            poc_idx = int(np.argmax(counts))
-            poc_price = float(bin_centers[poc_idx])
-
-            # 4. Find Value Area (70%)
-            sort_idxs = np.argsort(counts)[::-1]
-            sorted_counts = counts[sort_idxs]
-            sorted_prices = bin_centers[sort_idxs]
-            cum_vol = np.cumsum(sorted_counts)
-            va_mask = cum_vol <= total_volume * 0.70
-
-            if np.any(va_mask):
-                vah = float(np.max(sorted_prices[va_mask]))
-                val = float(np.min(sorted_prices[va_mask]))
-            else:
-                vah = val = poc_price
-
-            # 5. Detección Vectorizada de Nodos (HVN / LVN)
-            mean_vol = counts.mean()
-
-            # HVN: Local peak
-            is_peak = (counts[1:-1] > counts[:-2]) & (counts[1:-1] > counts[2:])
-            hvn_mask = is_peak & (counts[1:-1] > mean_vol * 1.2)
-            hvn_indices = np.where(hvn_mask)[0] + 1
-            hvn_levels = [float(x) for x in bin_centers[hvn_indices]]
-
-            # LVN: Local trough
-            is_trough = (counts[1:-1] < counts[:-2]) & (counts[1:-1] < counts[2:])
-            lvn_mask = is_trough & (counts[1:-1] < mean_vol * 0.6)
-            lvn_indices = np.where(lvn_mask)[0] + 1
-            lvn_levels = [float(x) for x in bin_centers[lvn_indices]]
-
-            # Slices for top 5
-            hvn_levels_sliced = hvn_levels[:5]
-            lvn_levels_sliced = lvn_levels[:5]
-
-            # 6. Build Node List for UI
-            node_list = []
-            for i in range(len(counts)):
-                p = float(bin_centers[i])
-                v = float(volume_pcts[i])
-                ntype = "NORMAL"
-                if abs(p - poc_price) < bin_size / 2:
-                    ntype = "POC"
-                elif any(abs(p - h) < bin_size / 2 for h in hvn_levels_sliced):
-                    ntype = "HVN"
-                elif any(abs(p - lvl) < bin_size / 2 for lvl in lvn_levels_sliced):
-                    ntype = "LVN"
-                node_list.append(VolumeNode(price=p, volume_pct=v, node_type=ntype))
-
-            report = VolumeProfileReport(
+        # Caso degenerado: pocas muestras — devuelve informe neutro
+        if len(prices) < _MIN_OBSERVATIONS:
+            neutral = VolumeProfileReport(
                 symbol=symbol,
-                poc=poc_price,
-                vah=vah,
-                val=val,
-                hvn_levels=hvn_levels_sliced,
-                lvn_levels=lvn_levels_sliced,
-                profile=node_list,
-                nodes_found=len(hvn_levels) + len(lvn_levels),
+                poc=0.0,
+                vah=0.0,
+                val=0.0,
+                profile=(),
+                hvn_levels=(),
+                lvn_levels=(),
+                nodes_found=0,
             )
-            return Result.success(report)
+            return AnalysisResult.ok(neutral)
 
-        except Exception as e:
-            logger.error("VolumeProfile engine analysis failed: %s", e)
-            return Result.failure(reason=f"VolumeProfile engine analysis failed: {e}")
+        poc, vah, val, hist_centers, hist_volumes = _compute_profile(
+            prices, volumes, bins, value_area_pct
+        )
+        nodes, hvn_levels, lvn_levels = _classify_nodes(hist_centers, hist_volumes, poc)
+
+        report = VolumeProfileReport(
+            symbol=symbol,
+            poc=poc,
+            vah=vah,
+            val=val,
+            profile=nodes,
+            hvn_levels=hvn_levels,
+            lvn_levels=lvn_levels,
+            nodes_found=len(hvn_levels) + len(lvn_levels),
+        )
+        return AnalysisResult.ok(report)
+
+    @staticmethod
+    def _validate(data: np.ndarray) -> str | None:
+        """Retorna mensaje de error o None si los datos son válidos."""
+        if not isinstance(data, np.ndarray) or data.size == 0:
+            return "price_volume_data is empty"
+        if data.ndim != 2 or data.shape[1] != 2:
+            return "must be a 2D array of shape (n, 2) with columns [price, volume]"
+        if np.any(np.isnan(data)):
+            return "price_volume_data contains NaN values"
+        if np.any(data[:, 1] < 0):
+            return "volume must be non-negative"
+        return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# §3  PRIVATE MATH KERNELS
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _compute_profile(
+    prices: np.ndarray,
+    volumes: np.ndarray,
+    bins: int,
+    value_area_pct: float,
+) -> tuple[float, float, float, np.ndarray, np.ndarray]:
+    """Histograma de volumen → POC, VAH, VAL, centros, volúmenes.
+
+    Caso especial: precio constante → bin único con todo el volumen.
+    """
+    price_min = float(np.min(prices))
+    price_max = float(np.max(prices))
+
+    if price_max == price_min:
+        poc = price_min
+        centers = np.array([poc])
+        hist = np.array([float(np.sum(volumes))])
+        return (poc, poc, poc, centers, hist)
+
+    edges = np.linspace(price_min, price_max, bins + 1)
+    centers = (edges[:-1] + edges[1:]) / 2.0
+
+    # Asigna cada precio al bin más cercano
+    bin_indices = np.searchsorted(edges[1:], prices, side="left")
+    bin_indices = np.clip(bin_indices, 0, bins - 1)
+
+    hist = np.zeros(bins, dtype=np.float64)
+    np.add.at(hist, bin_indices, volumes)
+
+    # POC
+    poc_idx = int(np.argmax(hist))
+    poc = float(centers[poc_idx])
+
+    # Value Area (expansión greedy desde el POC)
+    target = float(np.sum(hist)) * value_area_pct
+    accumulated = hist[poc_idx]
+    lo_cursor = poc_idx
+    hi_cursor = poc_idx
+
+    while accumulated < target and (lo_cursor > 0 or hi_cursor < bins - 1):
+        can_low = lo_cursor > 0
+        can_high = hi_cursor < bins - 1
+        if can_low and can_high:
+            if hist[lo_cursor - 1] >= hist[hi_cursor + 1]:
+                lo_cursor -= 1
+                accumulated += hist[lo_cursor]
+            else:
+                hi_cursor += 1
+                accumulated += hist[hi_cursor]
+        elif can_low:
+            lo_cursor -= 1
+            accumulated += hist[lo_cursor]
+        else:
+            hi_cursor += 1
+            accumulated += hist[hi_cursor]
+
+    vah = float(centers[hi_cursor])
+    val = float(centers[lo_cursor])
+    return (poc, vah, val, centers, hist)
+
+
+def _classify_nodes(
+    centers: np.ndarray,
+    hist: np.ndarray,
+    poc: float,
+) -> tuple[tuple[VolumeNode, ...], tuple[float, ...], tuple[float, ...]]:
+    """Clasifica cada bin como POC, HVN o LVN según percentiles."""
+    if len(hist) == 0:
+        return ((), (), ())
+
+    # Caso degenerado: un solo bin
+    if len(hist) == 1:
+        node = VolumeNode(price=float(centers[0]), volume=float(hist[0]), node_type="POC")
+        return ((node,), (), ())
+
+    hvn_thr = float(np.percentile(hist, _HVN_PERCENTILE))
+    lvn_thr = float(np.percentile(hist, _LVN_PERCENTILE))
+
+    nodes: list[VolumeNode] = []
+    hvn_levels: list[float] = []
+    lvn_levels: list[float] = []
+
+    for price, vol in zip(centers, hist):
+        p = float(price)
+        v = float(vol)
+        if p == poc:
+            node_type = "POC"
+            hvn_levels.append(p)
+        elif v >= hvn_thr:
+            node_type = "HVN"
+            hvn_levels.append(p)
+        elif v <= lvn_thr:
+            node_type = "LVN"
+            lvn_levels.append(p)
+        else:
+            node_type = "NORMAL"
+        nodes.append(VolumeNode(price=p, volume=v, node_type=node_type))
+
+    return (tuple(nodes), tuple(hvn_levels), tuple(lvn_levels))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# §4  ANCHORED VWAP (función pura)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def compute_anchored_vwap(
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    volume: np.ndarray,
+    anchor_index: int = 0,
+) -> np.ndarray:
+    """Calcula el Anchored VWAP desde un índice de anclaje hasta el final.
+
+    AVWAP_t = Σ(TP_i × V_i) / Σ(V_i)   para i in [anchor_index, t]
+
+    Returns
+    -------
+    avwap : ndarray de shape (n,) con np.nan para posiciones anteriores al anclaje.
+    """
+    high = np.asarray(high, dtype=np.float64)
+    low = np.asarray(low, dtype=np.float64)
+    close = np.asarray(close, dtype=np.float64)
+    volume = np.asarray(volume, dtype=np.float64)
+
+    n = len(close)
+    result = np.full(n, np.nan, dtype=np.float64)
+    anchor_index = max(0, min(anchor_index, n - 1))
+
+    tp = (high + low + close) / 3.0
+    pv = tp * volume
+
+    cum_pv = np.cumsum(pv[anchor_index:])
+    cum_vol = np.cumsum(volume[anchor_index:])
+    result[anchor_index:] = cum_pv / (cum_vol + _EPS)
+    return result
