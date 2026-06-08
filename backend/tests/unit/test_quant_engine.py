@@ -178,3 +178,213 @@ def test_microstructure_engines():
     ohlcv = np.random.rand(35, 5) + 1.0
     res_vfi = vsa.calculate_vfi(ohlcv, period=14)
     assert res_vfi.is_success
+
+
+def test_predictive_engines():
+    import tempfile
+    import os
+    import torch
+    from src.quant_engine.engines.predictive.quantum_alpha import (
+        QuantumAlphaEngine,
+        MultimodalModelConfig,
+        QuantumAlphaLSTM,
+    )
+    from src.quant_engine.engines.predictive.multimodal_predictive import (
+        MultimodalPredictiveEngine,
+    )
+
+    config = MultimodalModelConfig(
+        hidden_channels=8,
+        event_dim=5,
+        n_layers=1,
+        n_classes=3,
+        dropout=0.0
+    )
+    
+    # Save a temporary weights file for QuantumAlphaLSTM
+    temp_model = QuantumAlphaLSTM(config)
+    with tempfile.NamedTemporaryFile(suffix=".pth", delete=False) as tmp:
+        weights_path = tmp.name
+        
+    try:
+        torch.save(temp_model.state_dict(), weights_path)
+        
+        # Initialize engines
+        alpha_engine = QuantumAlphaEngine(weights_path=weights_path, config=config)
+        predictive_engine = MultimodalPredictiveEngine(weights_path=weights_path, config=config)
+        
+        # Test analyze
+        ohlcv = np.random.rand(25, 5)
+        res = alpha_engine.analyze(ticker="AAPL", ohlcv=ohlcv)
+        assert res.is_success
+        
+        # Test batch prep
+        fund_data = np.random.rand(25, 5)
+        news_data = np.random.rand(25, 3)
+        res_batch = predictive_engine.prepare_batch(
+            fund_data=fund_data,
+            news_data=news_data,
+            ticker="AAPL",
+            config=config
+        )
+        assert res_batch.is_success
+    finally:
+        if os.path.exists(weights_path):
+            os.remove(weights_path)
+
+
+def test_expected_move_engine():
+    from src.quant_engine.math.options.expected_move import ExpectedMoveEngine, ExpectedMoveResult
+    
+    # Test valid calculations
+    res = ExpectedMoveEngine.calculate(spot=100.0, iv=0.20, dte=30)
+    assert res.is_success
+    
+    report = res.unwrap()
+    assert isinstance(report, ExpectedMoveResult)
+    assert report.spot == 100.0
+    assert report.iv == 0.20
+    assert report.dte == 30
+    assert report.expected_move > 0.0
+    assert report.upper_bound > 100.0
+    assert report.lower_bound < 100.0
+    
+    summary = report.get_summary()
+    assert summary["spot"] == 100.0
+    
+    # Test invalid inputs
+    res_err = ExpectedMoveEngine.calculate(spot=-5.0, iv=0.20, dte=30)
+    assert res_err.is_failure
+
+
+def test_markov_regime_engine():
+    import pandas as pd
+    from src.quant_engine.math.predictive.markov_regime import MarkovRegimeEngine, MarkovReport
+    
+    # Create synthetic price series
+    prices = [100.0 * (1.01 ** i) for i in range(100)]
+    df = pd.DataFrame({"close": prices})
+    
+    engine = MarkovRegimeEngine()
+    res = engine.analyze(symbol="AAPL", df=df)
+    assert res.is_success
+    
+    report = res.unwrap()
+    assert isinstance(report, MarkovReport)
+    assert report.symbol == "AAPL"
+    assert len(report.states) == 3
+    assert 0.0 <= report.state_confidence <= 1.0
+    assert report.regime_signal in ("CRITICAL", "SHIFTING", "STABLE")
+
+
+def test_ensemble_meta_learner_predictor():
+    from src.quant_engine.engines.predictive.meta_learner import (
+        EnsembleMetaLearnerPredictor,
+        CalibratorBundle,
+    )
+    
+    # Mock model
+    class MockModel:
+        def __init__(self):
+            self.classes_ = np.array([0, 1, 2])
+        def predict_proba(self, x):
+            n = x.shape[0]
+            res = np.zeros((n, 3))
+            res[:, 0] = 0.1
+            res[:, 1] = 0.2
+            res[:, 2] = 0.7
+            return res
+
+    model = MockModel()
+    feature_names = ["price__return_5d", "price__return_20d", "price__rsi_14_normalized", "price__price_vs_ma20"]
+    
+    # 1. Sin calibrador
+    predictor = EnsembleMetaLearnerPredictor(model, feature_names)
+    assert predictor.is_fitted
+    
+    # Input dict
+    x_dict = {
+        "price__return_5d": 0.01,
+        "price__return_20d": 0.02,
+        "price__rsi_14_normalized": 0.5,
+        "price__price_vs_ma20": 0.01,
+    }
+    
+    res = predictor.predict_proba(x_dict)
+    assert res.is_success
+    probs = res.unwrap()
+    assert "DOWN" in probs
+    assert "NEUTRAL" in probs
+    assert "UP" in probs
+    assert pytest.approx(sum(probs.values())) == 1.0
+    
+    # Input numpy array
+    x_arr = np.array([0.01, 0.02, 0.5, 0.01])
+    res_arr = predictor.predict_proba(x_arr)
+    assert res_arr.is_success
+    
+    # 2. Con calibrador mock
+    class MockCalibrator:
+        def __init__(self):
+            self.classes_ = np.array([0, 1, 2])
+        def predict_proba(self, x):
+            return x
+            
+    cal = CalibratorBundle(calibrator=MockCalibrator(), is_fitted=True)
+    predictor_cal = EnsembleMetaLearnerPredictor(model, feature_names, calibrator=cal)
+    res_cal = predictor_cal.predict_proba(x_dict)
+    assert res_cal.is_success
+
+
+def test_vol_term_structure_engine():
+    from src.quant_engine.math.options.vol_term_structure import (
+        VolatilityTermStructureEngine,
+        VolTermStructureReport,
+        analyze_vol_term_structure,
+    )
+
+    # 1. Test normal contango (IV sube con el tiempo)
+    atm_curve_normal = np.array([
+        [15.0, 0.18],
+        [30.0, 0.20],
+        [60.0, 0.22],
+        [90.0, 0.24],
+        [180.0, 0.26],
+    ])
+    
+    engine = VolatilityTermStructureEngine(short_tenor=30, long_tenor=90)
+    res = engine.analyze(atm_curve_normal)
+    assert res.is_success
+    
+    report = res.unwrap()
+    assert isinstance(report, VolTermStructureReport)
+    assert report.short_tenor == 30
+    assert report.long_tenor == 90
+    assert report.iv_short == 0.20
+    assert report.iv_long == 0.24
+    assert report.ratio < 1.0
+    assert report.slope > 0.0
+    assert "NORMAL" in report.regime
+    assert report.inversion_alert is False
+    
+    # 2. Test inversion / backwardation
+    atm_curve_inverted = np.array([
+        [15.0, 0.45],
+        [30.0, 0.40],
+        [60.0, 0.35],
+        [90.0, 0.30],
+        [180.0, 0.25],
+    ])
+    res_inv = analyze_vol_term_structure(atm_curve_inverted, short_tenor=30, long_tenor=90)
+    assert res_inv.is_success
+    report_inv = res_inv.unwrap()
+    assert report_inv.ratio > 1.0
+    assert report_inv.slope < 0.0
+    assert "PANIC" in report_inv.regime
+    assert report_inv.inversion_alert is True
+    
+    # 3. Test validation errors
+    res_err = engine.analyze(np.empty((0, 2)))
+    assert res_err.is_failure
+
+

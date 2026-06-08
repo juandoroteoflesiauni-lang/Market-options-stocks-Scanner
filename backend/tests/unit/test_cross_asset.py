@@ -1,6 +1,6 @@
 import numpy as np
 
-from backend.engine.metrics.cross_asset import (
+from src.quant_engine.math.predictive.cross_asset import (
     CorrelationProfile,
     CrossAssetReport,
     get_cross_asset_analysis,

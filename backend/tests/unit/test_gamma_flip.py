@@ -1,6 +1,6 @@
 import numpy as np
 
-from backend.engine.metrics.gamma_flip import GammaFlipEngine
+from src.quant_engine.engines.options.gamma_flip import GammaFlipEngine
 
 
 def test_gamma_flip_analysis_success():

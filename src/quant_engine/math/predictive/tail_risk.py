@@ -28,20 +28,14 @@ type FloatArray = npt.NDArray[np.float64]
 
 # Soft import — engine remains functional if RND engine is absent
 try:
-    from backend.engine.metrics.risk_neutral_density import (
-        get_risk_neutral_density as _get_rnd,
+    from backend.layer_3_specialists.ia_probabilistico.engines import (
+        risk_neutral_density_engine as _rnde,
     )
+
+    _get_rnd = _rnde.get_risk_neutral_density
     _RND_AVAILABLE = True
 except ImportError:
-    try:
-        from backend.layer_3_specialists.ia_probabilistico.engines import (
-            risk_neutral_density_engine as _rnde,
-        )
-
-        _get_rnd = _rnde.get_risk_neutral_density
-        _RND_AVAILABLE = True
-    except ImportError:
-        _RND_AVAILABLE = False
+    _RND_AVAILABLE = False
 
 # Reference 25Δ butterfly distribution for equity surfaces (prior for percentiles)
 _REF_CONVEXITIES = np.array(

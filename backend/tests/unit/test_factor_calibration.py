@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from backend.engine.metrics.factor_calibration import (
+from src.quant_engine.math.predictive.factor_calibration import (
     FactorCalibrationEngine,
     CalibrationReport,
 )

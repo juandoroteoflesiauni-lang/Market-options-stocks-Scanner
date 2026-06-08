@@ -1,6 +1,6 @@
 import numpy as np
 
-from backend.engine.metrics.volatility_skew import VolatilitySkewEngine
+from src.quant_engine.math.options.volatility_skew import VolatilitySkewEngine
 
 
 def test_volatility_skew_analysis_success_polynomial():

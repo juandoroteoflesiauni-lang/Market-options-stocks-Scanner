@@ -1,6 +1,6 @@
 import numpy as np
 
-from backend.engine.metrics.zomma import ZommaEngine, ZommaReport
+from src.quant_engine.math.options.zomma import ZommaEngine, ZommaReport
 
 
 def test_zomma_analysis_success():

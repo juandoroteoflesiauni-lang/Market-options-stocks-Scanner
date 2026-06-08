@@ -4,12 +4,12 @@ import numpy as np
 import pytest
 import torch
 
-from backend.engine.metrics.multimodal_predictive import (
+from src.quant_engine.engines.predictive.multimodal_predictive import (
     MultimodalPredictiveEngine,
     MultimodalBatch,
     FusionReport,
 )
-from backend.engine.metrics.quantum_alpha import (
+from src.quant_engine.engines.predictive.quantum_alpha import (
     MultimodalModelConfig,
     QuantumAlphaLSTM,
 )

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from backend.engine.metrics.sentiment import (
+from src.quant_engine.engines.predictive.sentiment import (
     SentimentAnalysisEngine,
     SocialMetricsInput,
 )

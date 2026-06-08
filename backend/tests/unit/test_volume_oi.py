@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from backend.engine.metrics.volume_oi import (
+from src.quant_engine.engines.technical.volume_oi import (
     AnalyzerConfig,
     Signal,
     VolumeOIDynamicsReport,

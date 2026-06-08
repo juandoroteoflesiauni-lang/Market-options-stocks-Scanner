@@ -1,4 +1,4 @@
-from backend.engine.metrics.fear_greed import (
+from src.quant_engine.engines.predictive.fear_greed import (
     FearGreedEngine,
     FearGreedResult,
     MarketSentimentInput,

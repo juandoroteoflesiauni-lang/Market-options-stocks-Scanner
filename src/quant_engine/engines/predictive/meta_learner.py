@@ -24,7 +24,7 @@ class CalibratorBundle(BaseModel):
     """Container for the fitted calibrator model."""
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
     
-    calibrator: Any  # Usually a fitted LogisticRegression
+    calibrator: Any = None  # Usually a fitted LogisticRegression
     is_fitted: bool = False
 
     def transform(self, raw_probs: np.ndarray[Any, np.dtype[np.float64]]) -> np.ndarray[Any, np.dtype[np.float64]]:

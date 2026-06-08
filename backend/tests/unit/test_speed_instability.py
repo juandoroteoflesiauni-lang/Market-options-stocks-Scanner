@@ -1,6 +1,6 @@
 import numpy as np
 
-from backend.engine.metrics.speed_instability import (
+from src.quant_engine.math.technical.speed_instability import (
     SpeedInstabilityReport,
     analyze_speed_instability,
 )

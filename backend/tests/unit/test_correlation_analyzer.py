@@ -1,6 +1,6 @@
 import numpy as np
 
-from backend.engine.metrics.correlation_analyzer import (
+from src.quant_engine.math.predictive.correlation_analyzer import (
     CorrelationAnalysis,
     CorrelationAnalyzer,
     get_correlation_analysis,

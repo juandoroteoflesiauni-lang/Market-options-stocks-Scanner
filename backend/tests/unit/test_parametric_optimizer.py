@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from backend.engine.metrics.parametric_optimizer import (
+from src.quant_engine.math.predictive.parametric_optimizer import (
     ParametricOptimizerEngine,
     ParameterRange,
     ParameterSpace,

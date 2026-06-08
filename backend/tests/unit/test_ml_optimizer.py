@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from backend.engine.metrics.ml_optimizer import (
+from src.quant_engine.engines.predictive.ml_optimizer import (
     MLOptimizer,
     OptimizationResult,
 )
