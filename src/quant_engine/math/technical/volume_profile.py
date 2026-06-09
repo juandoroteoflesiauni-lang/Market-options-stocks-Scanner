@@ -17,6 +17,104 @@ import numpy as np
 
 _EPS: float = 1e-12
 
+
+class VolumeProfileMath:
+    """Librería matemática sin estado para el cálculo de Perfiles de Volumen."""
+
+    @staticmethod
+    def compute_profile(
+        price: np.ndarray,
+        volume: np.ndarray,
+        bins: int = 50,
+        value_area_pct: float = 0.70
+    ) -> tuple[float, float, float, np.ndarray, np.ndarray]:
+        """
+        Calcula el Punto de Control (POC) y el Área de Valor (VAH/VAL).
+        
+        Args:
+            price: np.ndarray con la serie de precios (típicamente (H+L+C)/3).
+            volume: np.ndarray con los volúmenes correspondientes.
+            bins: Número de particiones para el histograma de precios.
+            value_area_pct: Porcentaje del volumen total para el área de valor.
+            
+        Returns:
+            Tupla conteniendo: (POC, VAH, VAL, bin_centers, hist_volumes)
+        """
+        p = np.ascontiguousarray(price, dtype=np.float64)
+        v = np.ascontiguousarray(volume, dtype=np.float64)
+        
+        min_p = np.nanmin(p)
+        max_p = np.nanmax(p)
+        
+        if np.isnan(min_p) or np.isnan(max_p) or min_p == max_p or len(p) == 0:
+            return np.nan, np.nan, np.nan, np.array([]), np.array([])
+
+        # 1. Construir Histograma Ponderado por Volumen
+        hist, bin_edges = np.histogram(p, bins=bins, weights=v)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
+
+        # 2. Identificar el Point of Control (POC)
+        poc_idx = int(np.argmax(hist))
+        poc = float(bin_centers[poc_idx])
+
+        # 3. Calcular Value Area (VAH / VAL) expandiendo desde el POC
+        total_vol = np.sum(hist)
+        va_target = total_vol * value_area_pct
+
+        va_vol = float(hist[poc_idx])
+        lower_idx = poc_idx
+        upper_idx = poc_idx
+
+        # Bucle de expansión bidireccional buscando los nodos de mayor volumen
+        while va_vol < va_target and (lower_idx > 0 or upper_idx < bins - 1):
+            lower_vol = hist[lower_idx - 1] if lower_idx > 0 else 0.0
+            upper_vol = hist[upper_idx + 1] if upper_idx < bins - 1 else 0.0
+
+            if lower_vol >= upper_vol and lower_idx > 0:
+                va_vol += lower_vol
+                lower_idx -= 1
+            elif upper_vol > lower_vol and upper_idx < bins - 1:
+                va_vol += upper_vol
+                upper_idx += 1
+            elif lower_idx > 0:
+                va_vol += lower_vol
+                lower_idx -= 1
+            elif upper_idx < bins - 1:
+                va_vol += upper_vol
+                upper_idx += 1
+            else:
+                break
+
+        val = float(bin_centers[lower_idx])
+        vah = float(bin_centers[upper_idx])
+
+        return poc, vah, val, bin_centers, hist
+
+    @staticmethod
+    def identify_volume_nodes(
+        bin_centers: np.ndarray, 
+        hist: np.ndarray, 
+        prominence_factor: float = 1.5
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Identifica High Volume Nodes (HVN) y Low Volume Nodes (LVN).
+        """
+        if len(hist) < 3:
+            return np.array([]), np.array([])
+            
+        mean_vol = np.mean(hist)
+        
+        # Un HVN simple es un pico local mayor al promedio * prominence_factor
+        hvn_mask = (hist > np.roll(hist, 1)) & (hist > np.roll(hist, -1)) & (hist > mean_vol * prominence_factor)
+        hvn_mask[0] = hvn_mask[-1] = False  # Ignorar bordes
+        
+        # Un LVN es un valle local menor al promedio / prominence_factor
+        lvn_mask = (hist < np.roll(hist, 1)) & (hist < np.roll(hist, -1)) & (hist < mean_vol / prominence_factor)
+        lvn_mask[0] = lvn_mask[-1] = False  # Ignorar bordes
+        
+        return bin_centers[hvn_mask], bin_centers[lvn_mask]
+
+
 # Parámetros por defecto
 _DEFAULT_BINS: int = 100
 _VALUE_AREA_PCT: float = 0.70       # 70 % del volumen total → Value Area
