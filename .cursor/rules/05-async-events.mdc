@@ -1,0 +1,182 @@
+---
+description: Activo en archivos del bus de eventos, fases async, workers y WebSocket. Event-driven: ningún motor espera activamente datos.
+globs:
+  - "backend/bus/**/*.py"
+  - "backend/phases/**/*.py"
+  - "backend/**/workers/**/*.py"
+  - "backend/main.py"
+alwaysApply: false
+---
+
+# ⚡ ASYNC EVENT ENGINE — MOTOR EVENT-DRIVEN v3.0
+
+## PRINCIPIO CENTRAL
+Los motores (Fase B/C) **nunca esperan activamente** datos.
+Se suscriben al Event Bus y **reaccionan** cuando llegan snapshots.
+Toda espera activa (`while True: check_for_data()`) es un anti-patrón.
+
+## ARQUITECTURA DEL BUS
+
+```
+MarketDataHub (Phase A output)
+        │ publish(MarketSnapshot)
+        ▼
+┌─────────────────────────┐
+│  Standard Queue          │  asyncio.Queue(maxsize=10_000)
+│  Fase B/C consumers      │  Drop-Oldest si se llena
+└──────────┬──────────────┘
+           │
+    ┌──────┴──────┐
+    ▼             ▼
+ Phase B        Phase C
+    │             │
+    └──────┬──────┘
+           │ publish(OptionContract)
+           ▼
+┌─────────────────────────┐
+│  Priority Queue          │  asyncio.Queue(maxsize=1_000)
+│  Phase D EXCLUSIVO       │  CRITICAL log si se llena
+└──────────┬──────────────┘
+           ▼
+      Phase D Monitor → ExecutionSignal → Frontend
+```
+
+## WORKER PATTERN — Aislamiento de fallos
+
+```python
+class MicrostructureEngine:
+    """Phase B: consume snapshots, calcula VPIN/OFI. ZERO imports de red."""
+
+    async def run(self) -> None:
+        """Loop principal. Falla individual → log + continúa. Bus nunca para."""
+        async for snapshot in self._bus.consume():
+            try:
+                await self._process_snapshot(snapshot)
+            except Exception:
+                logger.error(
+                    "Phase B: fallo en snapshot — continuando [PD-6]",
+                    extra={"ticker": snapshot.ticker},
+                    exc_info=True,
+                )
+                # ← El bus continúa. Un fallo no mata el worker.
+
+    async def _process_snapshot(self, snapshot: MarketSnapshot) -> None:
+        """CPU-bound → ProcessPoolExecutor para no bloquear event loop."""
+        loop = asyncio.get_running_loop()
+        enriched = await loop.run_in_executor(
+            self._executor,
+            calculate_vpin_ofi_sync,  # función pura, sin async
+            snapshot,
+        )
+```
+
+## BACKPRESSURE — CONFIGURACIÓN OBLIGATORIA
+
+```python
+# Cola estándar: Drop-Oldest cuando está llena
+async def publish(self, snapshot: MarketSnapshot) -> None:
+    if self._standard_queue.full():
+        dropped = self._standard_queue.get_nowait()
+        logger.warning(
+            "EventBus: BACKPRESSURE — descartando snapshot más viejo",
+            extra={"dropped_ticker": dropped.ticker},
+        )
+    await self._standard_queue.put(snapshot)
+
+# Cola priority: si se llena → CRITICAL (Phase D no puede procesar)
+if self._priority_queue.full():
+    logger.critical(
+        "PRIORITY QUEUE LLENA — Phase D tiene latencia crítica. INVESTIGAR."
+    )
+```
+
+## GESTIÓN DE TAREAS — Cada worker en su propia task
+
+```python
+async def main() -> None:
+    bus = EventBus()
+    executor = ProcessPoolExecutor(max_workers=4)
+    
+    # Cada motor en task aislada → si una falla, las demás siguen
+    tasks = [
+        asyncio.create_task(phase_b.run(), name="phase_b_worker"),
+        asyncio.create_task(phase_c.run(), name="phase_c_worker"),
+        asyncio.create_task(phase_d.run(), name="phase_d_worker"),
+    ]
+    
+    # Signal handlers para clean shutdown
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(
+            sig, lambda s=sig: asyncio.create_task(shutdown(s, tasks, executor))
+        )
+    
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+async def shutdown(sig, tasks, executor):
+    logger.info("Shutdown: %s. Deteniendo workers...", sig.name)
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    executor.shutdown(wait=True)
+    logger.info("Shutdown limpio completo.")
+```
+
+## PROHIBICIONES CRÍTICAS
+
+```python
+# ❌ PROHIBIDO — bloquea el event loop
+time.sleep(1)
+# ✅ CORRECTO
+await asyncio.sleep(1)
+
+# ❌ PROHIBIDO — CPU pesado en el event loop
+async def process(snapshot):
+    result = heavy_matrix_computation(snapshot)  # bloquea el loop
+# ✅ CORRECTO
+async def process(snapshot):
+    result = await loop.run_in_executor(executor, heavy_matrix_computation, snapshot)
+
+# ❌ PROHIBIDO — estado mutable compartido entre tasks
+shared_list = []   # race condition sin lock
+
+# ❌ PROHIBIDO — excepción no capturada mata el bus
+async def worker():
+    snapshot = await queue.get()
+    process_unsafe(snapshot)   # Si falla → bus se detiene
+# ✅ CORRECTO — envuelve en try/except, log y continúa
+
+# ❌ PROHIBIDO — Phase B/C importan librerías de red
+# backend/phases/phase_b/engine.py
+import httpx   # RECHAZAR — viola aislamiento de motor
+```
+
+## THRESHOLDS — En config/, no aquí
+
+```python
+# ❌ PROHIBIDO
+queue = asyncio.Queue(maxsize=10_000)   # número mágico
+
+# ✅ CORRECTO
+from config.phase_thresholds import PhaseThresholds
+thresholds = PhaseThresholds()
+queue = asyncio.Queue(maxsize=thresholds.event_bus_max_queue_size)
+```
+
+## LOGGING DE MONITORING — OBLIGATORIO
+
+```python
+# Loggear en cada transición de fase:
+logger.info("Transición de fase", extra={
+    "from_phase": "A",
+    "to_phase": "B",
+    "candidate_count": len(candidates),
+    "duration_ms": elapsed_ms,
+})
+
+# Loggear estado del bus periódicamente:
+logger.info("Estado EventBus", extra={
+    "standard_queue_size": bus._standard_queue.qsize(),
+    "priority_queue_size": bus._priority_queue.qsize(),
+})
+```

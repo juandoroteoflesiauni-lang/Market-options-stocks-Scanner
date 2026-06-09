@@ -1,0 +1,118 @@
+name: ⚡ Frontend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "frontend/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Gate 1: Secrets scan ───
+  secrets-scan:
+    name: 🔒 Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Gate 2: Type check + Lint + Format ───
+  quality:
+    name: 🔬 Code Quality
+    runs-on: ubuntu-latest
+    needs: secrets-scan
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: ✅ Prettier (format check)
+        working-directory: ./frontend
+        run: npm run format:check
+
+      - name: ✅ ESLint (lint — zero warnings)
+        working-directory: ./frontend
+        run: npm run lint
+
+      - name: ✅ TypeScript (type check)
+        working-directory: ./frontend
+        run: npm run type-check
+
+      - name: ✅ npm audit (dependency security)
+        working-directory: ./frontend
+        run: npm audit --audit-level=moderate
+
+  # ─── Gate 3: Build check ───
+  build:
+    name: 🏗️ Build
+    runs-on: ubuntu-latest
+    needs: secrets-scan
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: ✅ next build
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          # Build-time env vars — use safe placeholder values
+          NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000"
+          NEXT_PUBLIC_WS_URL: "ws://localhost:8001"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build
+          path: frontend/.next/
+          retention-days: 1
+
+  # ─── Summary ───
+  ci-success:
+    name: ✅ All Frontend Gates Passed
+    runs-on: ubuntu-latest
+    needs: [secrets-scan, quality, build]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.secrets-scan.result }}" != "success" || \
+                "${{ needs.quality.result }}" != "success" || \
+                "${{ needs.build.result }}" != "success" ]]; then
+            echo "❌ One or more frontend CI gates failed"
+            exit 1
+          fi
+          echo "✅ All frontend CI gates passed"

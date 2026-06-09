@@ -1,0 +1,188 @@
+---
+description: Activo en código TypeScript y React del frontend. Dark mode obligatorio, shadcn/ui, Server Components por defecto, fase 1 bloqueada.
+globs:
+  - "frontend/**/*.tsx"
+  - "frontend/**/*.ts"
+  - "frontend/**/*.css"
+alwaysApply: false
+---
+
+# ⚡ FRONTEND NEXT.JS 16 — ESTÁNDARES v3.0
+
+## FASE LOCK ACTIVO: FASE 1
+```
+✅ Permitido: layout.tsx · TopNavigationBar · lib/env.ts · hooks/useAuthToken.ts
+⛔ BLOQUEADO: dashboards · rutas secundarias · charts · WebSocket client · auth forms
+```
+
+Si se solicita algo fuera de Fase 1 → **RECHAZAR** con mensaje:
+> "⛔ Phase Lock: Esta feature es Fase [X]. Lock actual: Fase 1."
+
+## TYPESCRIPT — MODO ESTRICTO
+
+```json
+// tsconfig.json — obligatorio
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true
+  }
+}
+```
+
+```typescript
+// ❌ PROHIBIDO — any
+const handler = (event: any) => {}
+const response: any = await fetch(url)
+
+// ✅ CORRECTO — tipos específicos
+const handler = (event: React.MouseEvent<HTMLButtonElement>) => {}
+interface ApiResponse<T> { data: T; status: number }
+```
+
+## COMPONENTES — REGLAS PRINCIPALES
+
+```typescript
+// ✅ Server Component por defecto (sin directiva)
+export function TradingPanel() {
+  return <div>...</div>
+}
+
+// Solo agregar 'use client' si el componente usa:
+// - useState, useEffect, useCallback
+// - Eventos de browser (onClick, onChange directo)
+// - APIs de browser (localStorage, etc.)
+"use client";
+export function LivePrice() {
+  const [price, setPrice] = useState(0)
+  // ...
+}
+```
+
+```typescript
+// Máximo 100 líneas por componente.
+// Si supera → extraer subcomponentes o un hook.
+
+// ✅ Props tipadas con interface — nunca any
+interface TopNavigationBarProps {
+  items: NavigationItem[]
+}
+
+export function TopNavigationBar({ items }: TopNavigationBarProps) {
+  return (...)
+}
+```
+
+## DISEÑO — DARK MODE OBLIGATORIO
+
+```typescript
+// ❌ PROHIBIDO — referencia a light mode
+className="dark:bg-gray-900 bg-white"
+
+// ❌ PROHIBIDO — colores hardcodeados
+style={{ color: "#f0f0f5" }}
+
+// ✅ CORRECTO — CSS variables del design system
+className="bg-bg-surface text-text-primary border-border-subtle"
+
+// El Top Nav usa glassmorphism exacto:
+const navClasses = [
+  "fixed top-0 left-0 right-0 z-50 h-14",
+  "flex items-center justify-between px-6",
+  "bg-[rgba(17,17,24,0.72)] backdrop-blur-md",
+  "border-b border-border-subtle",
+].join(" ")
+```
+
+## PRECIOS Y NÚMEROS FINANCIEROS
+
+```typescript
+// ✅ CORRECTO — tabular numerals para datos financieros
+<span className="font-mono tabular-nums text-text-primary">
+  {price}
+</span>
+
+// ✅ CORRECTO — color semántico para señales
+<span className="font-mono tabular-nums text-signal-buy">+2.34%</span>
+<span className="font-mono tabular-nums text-signal-sell">-1.12%</span>
+
+// ❌ PROHIBIDO — parseFloat en componentes UI
+{parseFloat(price).toFixed(2)}  // El precio llega ya como string desde el server
+```
+
+## HOOKS — SEPARACIÓN LÓGICA/UI
+
+```typescript
+// hooks/useAuthToken.ts — TODA la lógica aquí
+"use client";
+export function useAuthToken() {
+  const [token, setToken] = useState<string | null>(null)
+  // lógica de autenticación
+  return { token, isAuthenticated: !!token }
+}
+
+// components/navigation/NavigationActions.tsx — SOLO UI
+"use client";
+import { useAuthToken } from "@/hooks/useAuthToken"
+export function NavigationActions() {
+  const { isAuthenticated } = useAuthToken()
+  return (
+    <div className="flex items-center gap-3">
+      {isAuthenticated ? <UserMenu /> : <SignInButton />}
+    </div>
+  )
+}
+```
+
+## VARIABLES DE ENTORNO — VALIDACIÓN OBLIGATORIA
+
+```typescript
+// lib/env.ts — valida al inicio, falla rápido
+const required = ["NEXT_PUBLIC_API_BASE_URL", "NEXT_PUBLIC_WS_URL"] as const
+type EnvKey = typeof required[number]
+
+function validateEnv(): Record<EnvKey, string> {
+  const missing = required.filter(k => !process.env[k])
+  if (missing.length) {
+    throw new Error(`Missing env vars: ${missing.join(", ")}`)
+  }
+  return required.reduce((acc, k) => ({ ...acc, [k]: process.env[k]! }), {} as Record<EnvKey, string>)
+}
+export const env = validateEnv()
+
+// ❌ PROHIBIDO — secretos en NEXT_PUBLIC_
+NEXT_PUBLIC_FMP_API_KEY=abc123  // Expuesto al browser → CRÍTICO
+```
+
+## ORDEN DE IMPORTS
+
+```typescript
+// 1. React y Next.js
+import { useState } from "react"
+import Link from "next/link"
+
+// 2. Librerías externas
+import { ChevronDown } from "lucide-react"
+
+// 3. Internos (paths absolutos — NUNCA relativos con ../../)
+import { TopNavigationBar } from "@/components/navigation/TopNavigationBar"
+import { env } from "@/lib/env"
+
+// 4. Types
+import type { NavigationItem } from "@/components/navigation/types"
+```
+
+## CHECKLIST ANTES DE PRESENTAR CÓDIGO FRONTEND
+```
+[ ] Sin any types
+[ ] Props tipadas con interface
+[ ] Server Component por defecto (no 'use client' innecesario)
+[ ] Sin inline styles — solo Tailwind classes
+[ ] Sin colores hardcodeados — CSS variables
+[ ] Sin console.log (solo console.error en catch)
+[ ] Fase 1 scope respetado
+[ ] Cleanup en useEffect (return cleanup function)
+[ ] eslint + prettier + tsc pasarían sin errores
+```

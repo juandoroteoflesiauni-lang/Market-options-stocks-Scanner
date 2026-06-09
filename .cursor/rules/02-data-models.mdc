@@ -1,0 +1,145 @@
+---
+description: Activo en archivos de modelos Pydantic. Gobernanza FINOS CDM: inmutabilidad, linaje, precisión financiera.
+globs:
+  - "backend/models/**/*.py"
+  - "backend/**/schemas/**/*.py"
+alwaysApply: false
+---
+
+# 🏛️ DATA MODELING — GOBERNANZA FINOS CDM v3.0
+
+## PRINCIPIO FUNDAMENTAL
+Todo dato que cruce una frontera de fase DEBE ser:
+1. Pydantic `BaseModel` con `model_config = ConfigDict(frozen=True)`
+2. Validado al construirse (Pydantic v2 lo hace automático)
+3. Con `data_lineage: DataLineage` obligatorio — NUNCA opcional
+4. Con `exchange_timestamp` en UTC timezone-aware
+
+**Un `MarketSnapshot` sin linaje es un "dato huérfano" → rechazado por cualquier motor Fase B/C.**
+
+## PATRÓN BASE — MarketSnapshot
+
+```python
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from decimal import Decimal
+from datetime import datetime
+
+class DataLineage(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    source: str                          # "fmp" | "massive" | "local"
+    ingestion_latency_ms: int = Field(ge=0)
+    raw_field_count: int = Field(ge=0)
+
+class MarketSnapshot(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    ticker: str
+    exchange: str
+    price: Decimal = Field(ge=Decimal("0"))  # ← Decimal, nunca float
+    volume: int = Field(ge=0)
+    exchange_timestamp: datetime             # ← debe ser UTC aware
+    data_lineage: DataLineage                # ← JAMÁS Optional
+
+    @field_validator("ticker")
+    @classmethod
+    def ticker_uppercase(cls, v: str) -> str:
+        return v.upper().strip()
+
+    @field_validator("exchange_timestamp")
+    @classmethod
+    def must_be_utc(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            raise ValueError("exchange_timestamp debe ser UTC aware")
+        return v
+```
+
+## MODELOS DERIVADOS — Herencia correcta
+
+```python
+# ✅ CORRECTO — extiende sin debilitar el contrato
+class EnrichedSnapshot(MarketSnapshot):
+    vpin_score: float
+    ofi_score: float
+    # frozen=True heredado automáticamente
+
+# ❌ PROHIBIDO — debilita el tipo de precio
+class BadSnapshot(MarketSnapshot):
+    price: float           # Tipo más débil → RECHAZAR
+
+# ❌ PROHIBIDO — hace el linaje opcional
+class IncompleteSnapshot(MarketSnapshot):
+    data_lineage: DataLineage | None = None  # RECHAZAR
+```
+
+## OPCIONES — Composición de modelos
+
+```python
+from enum import StrEnum
+
+class OptionType(StrEnum):  # ← enum tipado, nunca string literal
+    CALL = "call"
+    PUT = "put"
+
+class Greeks(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    delta: Decimal = Field(ge=Decimal("-1"), le=Decimal("1"))
+    gamma: Decimal = Field(ge=Decimal("0"))
+    theta: Decimal
+    vega: Decimal = Field(ge=Decimal("0"))
+
+class OptionContract(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    underlying_ticker: str
+    strike: Decimal = Field(ge=Decimal("0"))
+    expiration: date
+    option_type: OptionType          # ← enum, no string
+    open_interest: int = Field(ge=0)
+    greeks: Greeks                   # ← composición, no lista plana
+    snapshot_at_selection: MarketSnapshot  # ← linaje completo preservado
+```
+
+## RESULT MONAD — Cruce de fronteras sin excepciones crudas
+
+```python
+# El Hub NUNCA lanza excepciones a sus callers.
+# Siempre retorna Result[T]:
+
+result: Result[MarketSnapshot] = await hub.get_snapshot("AAPL")
+
+if result.is_failure:
+    logger.warning("Hub falló: %s", result.reason)
+    return  # Descartar, no propagar
+
+snapshot = result.unwrap()  # Solo llamar tras verificar is_success
+```
+
+## TABLA DE VALIDACIONES OBLIGATORIAS
+
+| Campo | Regla | Error si viola |
+|-------|-------|----------------|
+| `price` | `>= Decimal("0")` | "Precio negativo — fuente: {provider}" |
+| `volume` | `>= 0` | "Volumen negativo" |
+| `ticker` | Uppercase, no vacío | "Ticker inválido" |
+| `exchange_timestamp` | UTC aware | "Datetime sin timezone rechazado" |
+| `data_lineage` | Nunca None | "Dato huérfano rechazado por Fase B/C" |
+| `greeks.delta` | `-1 ≤ delta ≤ 1` | "Delta fuera de rango" |
+
+## PROHIBICIONES ABSOLUTAS
+
+```python
+# ❌ Dict genérico como objeto inter-fase
+def process(data: dict) -> dict: ...
+
+# ❌ Dataclass mutable
+@dataclass
+class Snapshot:
+    price: float    # mutable + sin validación
+
+# ❌ float para precios
+price: float = 100.055   # Pérdida de precisión financiera
+
+# ❌ String para tipos de opción
+option_type: str = "call"  # Propenso a typos, sin IDE support
+
+# ❌ Any en cualquier campo
+data_lineage: Any = None   # RECHAZAR siempre
+```

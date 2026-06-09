@@ -1,0 +1,176 @@
+name: 🐍 Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "backend/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "backend/**"
+      - "tests/**"
+      - "pyproject.toml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Gate 1: Secrets scan (fastest — fails first if secrets leaked) ───
+  secrets-scan:
+    name: 🔒 Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Full history for gitleaks
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Gate 2: All quality checks in parallel ───
+  quality:
+    name: 🔬 Code Quality
+    runs-on: ubuntu-latest
+    needs: secrets-scan           # Don't waste compute if secrets leaked
+    
+    strategy:
+      fail-fast: false            # See ALL failures, not just first
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        uses: actions/cache@v4
+        id: cached-poetry-dependencies
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py312-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --with dev --no-interaction
+
+      # ── Format ──────────────────────────────────────────────────────────
+      - name: ✅ Black (format check)
+        run: poetry run black --check backend/ tests/
+
+      - name: ✅ isort (import order)
+        run: poetry run isort --check-only backend/ tests/
+
+      # ── Lint ─────────────────────────────────────────────────────────────
+      - name: ✅ Ruff (lint)
+        run: poetry run ruff check backend/ tests/ --output-format=github
+
+      # ── Types ────────────────────────────────────────────────────────────
+      - name: ✅ mypy --strict
+        run: poetry run mypy backend/ --strict --no-error-summary
+
+      # ── Security ─────────────────────────────────────────────────────────
+      - name: ✅ Bandit (SAST)
+        run: |
+          poetry run bandit -r backend/ \
+            -ll -ii \
+            -f json \
+            -o bandit-report.json
+        continue-on-error: false
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+      - name: ✅ pip-audit (dependency CVEs)
+        run: poetry run pip-audit --strict --progress-spinner off
+
+  # ─── Gate 3: Tests with coverage ───
+  tests:
+    name: 🧪 Tests & Coverage
+    runs-on: ubuntu-latest
+    needs: secrets-scan
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py312-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --with dev --no-interaction
+
+      - name: ✅ pytest + coverage
+        run: |
+          poetry run pytest tests/ \
+            --cov=backend \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80 \
+            --asyncio-mode=auto \
+            -v \
+            --tb=short
+        env:
+          # Tests use mocked credentials — never real keys
+          FMP_API_KEY: "test-key-mock"
+          MASSIVE_API_KEY: "test-key-mock"
+          MASSIVE_WS_URL: "ws://localhost:9999"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ─── Summary: All gates must pass ───
+  ci-success:
+    name: ✅ All Backend Gates Passed
+    runs-on: ubuntu-latest
+    needs: [secrets-scan, quality, tests]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.secrets-scan.result }}" != "success" || \
+                "${{ needs.quality.result }}" != "success" || \
+                "${{ needs.tests.result }}" != "success" ]]; then
+            echo "❌ One or more CI gates failed"
+            exit 1
+          fi
+          echo "✅ All backend CI gates passed"

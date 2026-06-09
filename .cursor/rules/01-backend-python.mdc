@@ -1,0 +1,165 @@
+---
+description: Activo en todo código Python del backend. Estándares Wall Street: tipado estricto, async-first, logging estructurado, cero prints.
+globs:
+  - "backend/**/*.py"
+  - "tests/**/*.py"
+alwaysApply: false
+---
+
+# 🐍 BACKEND PYTHON — ESTÁNDARES DE CALIDAD v3.0
+
+## TOOLCHAIN (Gates de CI — código debe pasar todos antes de presentarlo)
+- `black` → formato (línea máx. 100 chars)
+- `isort` → orden de imports (perfil black-compatible)
+- `ruff` → lint exhaustivo
+- `mypy --strict` → tipos estrictos
+- `bandit` → SAST seguridad
+- `pip-audit` → CVEs en dependencias
+
+## TIPADO — OBLIGATORIO EN TODO
+
+```python
+# ✅ CORRECTO
+async def calculate_vpin(
+    snapshot: MarketSnapshot,
+    bucket_size: int,
+) -> float: ...
+
+# ❌ PROHIBIDO — sin tipos
+def calculate_vpin(snapshot, bucket_size): ...
+
+# ❌ PROHIBIDO — Any
+from typing import Any
+def process(data: Any) -> Any: ...
+
+# ✅ CORRECTO — Decimal para precios (nunca float)
+price: Decimal = Decimal("100.05")
+# ❌ PROHIBIDO
+price: float = 100.05
+```
+
+## NOMENCLATURA
+| Tipo | Convención | Ejemplo |
+|------|-----------|---------|
+| Clases | `PascalCase` | `MarketDataHub` |
+| Funciones/vars | `snake_case` | `fetch_snapshot` |
+| Constantes | `UPPER_CASE` | `MAX_CANDIDATES = 300` |
+| Privados | `_single_underscore` | `_circuit_breaker` |
+| Variables de 1 letra | **PROHIBIDO** | Usar `ticker`, no `t` |
+| Nombres genéricos | **PROHIBIDO** | Nunca `data`, `val`, `obj` |
+
+## FUNCIONES — REGLAS DE DISEÑO
+
+```python
+# Máximo 30 líneas. Si supera → refactorizar en subfunciones.
+
+# Google-Style docstring OBLIGATORIO en funciones complejas:
+async def fetch_option_chain(
+    ticker: str,
+    expiration_date: date,
+) -> Result[list[OptionContract]]:
+    """Descarga y valida la cadena completa de opciones.
+
+    Args:
+        ticker         : Símbolo en mayúsculas (e.g., "AAPL").
+        expiration_date: Fecha de expiración a descargar.
+
+    Returns:
+        Result con lista de OptionContract, o failure si la API no responde.
+
+    Raises:
+        ValidationError: Si la respuesta falla validación de esquema.
+    """
+```
+
+## LOGGING — NO PRINT
+
+```python
+import logging
+logger = logging.getLogger(__name__)
+
+# ✅ CORRECTO
+logger.info("Fase A completa", extra={"count": len(candidates)})
+logger.error("Fallo en Hub", extra={"ticker": ticker}, exc_info=True)
+
+# ❌ PROHIBIDO
+print(f"Fase A: {len(candidates)}")
+```
+
+## MANEJO DE ERRORES
+
+```python
+# ✅ CORRECTO — específico + log
+try:
+    snapshot = await hub.fetch_snapshot(ticker)
+except httpx.TimeoutException as exc:
+    logger.error("Timeout para %s", ticker, exc_info=True)
+    return Result.failure(reason=str(exc))
+
+# ❌ PROHIBIDO — silencioso
+except:
+    pass
+
+# ❌ PROHIBIDO — genérico sin log
+except Exception:
+    return None
+```
+
+## CONCURRENCIA
+
+```python
+# ✅ I/O → asyncio
+async def fetch_all(tickers: list[str]) -> list[MarketSnapshot]:
+    tasks = [hub.fetch_snapshot(t) for t in tickers]
+    return await asyncio.gather(*tasks, return_exceptions=True)
+
+# ✅ CPU pesado → ProcessPoolExecutor (nunca bloquear el event loop)
+result = await loop.run_in_executor(executor, calcular_vpin_sync, snapshot)
+
+# ❌ PROHIBIDO — bloquea el event loop
+time.sleep(1)          # → await asyncio.sleep(1)
+requests.get(url)      # → await httpx.AsyncClient().get(url)
+```
+
+## CONFIGURACIÓN — SIN NÚMEROS MÁGICOS
+
+```python
+# ❌ PROHIBIDO
+if len(candidates) > 300: ...
+
+# ✅ CORRECTO — constante desde config/
+from config.phase_thresholds import PhaseThresholds
+thresholds = PhaseThresholds()
+if len(candidates) > thresholds.phase_a_max_candidates: ...
+```
+
+## IMPORTS — ORDEN isort (automático)
+```python
+# 1. Stdlib
+import asyncio, logging
+from decimal import Decimal
+
+# 2. Terceros
+import httpx
+from pydantic import ValidationError
+
+# 3. Internos — SOLO imports absolutos
+from backend.models.market_snapshot import MarketSnapshot
+from backend.hub.market_data_hub import MarketDataHub
+
+# ❌ PROHIBIDO
+from ..models import *      # wildcard + relativo
+```
+
+## CHECKLIST ANTES DE PRESENTAR CÓDIGO
+```
+[ ] Todas las funciones tienen type hints
+[ ] Ninguna función supera 30 líneas
+[ ] No hay print() — solo logging
+[ ] No hay except: pass
+[ ] No hay time.sleep() en async
+[ ] No hay números mágicos en código
+[ ] No hay imports relativos entre módulos
+[ ] Decimal para todos los campos de precio
+[ ] Google-Style docstring en funciones públicas
+```
