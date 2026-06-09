@@ -190,11 +190,13 @@ Para reportar vulnerabilidades: GitHub Security Advisories (privado).
 
 ## 🔄 ESTADO DEL BUILD
 
+## 🔄 ESTADO DEL BUILD
+
 | Gate | Estado |
 |------|--------|
-| Backend CI | [![Backend CI](https://github.com/TU_ORG/deep-trading-terminal/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/TU_ORG/deep-trading-terminal/actions) |
-| Frontend CI | [![Frontend CI](https://github.com/TU_ORG/deep-trading-terminal/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/TU_ORG/deep-trading-terminal/actions) |
-| Coverage | [![Coverage](https://codecov.io/gh/TU_ORG/deep-trading-terminal/graph/badge.svg)](https://codecov.io/gh/TU_ORG/deep-trading-terminal) |
+| Backend CI | [![Backend CI](https://github.com/juandoroteoflesiauni-lang/deep-funnel-station/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/juandoroteoflesiauni-lang/deep-funnel-station/actions/workflows/backend-ci.yml) |
+| Frontend CI | [![Frontend CI](https://github.com/juandoroteoflesiauni-lang/deep-funnel-station/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/juandoroteoflesiauni-lang/deep-funnel-station/actions/workflows/frontend-ci.yml) |
+| Coverage | [![Coverage](https://codecov.io/gh/juandoroteoflesiauni-lang/deep-funnel-station/graph/badge.svg)](https://codecov.io/gh/juandoroteoflesiauni-lang/deep-funnel-station) |
 
 *(Reemplazar TU_ORG con tu usuario de GitHub)*
 
