@@ -10,10 +10,15 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "lucide-react": "^0.400.0",
+    "motion": "^12.40.0",
     "next": "16.0.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "recharts": "^3.8.1",
+    "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

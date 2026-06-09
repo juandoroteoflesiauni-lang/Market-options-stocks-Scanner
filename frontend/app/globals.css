@@ -1,48 +1,72 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
 
-/* ── Design System — Deep Funnel Station ─────────────────────
-   Inspired by Bloomberg Terminal + Apple design language.
-   Dark mode only. No light mode. No conditional themes.
+/* ── Design System — QUANT Terminal ──────────────────────────
+   Bloomberg-inspired professional quant terminal. Dark only.
    All colors via CSS variables — never raw hex in components.
    ──────────────────────────────────────────────────────────── */
 
 @theme {
-  /* ── Backgrounds ── */
-  --color-bg-base: #0a0a0f;
-  --color-bg-surface: #111118;
-  --color-bg-elevated: #1a1a24;
-  --color-bg-glass: rgba(17, 17, 24, 0.72);
+  /* ── Background layers ── */
+  --color-bg-void: #050810;
+  --color-bg-base: #080c14;
+  --color-bg-panel: #0c1120;
+  --color-bg-elevated: #111827;
+  --color-bg-hover: #1a2235;
+  --color-bg-active: #1e2d47;
+  /* Legacy aliases (kept so existing components still resolve) */
+  --color-bg-surface: #0c1120;
+  --color-bg-glass: rgba(12, 17, 32, 0.72);
 
   /* ── Borders ── */
   --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-muted: rgba(255, 255, 255, 0.1);
   --color-border-default: rgba(255, 255, 255, 0.1);
   --color-border-strong: rgba(255, 255, 255, 0.18);
+  --color-border-accent: rgba(0, 195, 255, 0.3);
 
   /* ── Text ── */
-  --color-text-primary: #f0f0f5;
-  --color-text-secondary: #8b8b9e;
-  --color-text-muted: #4a4a5e;
-  --color-text-inverse: #0a0a0f;
+  --color-text-primary: #e8edf5;
+  --color-text-secondary: #8b9aaf;
+  --color-text-muted: #4a5568;
+  --color-text-accent: #00c3ff;
+  --color-text-inverse: #050810;
 
-  /* ── Trading Signal Accents ── */
-  --color-signal-buy: #00d4aa;
-  --color-signal-sell: #ff4d6d;
-  --color-signal-neutral: #a78bfa;
-  --color-signal-warning: #f59e0b;
+  /* ── Signal colors ── */
+  --color-signal-bull: #00e676;
+  --color-signal-bear: #ff3d5a;
+  --color-signal-warn: #ffb800;
+  --color-signal-info: #00c3ff;
+  --color-signal-neutral: #8b9aaf;
+  /* Legacy aliases */
+  --color-signal-buy: #00e676;
+  --color-signal-sell: #ff3d5a;
+  --color-signal-warning: #ffb800;
 
-  /* ── Chart Palette ── */
-  --color-chart-1: #818cf8;
-  --color-chart-2: #34d399;
-  --color-chart-3: #f472b6;
-  --color-chart-4: #fb923c;
+  /* ── Phase colors ── */
+  --color-phase-a: #7c3aed;
+  --color-phase-b: #2563eb;
+  --color-phase-c: #d97706;
+  --color-phase-d: #dc2626;
+
+  /* ── Gradient accents ── */
+  --color-grad-start: #0066ff;
+  --color-grad-mid: #00c3ff;
+  --color-grad-end: #00ffd1;
 
   /* ── Typography ── */
-  --font-sans: "Inter", "SF Pro Display", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --font-sans: "Inter", "Geist", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", "Fira Code", monospace;
+  --font-display: "Space Grotesk", "DM Sans", sans-serif;
+
+  /* ── Radius ── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
 }
 
-/* ── Glassmorphism Utility ── */
+/* ── Glassmorphism / panel utilities ── */
 @utility glass-panel {
   background-color: var(--color-bg-glass);
   backdrop-filter: blur(16px);
@@ -58,6 +82,18 @@
   border-radius: 12px;
 }
 
+@utility panel {
+  background-color: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+@utility panel-elevated {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-lg);
+}
+
 /* ── Base Layer ── */
 @layer base {
   html {
@@ -65,29 +101,143 @@
   }
 
   body {
-    background-color: var(--color-bg-base);
+    background-color: var(--color-bg-void);
+    background-image:
+      radial-gradient(
+        ellipse 80% 60% at 20% 10%,
+        rgba(0, 102, 255, 0.07) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 60% 80% at 80% 90%,
+        rgba(0, 195, 255, 0.05) 0%,
+        transparent 55%
+      ),
+      radial-gradient(
+        ellipse 40% 40% at 50% 50%,
+        rgba(0, 255, 209, 0.03) 0%,
+        transparent 70%
+      );
+    background-attachment: fixed;
     color: var(--color-text-primary);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Scrollbar styling for trading terminal aesthetic */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
   }
-
   ::-webkit-scrollbar-track {
     background: transparent;
   }
-
   ::-webkit-scrollbar-thumb {
-    background: var(--color-border-default);
-    border-radius: 3px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
     background: var(--color-border-strong);
+    border-radius: 4px;
   }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+  }
+}
+
+/* ── Scanline + grain overlay (CRT texture) ── */
+.crt-overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+.crt-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.05) 0px,
+    rgba(255, 255, 255, 0.05) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  opacity: 0.05;
+}
+
+/* ── Animations ── */
+@keyframes priceFlashUp {
+  0% {
+    background-color: rgba(0, 230, 118, 0);
+  }
+  35% {
+    background-color: rgba(0, 230, 118, 0.28);
+  }
+  100% {
+    background-color: rgba(0, 230, 118, 0);
+  }
+}
+@keyframes priceFlashDown {
+  0% {
+    background-color: rgba(255, 61, 90, 0);
+  }
+  35% {
+    background-color: rgba(255, 61, 90, 0.28);
+  }
+  100% {
+    background-color: rgba(255, 61, 90, 0);
+  }
+}
+.flash-up {
+  animation: priceFlashUp 0.5s ease-out;
+}
+.flash-down {
+  animation: priceFlashDown 0.5s ease-out;
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+}
+.pulse-dot {
+  animation: pulseDot 1.6s ease-in-out infinite;
+}
+
+@keyframes strobe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+.strobe {
+  animation: strobe 0.7s steps(2, start) infinite;
+}
+
+@keyframes tickerScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.ticker-scroll {
+  animation: tickerScroll 30s linear infinite;
+}
+
+/* Utility: hide number input spinners */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
 }
