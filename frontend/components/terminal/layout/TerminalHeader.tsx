@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 
-import { TABS, useTerminalStore } from "@/store/terminalStore";
+import { useTerminalStore } from "@/store/terminalStore";
 import { cn } from "@/lib/terminal/format";
 import type { MarketSession } from "@/lib/terminal/types";
 
@@ -17,8 +17,6 @@ function getSession(d: Date): { session: MarketSession; color: string } {
 }
 
 export function TerminalHeader() {
-  const activeTab = useTerminalStore((s) => s.activeTab);
-  const setActiveTab = useTerminalStore((s) => s.setActiveTab);
   const connected = useTerminalStore((s) => s.connected);
   const [now, setNow] = useState<Date | null>(null);
 
@@ -56,34 +54,12 @@ export function TerminalHeader() {
         </div>
       </div>
 
-      {/* Center — tab pills */}
-      <nav
-        className="hidden flex-1 items-center justify-center gap-1 lg:flex"
-        aria-label="Terminal tabs"
-      >
-        {TABS.map((tab) => {
-          const isActive = tab.id === activeTab;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "relative rounded-md px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-widest transition-all duration-150",
-                isActive
-                  ? "border border-border-accent bg-bg-active text-text-primary shadow-[0_2px_12px_-2px_rgba(0,195,255,0.35)]"
-                  : "border border-transparent bg-bg-panel text-text-secondary hover:bg-bg-hover hover:text-text-primary",
-              )}
-            >
-              <span className="text-text-muted">{tab.num}</span> {tab.label}
-              {isActive && (
-                <span className="absolute inset-x-2 -bottom-px h-px bg-text-accent shadow-[0_0_8px_rgba(0,195,255,0.8)]" />
-              )}
-            </button>
-          );
-        })}
-      </nav>
+      {/* Center — tagline */}
+      <div className="hidden flex-1 items-center justify-center lg:flex">
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-text-muted">
+          Multi-Strategy Quant Terminal
+        </span>
+      </div>
 
       {/* Right — clock, session, settings */}
       <div className="flex items-center gap-3">
