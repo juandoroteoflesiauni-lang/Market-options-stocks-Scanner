@@ -57,7 +57,7 @@ jobs:
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -134,7 +134,7 @@ jobs:
   quality:
     name: Frontend Quality
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -330,14 +330,14 @@ updates:
       interval: "weekly"
       day: "monday"
     labels: ["dependencies", "security"]
-    
+
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
       day: "monday"
     labels: ["dependencies", "security"]
-    
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

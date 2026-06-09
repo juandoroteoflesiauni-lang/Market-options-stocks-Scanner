@@ -1,16 +1,21 @@
 import numpy as np
 import pytest
 
-from src.quant_engine.engines.predictive.ml_optimizer import (
-    MLOptimizer,
-    OptimizationResult,
-)
 from backend.models.result import Result
+from src.quant_engine.engines.predictive.ml_optimizer import MLOptimizer, OptimizationResult
 
 
 def test_ml_optimizer():
     optimizer = MLOptimizer()
-    feature_names = ["momentum", "strength", "volatility", "put_call", "credit", "safe_haven", "event_risk"]
+    feature_names = [
+        "momentum",
+        "strength",
+        "volatility",
+        "put_call",
+        "credit",
+        "safe_haven",
+        "event_risk",
+    ]
     num_features = len(feature_names)
 
     # 1. Test optimize_ridge

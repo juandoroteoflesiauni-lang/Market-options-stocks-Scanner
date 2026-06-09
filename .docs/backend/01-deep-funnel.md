@@ -125,7 +125,7 @@ snapshot.price = new_price  # Will raise FrozenInstanceError — intended
 ```python
 class ApiKeyPool:
     """Manages API key rotation across concurrent workers.
-    
+
     Args:
         api_keys: List of valid API keys from environment.
     """
@@ -147,18 +147,18 @@ async def scan_ticker_batch(
     key_pool: ApiKeyPool,
 ) -> list[MarketSnapshot]:
     """Scans a batch of tickers and returns validated snapshots.
-    
+
     Args:
         ticker_batch: Subset of tickers assigned to this worker.
         hub: The MarketDataHub instance for data fetching.
         key_pool: Shared API key pool for rate-limit management.
-    
+
     Returns:
         List of valid MarketSnapshot objects. Invalid tickers are discarded.
     """
     api_key = await key_pool.acquire_key()
     results: list[MarketSnapshot] = []
-    
+
     for ticker in ticker_batch:
         result = await hub.fetch_snapshot(ticker=ticker, api_key=api_key)
         if result.is_success:
@@ -168,7 +168,7 @@ async def scan_ticker_batch(
                 "Phase A: Discarding invalid ticker [PD-1]",
                 extra={"ticker": ticker, "reason": result.reason},
             )
-    
+
     return results
 ```
 

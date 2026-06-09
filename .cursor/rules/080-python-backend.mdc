@@ -59,30 +59,30 @@ class Settings(BaseSettings):
     # Base de datos
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
-    
+
     # Seguridad
     SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
-    
+
     # APIs de Trading
     BINANCE_API_KEY: Optional[str] = None
     BINANCE_API_SECRET: Optional[str] = None
     MT5_LOGIN: Optional[str] = None
     MT5_PASSWORD: Optional[str] = None
     MT5_SERVER: Optional[str] = None
-    
+
     # App
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
     ALLOWED_ORIGINS: str = "http://localhost:5173"
-    
+
     @validator('SECRET_KEY')
     def secret_key_must_be_strong(cls, v):
         if len(v) < 32:
             raise ValueError('SECRET_KEY debe tener al menos 32 caracteres')
         return v
-    
+
     class Config:
         env_file = ".env"
         case_sensitive = True
@@ -115,28 +115,28 @@ class OrderStatus(str, enum.Enum):
 
 class Order(Base):
     __tablename__ = "orders"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    
+
     symbol = Column(String(20), nullable=False, index=True)
     side = Column(String(4), nullable=False)          # BUY / SELL
     order_type = Column(String(20), nullable=False)   # MARKET / LIMIT
     status = Column(String(20), nullable=False, default=OrderStatus.PENDING)
-    
+
     quantity = Column(Numeric(precision=20, scale=8), nullable=False)
     price = Column(Numeric(precision=20, scale=8), nullable=True)
     fill_price = Column(Numeric(precision=20, scale=8), nullable=True)
-    
+
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     filled_at = Column(DateTime(timezone=True), nullable=True)
-    
+
     exchange_order_id = Column(String(100), nullable=True, unique=True)
-    
+
     # Relaciones
     user = relationship("User", back_populates="orders")
-    
+
     def __repr__(self):
         return f"<Order {self.id}: {self.side} {self.quantity} {self.symbol} @ {self.price}>"
 ```
@@ -168,7 +168,7 @@ async def create_order(
 ):
     """
     Crear nueva orden de trading.
-    
+
     Valida riesgo, verifica fondos y envía al exchange.
     """
     try:
@@ -179,7 +179,7 @@ async def create_order(
         )
         logger.info("order.created", order_id=str(order.id), user_id=str(current_user.id))
         return order
-        
+
     except InsufficientFundsError as e:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,

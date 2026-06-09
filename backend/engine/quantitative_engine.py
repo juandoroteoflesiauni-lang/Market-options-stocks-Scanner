@@ -7,6 +7,7 @@ from backend.models.result import Result
 
 logger = logging.getLogger(__name__)
 
+
 class QuantitativeEngine:
     """Mathematical engine for microstructure calculations (VPIN, OFI)."""
 
@@ -17,13 +18,13 @@ class QuantitativeEngine:
     async def start_processing(self) -> None:
         """Comienza el bucle asíncrono para consumir del EventBus."""
         pass
-        
+
     async def process_snapshot(self, snapshot: MarketSnapshot) -> Result[Any]:
         """Procesa de forma aislada un snapshot aplicando métricas.
-        
+
         Args:
             snapshot: Snapshot validado e inyectado desde la Fase A.
-            
+
         Returns:
             Result[EnrichedSnapshot] (a definir) sin excepciones crudas.
         """

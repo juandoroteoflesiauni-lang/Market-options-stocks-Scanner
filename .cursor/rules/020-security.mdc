@@ -178,14 +178,14 @@ class OrderCreate(BaseModel):
     order_type: Literal["MARKET", "LIMIT", "STOP_LIMIT"]
     quantity: Decimal = Field(..., gt=0, le=1000000)
     price: Optional[Decimal] = Field(None, gt=0)
-    
+
     @validator('quantity')
     def validate_quantity_precision(cls, v):
         # Máximo 8 decimales para crypto
         if abs(v.as_tuple().exponent) > 8:
             raise ValueError('Máximo 8 decimales en quantity')
         return v
-    
+
     @validator('price', always=True)
     def price_required_for_limit(cls, v, values):
         if values.get('order_type') == 'LIMIT' and v is None:
@@ -205,10 +205,10 @@ from datetime import datetime
 
 class TradingAuditLogger:
     """Logger específico para operaciones financieras."""
-    
+
     def __init__(self):
         self.logger = logging.getLogger('trading.audit')
-    
+
     def log_order(self, user_id: str, action: str, order_data: dict, result: dict):
         """Registrar TODAS las operaciones de órdenes."""
         self.logger.info(json.dumps({
@@ -220,7 +220,7 @@ class TradingAuditLogger:
             "result": result,
             "ip": request.client.host
         }))
-    
+
     def log_auth(self, user_id: str, action: str, success: bool, ip: str):
         """Registrar intentos de autenticación."""
         ...
@@ -255,14 +255,14 @@ app.add_middleware(
 
 class RiskService:
     """Todas las validaciones de riesgo antes de ejecutar órdenes."""
-    
+
     MAX_ORDER_VALUE_USD = Decimal("10000")
     MAX_DAILY_VOLUME_USD = Decimal("50000")
     MAX_POSITION_SIZE_PCT = Decimal("0.25")  # 25% del portfolio
-    
+
     async def validate_order(
-        self, 
-        order: OrderCreate, 
+        self,
+        order: OrderCreate,
         user_portfolio: Portfolio,
         current_price: Decimal
     ) -> None:
@@ -271,27 +271,27 @@ class RiskService:
         Lanza RiskViolationError si alguna regla se incumple.
         """
         order_value = order.quantity * current_price
-        
+
         # 1. Límite por orden
         if order_value > self.MAX_ORDER_VALUE_USD:
             raise RiskViolationError(
                 f"Orden ${order_value:.2f} excede límite de ${self.MAX_ORDER_VALUE_USD}"
             )
-        
+
         # 2. Verificar fondos disponibles
         if order.side == "BUY":
             if user_portfolio.available_usd < order_value:
                 raise InsufficientFundsError(
                     f"Fondos disponibles ${user_portfolio.available_usd:.2f} < ${order_value:.2f}"
                 )
-        
+
         # 3. Tamaño máximo de posición
         position_pct = order_value / user_portfolio.total_value
         if position_pct > self.MAX_POSITION_SIZE_PCT:
             raise RiskViolationError(
                 f"Posición {position_pct:.1%} excede máximo {self.MAX_POSITION_SIZE_PCT:.1%}"
             )
-        
+
         # 4. Volumen diario
         daily_volume = await self._get_daily_volume(order.user_id)
         if daily_volume + order_value > self.MAX_DAILY_VOLUME_USD:

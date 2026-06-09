@@ -1,21 +1,20 @@
 import numpy as np
-import pytest
 
+from backend.models.result import Result
 from src.quant_engine.math.predictive.parametric_optimizer import (
-    ParametricOptimizerEngine,
-    ParameterRange,
-    ParameterSpace,
     BacktestResult,
     OptimizationResult,
+    ParameterRange,
+    ParameterSpace,
+    ParametricOptimizerEngine,
 )
-from backend.models.result import Result
 
 
 def dummy_backtest(data: np.ndarray, parameters: dict[str, float]) -> BacktestResult:
     # A simple backtest that returns metrics based on parameter values
     param1 = parameters.get("param1", 0.0)
     param2 = parameters.get("param2", 0.0)
-    
+
     # We'll make param1 = 1.5 and param2 = 0.5 the "optimal" parameters
     if abs(param1 - 1.5) < 1e-9 and abs(param2 - 0.5) < 1e-9:
         return BacktestResult(
@@ -25,7 +24,7 @@ def dummy_backtest(data: np.ndarray, parameters: dict[str, float]) -> BacktestRe
             sortino_ratio=3.0,
             calmar_ratio=1.5,
             total_return_pct=15.0,
-            max_drawdown_pct=10.0
+            max_drawdown_pct=10.0,
         )
     return BacktestResult(
         ok=True,
@@ -34,7 +33,7 @@ def dummy_backtest(data: np.ndarray, parameters: dict[str, float]) -> BacktestRe
         sortino_ratio=1.2,
         calmar_ratio=0.5,
         total_return_pct=5.0,
-        max_drawdown_pct=10.0
+        max_drawdown_pct=10.0,
     )
 
 
@@ -46,7 +45,7 @@ def test_parametric_optimizer_engine():
             "param2": ParameterRange(start=0.0, stop=1.0, step=0.5),  # 0.0, 0.5, 1.0
         }
     )
-    
+
     # Mock data array
     data = np.random.rand(100, 5)
 
@@ -58,7 +57,7 @@ def test_parametric_optimizer_engine():
         backtest_func=dummy_backtest,
         objective_metric="sharpe_ratio",
         min_trades=30,
-        n_workers=1
+        n_workers=1,
     )
     assert isinstance(res, Result)
     assert res.is_success
@@ -77,7 +76,7 @@ def test_parametric_optimizer_engine():
         param_space=param_space,
         backtest_func=dummy_backtest,
         min_trades=30,
-        n_workers=1
+        n_workers=1,
     )
     assert isinstance(res_empty_data, Result)
     assert res_empty_data.is_failure
@@ -89,7 +88,7 @@ def test_parametric_optimizer_engine():
         param_space=ParameterSpace(parameters={}),
         backtest_func=dummy_backtest,
         min_trades=30,
-        n_workers=1
+        n_workers=1,
     )
     assert isinstance(res_empty_space, Result)
     assert res_empty_space.is_failure

@@ -6,9 +6,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class MarketDataSettings(BaseSettings):
     """Configuration class for market data infrastructure and secrets.
-    
+
     Automatically loads variables from the environment and the .env file.
     """
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -25,11 +26,11 @@ class MarketDataSettings(BaseSettings):
     # Global Market Data Integration
     # FMP
     fmp_api_key: SecretStr
-    
+
     # Massive
     massive_api_key: SecretStr
     massive_ws_url: str
-    
+
     # Alpaca
     alpaca_api_key: SecretStr
     alpaca_api_secret: SecretStr

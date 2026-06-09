@@ -1,6 +1,7 @@
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from backend.models.market_snapshot import DataLineage, MarketSnapshot
 
@@ -10,7 +11,7 @@ class MassiveNormalizer:
 
     PROVIDER_NAME: str = "massive"
 
-    def normalize(self, raw: dict, ingestion_start_ns: int) -> MarketSnapshot:
+    def normalize(self, raw: dict[str, Any], ingestion_start_ns: int) -> MarketSnapshot:
         """Converts a Massive websocket ticker response to MarketSnapshot."""
         ingestion_latency_ms = (time.time_ns() - ingestion_start_ns) // 1_000_000
 
@@ -19,9 +20,7 @@ class MassiveNormalizer:
             exchange=raw.get("x", "UNKNOWN"),
             price=Decimal(str(raw["p"])),
             volume=int(raw.get("v", 0)),
-            exchange_timestamp=datetime.fromtimestamp(
-                raw["t"] / 1000.0, tz=timezone.utc
-            ),
+            exchange_timestamp=datetime.fromtimestamp(raw["t"] / 1000.0, tz=UTC),
             data_lineage=DataLineage(
                 source=self.PROVIDER_NAME,
                 ingestion_latency_ms=ingestion_latency_ms,

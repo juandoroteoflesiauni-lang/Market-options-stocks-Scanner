@@ -17,21 +17,21 @@ alwaysApply: false
   --bg-secondary: #161b22;
   --bg-panel: #1c2128;
   --bg-card: #21262d;
-  
+
   /* Colores de trading */
   --color-buy: #00c851;        /* Verde — Compra */
   --color-sell: #ff4444;       /* Rojo — Venta */
   --color-neutral: #f0c040;    /* Amarillo — Neutro/Pendiente */
-  
+
   /* Texto */
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
   --text-muted: #484f58;
-  
+
   /* Bordes */
   --border-default: #30363d;
   --border-accent: #388bfd;
-  
+
   /* Tipografía */
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace; /* Para precios */
   --font-ui: 'Inter', system-ui, sans-serif;
@@ -61,9 +61,9 @@ const PriceDisplay: React.FC<PriceDisplayProps> = ({
   const isUp = previousPrice !== undefined && price > previousPrice;
   const isDown = previousPrice !== undefined && price < previousPrice;
   const changeColor = isUp ? 'text-[#00c851]' : isDown ? 'text-[#ff4444]' : 'text-[#e6edf3]';
-  
+
   return (
-    <span 
+    <span
       className={`font-mono font-semibold tabular-nums ${changeColor}`}
       aria-label={`Precio: ${price.toFixed(decimals)}`}
     >
@@ -107,7 +107,7 @@ const OrderForm: React.FC<{ symbol: string; onOrderPlaced: (id: string) => void 
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Validación del formulario
   const validateForm = (): string | null => {
     const qty = parseFloat(state.quantity);
@@ -115,12 +115,12 @@ const OrderForm: React.FC<{ symbol: string; onOrderPlaced: (id: string) => void 
     if (state.orderType === 'LIMIT' && !state.price) return 'Precio requerido para orden LIMIT';
     return null;
   };
-  
+
   const handleSubmit = async () => {
     setError(null);
     const validationError = validateForm();
     if (validationError) { setError(validationError); return; }
-    
+
     setIsLoading(true);
     try {
       const order = await orderService.placeOrder({
@@ -137,7 +137,7 @@ const OrderForm: React.FC<{ symbol: string; onOrderPlaced: (id: string) => void 
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="bg-[#1c2128] border border-[#30363d] rounded-lg p-4">
       {/* Selector BUY/SELL */}
@@ -145,8 +145,8 @@ const OrderForm: React.FC<{ symbol: string; onOrderPlaced: (id: string) => void 
         <button
           onClick={() => setState(s => ({ ...s, side: 'BUY' }))}
           className={`py-2 rounded font-semibold transition-colors ${
-            state.side === 'BUY' 
-              ? 'bg-[#00c851] text-black' 
+            state.side === 'BUY'
+              ? 'bg-[#00c851] text-black'
               : 'bg-[#21262d] text-[#8b949e] hover:bg-[#00c851]/20'
           }`}
         >
@@ -155,15 +155,15 @@ const OrderForm: React.FC<{ symbol: string; onOrderPlaced: (id: string) => void 
         <button
           onClick={() => setState(s => ({ ...s, side: 'SELL' }))}
           className={`py-2 rounded font-semibold transition-colors ${
-            state.side === 'SELL' 
-              ? 'bg-[#ff4444] text-white' 
+            state.side === 'SELL'
+              ? 'bg-[#ff4444] text-white'
               : 'bg-[#21262d] text-[#8b949e] hover:bg-[#ff4444]/20'
           }`}
         >
           VENDER
         </button>
       </div>
-      
+
       {/* Campo Cantidad */}
       <div className="mb-3">
         <label className="block text-[#8b949e] text-xs mb-1">Cantidad</label>
@@ -174,25 +174,25 @@ const OrderForm: React.FC<{ symbol: string; onOrderPlaced: (id: string) => void 
           placeholder="0.00"
           min="0"
           step="any"
-          className="w-full bg-[#21262d] border border-[#30363d] text-[#e6edf3] 
+          className="w-full bg-[#21262d] border border-[#30363d] text-[#e6edf3]
                      font-mono rounded px-3 py-2 focus:border-[#388bfd] outline-none"
         />
       </div>
-      
+
       {/* Error */}
       {error && (
         <div role="alert" className="text-[#ff4444] text-sm mb-3 p-2 bg-[#ff4444]/10 rounded">
           ⚠️ {error}
         </div>
       )}
-      
+
       {/* Submit */}
       <button
         onClick={handleSubmit}
         disabled={isLoading}
         className={`w-full py-3 rounded font-semibold transition-all
-          ${state.side === 'BUY' 
-            ? 'bg-[#00c851] hover:bg-[#00a843] text-black' 
+          ${state.side === 'BUY'
+            ? 'bg-[#00c851] hover:bg-[#00a843] text-black'
             : 'bg-[#ff4444] hover:bg-[#cc3333] text-white'
           }
           disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -226,7 +226,7 @@ const OrderBookRow: React.FC<{
 }> = React.memo(({ price, quantity, total, maxTotal, side }) => {
   const depth = (total / maxTotal) * 100;
   const color = side === 'bid' ? '#00c851' : '#ff4444';
-  
+
   return (
     <div className="relative flex justify-between px-2 py-0.5 text-xs font-mono">
       {/* Barra de profundidad */}
@@ -259,10 +259,10 @@ export const CandlestickChart: React.FC<{ symbol: string }> = ({ symbol }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
-  
+
   useEffect(() => {
     if (!containerRef.current) return;
-    
+
     // Crear chart con tema oscuro
     chartRef.current = createChart(containerRef.current, {
       layout: {
@@ -280,7 +280,7 @@ export const CandlestickChart: React.FC<{ symbol: string }> = ({ symbol }) => {
       width: containerRef.current.clientWidth,
       height: 400,
     });
-    
+
     seriesRef.current = chartRef.current.addCandlestickSeries({
       upColor: '#00c851',
       downColor: '#ff4444',
@@ -288,10 +288,10 @@ export const CandlestickChart: React.FC<{ symbol: string }> = ({ symbol }) => {
       wickUpColor: '#00c851',
       wickDownColor: '#ff4444',
     });
-    
+
     return () => chartRef.current?.remove();
   }, []);
-  
+
   return <div ref={containerRef} className="w-full" />;
 };
 ```
@@ -317,7 +317,7 @@ export const CandlestickChart: React.FC<{ symbol: string }> = ({ symbol }) => {
 </div>
 
 // 4. Botones con estado claro
-<button 
+<button
   aria-pressed={side === 'BUY'}
   aria-label="Seleccionar modo compra"
 >

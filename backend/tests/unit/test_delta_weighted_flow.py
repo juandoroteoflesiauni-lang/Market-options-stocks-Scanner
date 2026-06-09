@@ -47,10 +47,12 @@ def test_delta_weighted_flow_normal_and_hold():
     # Call DW Flow = 10 * 1.5 * 100 * 0.5 = 750
     # Put DW Flow = 5 * 1.2 * 100 * 0.4 = 240
     # Call > Put -> MarketSignal.HOLD_STATE
-    chain_data = np.array([
-        [1.0, 10.0, 1.5, 0.5],
-        [0.0, 5.0, 1.2, -0.4],
-    ])
+    chain_data = np.array(
+        [
+            [1.0, 10.0, 1.5, 0.5],
+            [0.0, 5.0, 1.2, -0.4],
+        ]
+    )
     ratio_history = np.array([1.0, 1.1, 1.2])
     res = engine.analyze_flow(chain_data, ratio_history, False)
     assert res.is_success
@@ -77,10 +79,12 @@ def test_delta_weighted_flow_panic_and_trigger():
     # Put flow: is_call=0.0, volume=100, mark_price=10.0, delta=-1.0
     # Put DW Flow = 100 * 10 * 100 * 1.0 = 100000
     # PC Flow Ratio = 100000 / 10 = 10000.0 (high PC ratio)
-    chain_data_panic = np.array([
-        [1.0, 1.0, 1.0, 0.1],
-        [0.0, 100.0, 10.0, -1.0],
-    ])
+    chain_data_panic = np.array(
+        [
+            [1.0, 1.0, 1.0, 0.1],
+            [0.0, 100.0, 10.0, -1.0],
+        ]
+    )
 
     # History of 19 calm ratios close to 1.0
     ratio_history = np.ones(19, dtype=np.float64)
@@ -96,10 +100,12 @@ def test_delta_weighted_flow_panic_and_trigger():
     # The history now contains the panic ratio as the last element.
     ratio_history_recovery = np.append(ratio_history, 10000.0)
     # A calm snapshot (PC ratio close to 1.0)
-    chain_data_recovery = np.array([
-        [1.0, 10.0, 1.0, 0.5],
-        [0.0, 10.0, 1.0, -0.5],
-    ])
+    chain_data_recovery = np.array(
+        [
+            [1.0, 10.0, 1.0, 0.5],
+            [0.0, 10.0, 1.0, -0.5],
+        ]
+    )
     # Call DW Flow = 10 * 1.0 * 100 * 0.5 = 500
     # Put DW Flow = 10 * 1.0 * 100 * 0.5 = 500
     # PC Ratio = 1.0

@@ -3,28 +3,27 @@
   // DEEP TRADING TERMINAL — VS Code Settings v3.0
   // Compartir en el repositorio (sin datos personales)
   // ══════════════════════════════════════════════════════════════════
-
   // ── Editor Core ───────────────────────────────────────────────
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit",
-    "source.organizeImports": "never"   // Ruff maneja esto para Python
+    "source.organizeImports": "never" // Ruff maneja esto para Python
   },
-  "editor.rulers": [100],
+  "editor.rulers": [
+    100
+  ],
   "editor.tabSize": 2,
   "editor.detectIndentation": false,
   "editor.insertSpaces": true,
   "editor.trimAutoWhitespace": true,
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
-
   // ── Tema: Terminal Financiera Oscura ──────────────────────────
   "workbench.colorTheme": "GitHub Dark Default",
   "editor.fontFamily": "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace",
   "editor.fontLigatures": true,
   "editor.fontSize": 14,
   "editor.lineHeight": 22,
-
   // ── Python: Black + Ruff + mypy ────────────────────────────────
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter",
@@ -35,13 +34,21 @@
       "source.organizeImports.ruff": "explicit"
     }
   },
-  "black-formatter.args": ["--line-length", "100"],
-  "ruff.lint.args": ["--config", "pyproject.toml"],
+  "black-formatter.args": [
+    "--line-length",
+    "100"
+  ],
+  "ruff.lint.args": [
+    "--config",
+    "pyproject.toml"
+  ],
   "ruff.fixAll": true,
-  "mypy-type-checker.args": ["--config-file", "pyproject.toml"],
+  "mypy-type-checker.args": [
+    "--config-file",
+    "pyproject.toml"
+  ],
   "python.analysis.typeCheckingMode": "strict",
   "python.analysis.autoImportCompletions": true,
-
   // ── TypeScript / Next.js ──────────────────────────────────────
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -61,18 +68,24 @@
   },
   "typescript.preferences.strictNullChecks": true,
   "typescript.preferences.noImplicitAny": true,
-
   // ── Tailwind v4 ────────────────────────────────────────────────
   "tailwindCSS.experimental.classRegex": [
-    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
-    ["cn\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
-    ["className:\\s*[\"'`]([^\"'`]*)[\"'`]"]
+    [
+      "cva\\(([^)]*)\\)",
+      "[\"'`]([^\"'`]*).*?[\"'`]"
+    ],
+    [
+      "cn\\(([^)]*)\\)",
+      "[\"'`]([^\"'`]*).*?[\"'`]"
+    ],
+    [
+      "className:\\s*[\"'`]([^\"'`]*)[\"'`]"
+    ]
   ],
   "tailwindCSS.includeLanguages": {
     "typescript": "html",
     "typescriptreact": "html"
   },
-
   // ── Archivos a excluir del explorador ─────────────────────────
   "files.exclude": {
     "**/__pycache__": true,
@@ -85,7 +98,6 @@
     "**/.ruff_cache": true,
     "**/coverage": true
   },
-
   // ── File Nesting (explorador más limpio) ──────────────────────
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.patterns": {
@@ -100,14 +112,19 @@
     "docker-compose.yml": "docker-compose.*.yml",
     ".env.local.example": ".env.local, .env"
   },
-
   // ── Error Lens (errores inline sin hover) ─────────────────────
-  "errorLens.enabledDiagnosticLevels": ["error", "warning"],
+  "errorLens.enabledDiagnosticLevels": [
+    "error",
+    "warning"
+  ],
   "errorLens.fontSize": "12px",
-
   // ── TODO Tree: rastrear CHECKPOINT entre sesiones ─────────────
   "todo-tree.general.tags": [
-    "TODO", "FIXME", "HACK", "BUG", "WARN",
+    "TODO",
+    "FIXME",
+    "HACK",
+    "BUG",
+    "WARN",
     "CHECKPOINT",
     "PD-",
     "SEC-",
@@ -139,7 +156,6 @@
       "icon": "circuit-board"
     }
   },
-
   // ── Terminal con PYTHONPATH correcto ──────────────────────────
   "terminal.integrated.env.linux": {
     "PYTHONPATH": "${workspaceFolder}/backend"
@@ -150,7 +166,6 @@
   "terminal.integrated.env.windows": {
     "PYTHONPATH": "${workspaceFolder}/backend"
   },
-
   // ── Búsqueda: excluir ruido de resultados ─────────────────────
   "search.exclude": {
     "**/node_modules": true,
@@ -162,13 +177,11 @@
     "**/.mypy_cache": true,
     "**/.ruff_cache": true
   },
-
   // ── Seguridad: ocultar .env del file watcher ──────────────────
   "files.watcherExclude": {
     "**/.env": true,
     "**/.env.local": true
   },
-
   // ── GitHub Copilot: Instrucciones del Proyecto en Español ─────
   // Estas instrucciones se cargan automáticamente en Copilot Chat
   "github.copilot.chat.codeGeneration.instructions": [
@@ -203,5 +216,6 @@
       "text": "FIN DE SESIÓN: Al terminar, SIEMPRE: (1) Agregar comentario CHECKPOINT en el código indicando dónde continuar. (2) Actualizar PROJECT_CONFIG.md con módulos completados y próximo paso. (3) Proponer mensaje de commit semántico (feat/fix/refactor/test). (4) Listar TODO y FIXME agregados."
     }
   ],
-  "snyk.advanced.autoSelectOrganization": true
+  "snyk.advanced.autoSelectOrganization": true,
+  "snyk.advanced.organization": "4fdc1cf2-57ca-4aa2-9d28-5fc940d91b39"
 }

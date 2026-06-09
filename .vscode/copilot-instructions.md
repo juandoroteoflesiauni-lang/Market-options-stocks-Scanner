@@ -26,7 +26,7 @@ Esta aplicación maneja dinero real: la seguridad y la corrección son CRÍTICAS
 - NUNCA lógica de negocio en los endpoints de FastAPI
 - Máximo 200 líneas por archivo
 
-### TypeScript  
+### TypeScript
 - SIEMPRE tipado estricto (`"strict": true` en tsconfig)
 - NUNCA usar `any` — usar tipos específicos o `unknown`
 - SIEMPRE interfaces para props de componentes

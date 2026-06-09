@@ -138,20 +138,20 @@ type RequiredEnvVar = typeof requiredEnvVars[number];
 
 function validateEnvironment(): Record<RequiredEnvVar, string> {
   const missing: string[] = [];
-  
+
   for (const key of requiredEnvVars) {
     if (!process.env[key]) {
       missing.push(key);
     }
   }
-  
+
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables: ${missing.join(", ")}. ` +
       "Copy .env.local.example to .env.local and fill in the values."
     );
   }
-  
+
   return requiredEnvVars.reduce((acc, key) => {
     acc[key] = process.env[key] as string;
     return acc;

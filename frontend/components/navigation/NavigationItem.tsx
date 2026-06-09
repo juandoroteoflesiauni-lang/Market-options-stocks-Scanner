@@ -7,8 +7,8 @@ interface NavigationItemProps {
 
 export function NavigationItem({ label, href }: NavigationItemProps) {
   return (
-    <Link 
-      href={href} 
+    <Link
+      href={href}
       className="text-sm text-gray-300 hover:text-white transition-colors duration-200"
     >
       {label}

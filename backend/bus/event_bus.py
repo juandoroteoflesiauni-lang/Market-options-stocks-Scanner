@@ -17,10 +17,10 @@ PRIORITY_QUEUE_MAX_SIZE: int = 1_000
 
 class EventBus:
     """Decoupled pub/sub bus using asyncio.Queue primitives.
-    
+
     Producers publish events without knowing who consumes them.
     Consumers subscribe without knowing who produces.
-    
+
     Backpressure policy: Drop-Oldest when queue exceeds max size.
     This prevents memory overflow at the cost of losing stale events.
     """
@@ -29,15 +29,13 @@ class EventBus:
         self._standard_queue: asyncio.Queue[MarketSnapshot] = asyncio.Queue(
             maxsize=STANDARD_QUEUE_MAX_SIZE
         )
-        self._priority_queue: asyncio.Queue[object] = asyncio.Queue(
-            maxsize=PRIORITY_QUEUE_MAX_SIZE
-        )
+        self._priority_queue: asyncio.Queue[object] = asyncio.Queue(maxsize=PRIORITY_QUEUE_MAX_SIZE)
 
     async def publish(self, snapshot: MarketSnapshot) -> None:
         """Publishes a MarketSnapshot to the standard queue.
-        
+
         Applies Drop-Oldest backpressure if the queue is full.
-        
+
         Args:
             snapshot: The validated, frozen MarketSnapshot to publish.
         """

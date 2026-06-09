@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
+from backend.models.result import Result
 from src.quant_engine.engines.technical.volume_oi import (
     AnalyzerConfig,
     Signal,
     VolumeOIDynamicsReport,
     get_volume_oi_analysis,
 )
-from backend.models.result import Result
 
 
 def test_volume_oi_success():
@@ -194,9 +194,7 @@ def test_volume_oi_dotm_flow_with_history():
     # dotm_signal = clip(ratio / 10.0, 0, 1) = ~0.2997
     # history = [1.0, 1.5, 2.0, 2.5, 2.8] -> 80th percentile is 2.74
     # ratio (2.997) > threshold (2.74) -> dotm_alert = True
-    res = get_volume_oi_analysis(
-        chain_data, 190.0, dotm_ratio_history=[1.0, 1.5, 2.0, 2.5, 2.8]
-    )
+    res = get_volume_oi_analysis(chain_data, 190.0, dotm_ratio_history=[1.0, 1.5, 2.0, 2.5, 2.8])
     assert res.is_success
     report = res.unwrap()
     assert report.dotm_ratio == pytest.approx(3000.0 / 1001.0)

@@ -1,11 +1,8 @@
 import numpy as np
 import pytest
 
-from src.quant_engine.engines.options.dex import (
-    DEXReport,
-    get_dex_analysis,
-)
 from backend.models.result import Result
+from src.quant_engine.engines.options.dex import DEXReport, get_dex_analysis
 
 
 def test_dex_success():

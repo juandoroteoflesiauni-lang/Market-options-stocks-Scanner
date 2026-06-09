@@ -28,12 +28,12 @@ class MarketFeedManager:
     Gestiona todas las conexiones WebSocket de clientes.
     Patrón: PubSub — un stream de exchange, N clientes.
     """
-    
+
     def __init__(self):
         # symbol -> set de websockets conectados
         self._subscribers: Dict[str, Set[WebSocket]] = {}
         self._lock = asyncio.Lock()
-    
+
     async def subscribe(self, websocket: WebSocket, symbol: str) -> None:
         """Suscribir cliente a un símbolo."""
         async with self._lock:
@@ -42,7 +42,7 @@ class MarketFeedManager:
                 # Iniciar feed del exchange si es el primero
                 asyncio.create_task(self._start_exchange_feed(symbol))
             self._subscribers[symbol].add(websocket)
-    
+
     async def unsubscribe(self, websocket: WebSocket, symbol: str) -> None:
         """Desuscribir cliente — SIEMPRE llamar en disconnect."""
         async with self._lock:
@@ -51,25 +51,25 @@ class MarketFeedManager:
                 if not self._subscribers[symbol]:
                     # Limpiar stream si no hay más clientes
                     del self._subscribers[symbol]
-    
+
     async def broadcast(self, symbol: str, data: dict) -> None:
         """Enviar datos a todos los clientes suscritos."""
         if symbol not in self._subscribers:
             return
-        
+
         dead_connections = set()
         message = json.dumps(data)
-        
+
         for websocket in self._subscribers[symbol].copy():
             try:
                 await websocket.send_text(message)
             except Exception:
                 dead_connections.add(websocket)
-        
+
         # Limpiar conexiones muertas
         for ws in dead_connections:
             await self.unsubscribe(ws, symbol)
-    
+
     async def _start_exchange_feed(self, symbol: str) -> None:
         """Conectar al exchange y retransmitir datos."""
         try:
@@ -120,16 +120,16 @@ export const useMarketFeed = ({ symbol, onError }: MarketFeedOptions) => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const updateTick = useMarketStore(s => s.updateTick);
-  
+
   const connect = useCallback(() => {
     // Limpiar conexión anterior
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.close();
     }
-    
+
     const ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/market/${symbol}`);
     wsRef.current = ws;
-    
+
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -144,12 +144,12 @@ export const useMarketFeed = ({ symbol, onError }: MarketFeedOptions) => {
         console.error('Error parsing market data:', e);
       }
     };
-    
+
     ws.onerror = (error) => {
       console.error(`WS Error for ${symbol}:`, error);
       onError?.(error);
     };
-    
+
     ws.onclose = (event) => {
       if (!event.wasClean) {
         // Reconexión automática con backoff exponencial
@@ -157,10 +157,10 @@ export const useMarketFeed = ({ symbol, onError }: MarketFeedOptions) => {
       }
     };
   }, [symbol, updateTick, onError]);
-  
+
   useEffect(() => {
     connect();
-    
+
     // CRÍTICO: cleanup en unmount para evitar memory leaks
     return () => {
       clearTimeout(reconnectTimeoutRef.current);
@@ -193,11 +193,11 @@ interface TickData {
 interface MarketState {
   ticks: Record<string, TickData>;        // symbol → últimos datos
   orderBooks: Record<string, OrderBook>;  // symbol → order book
-  
+
   // Acciones
   updateTick: (symbol: string, tick: TickData) => void;
   updateOrderBook: (symbol: string, book: OrderBook) => void;
-  
+
   // Selectores computados
   getPrice: (symbol: string) => number | null;
 }
@@ -206,15 +206,15 @@ export const useMarketStore = create<MarketState>()(
   subscribeWithSelector((set, get) => ({
     ticks: {},
     orderBooks: {},
-    
+
     updateTick: (symbol, tick) => set((state) => ({
       ticks: { ...state.ticks, [symbol]: tick }
     })),
-    
+
     updateOrderBook: (symbol, book) => set((state) => ({
       orderBooks: { ...state.orderBooks, [symbol]: book }
     })),
-    
+
     getPrice: (symbol) => get().ticks[symbol]?.price ?? null,
   }))
 );
@@ -245,7 +245,7 @@ class NormalizedTick:
 
 class BinanceNormalizer:
     """Convierte respuestas de Binance al formato interno."""
-    
+
     @staticmethod
     def normalize_ticker(raw: dict) -> NormalizedTick:
         return NormalizedTick(
@@ -304,7 +304,7 @@ export class ReconnectStrategy {
   private maxAttempts = 10;
   private baseDelay = 1000;  // 1 segundo
   private maxDelay = 30000;  // 30 segundos
-  
+
   getDelay(): number {
     const delay = Math.min(
       this.baseDelay * Math.pow(2, this.attempts),
@@ -313,11 +313,11 @@ export class ReconnectStrategy {
     // Jitter para evitar thundering herd
     return delay + Math.random() * 1000;
   }
-  
+
   shouldRetry(): boolean {
     return this.attempts < this.maxAttempts;
   }
-  
+
   increment(): void { this.attempts++; }
   reset(): void { this.attempts = 0; }
 }

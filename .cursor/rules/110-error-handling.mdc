@@ -112,13 +112,13 @@ async def trading_error_handler(request: Request, exc: TradingError) -> JSONResp
         "TRADING_ERROR":      500,
     }
     status_code = status_map.get(exc.code, 500)
-    
+
     logger.warning("trading.error",
                    code=exc.code,
                    message=exc.message,
                    path=str(request.url),
                    method=request.method)
-    
+
     return JSONResponse(
         status_code=status_code,
         content={
@@ -139,7 +139,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
             "field": ".".join(str(loc) for loc in error["loc"]),
             "message": error["msg"],
         })
-    
+
     return JSONResponse(
         status_code=422,
         content={"error": {"code": "VALIDATION_ERROR", "fields": errors}}
@@ -153,7 +153,7 @@ async def generic_error_handler(request: Request, exc: Exception) -> JSONRespons
                     exc_message=str(exc),
                     path=str(request.url),
                     exc_info=True)  # Incluye stack trace en los LOGS (no en response)
-    
+
     return JSONResponse(
         status_code=500,
         content={"error": {"code": "INTERNAL_ERROR", "message": "Error interno del servidor"}}
@@ -173,21 +173,21 @@ from core.config import settings
 
 def setup_logging():
     """Configurar logging al iniciar la aplicación."""
-    
+
     processors = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
     ]
-    
+
     if settings.ENVIRONMENT == "production":
         # JSON en producción (para parsear con herramientas)
         processors.append(structlog.processors.JSONRenderer())
     else:
         # Colorizado y legible en desarrollo
         processors.append(structlog.dev.ConsoleRenderer())
-    
+
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.BoundLogger,
@@ -204,11 +204,11 @@ class FinancialAuditLogger:
     Logger dedicado a operaciones financieras.
     NUNCA loggear datos sensibles (passwords, API keys, secrets).
     """
-    
+
     def __init__(self):
         self._log = structlog.get_logger("financial.audit")
-    
-    def order_created(self, user_id: str, order_id: str, symbol: str, 
+
+    def order_created(self, user_id: str, order_id: str, symbol: str,
                       side: str, quantity: str, order_type: str) -> None:
         self._log.info("order.created",
                        user_id=user_id,
@@ -217,26 +217,26 @@ class FinancialAuditLogger:
                        side=side,
                        quantity=quantity,
                        order_type=order_type)
-    
-    def order_filled(self, order_id: str, fill_price: str, 
+
+    def order_filled(self, order_id: str, fill_price: str,
                      quantity: str, pnl: str | None = None) -> None:
         self._log.info("order.filled",
                        order_id=order_id,
                        fill_price=fill_price,
                        quantity=quantity,
                        pnl=pnl)
-    
+
     def order_cancelled(self, order_id: str, reason: str) -> None:
         self._log.info("order.cancelled",
                        order_id=order_id,
                        reason=reason)
-    
+
     def risk_violation(self, user_id: str, rule: str, details: str) -> None:
         self._log.warning("risk.violation",
                           user_id=user_id,
                           rule=rule,
                           details=details)
-    
+
     def auth_attempt(self, email: str, success: bool, ip: str) -> None:
         # NUNCA loggear el password
         self._log.info("auth.attempt",
@@ -302,20 +302,20 @@ apiClient.interceptors.response.use(
     if (!error.response) {
       throw new NetworkError();
     }
-    
+
     const { status, data } = error.response;
     const errorData = data?.error;
-    
+
     if (status === 401) {
       // Token expirado — redirigir al login
       useAuthStore.getState().logout();
       throw new TradingError('Sesión expirada', 'UNAUTHORIZED', 401);
     }
-    
+
     if (status === 402 || errorData?.code === 'INSUFFICIENT_FUNDS') {
       throw new InsufficientFundsError(errorData?.message ?? 'Fondos insuficientes');
     }
-    
+
     throw new TradingError(
       errorData?.message ?? 'Error desconocido',
       errorData?.code ?? 'UNKNOWN_ERROR',

@@ -66,14 +66,14 @@ backend:
   validation: Pydantic v2
   auth: JWT (python-jose)
   testing: pytest + pytest-asyncio
-  
+
 frontend:
   language: TypeScript (strict)
   framework: React 18
   state: Zustand
   charts: TradingView Lightweight Charts
   testing: Vitest + Testing Library
-  
+
 infrastructure:
   database: PostgreSQL 15
   cache: Redis 7
@@ -128,18 +128,18 @@ import structlog
 logger = structlog.get_logger()
 
 async def execute_trade(order: Order, user_id: str) -> Trade:
-    logger.info("trade.started", 
-                user_id=user_id, 
+    logger.info("trade.started",
+                user_id=user_id,
                 symbol=order.symbol,
                 side=order.side,
                 quantity=str(order.quantity))
-    
+
     trade = await exchange.execute(order)
-    
+
     logger.info("trade.completed",
                 user_id=user_id,
                 trade_id=trade.id,
                 fill_price=str(trade.fill_price))
-    
+
     return trade
 ```

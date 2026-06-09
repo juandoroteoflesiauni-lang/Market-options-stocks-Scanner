@@ -63,7 +63,7 @@ volumes:
 
 # ============================================================
 # COMANDOS ÚTILES:
-# 
+#
 # Iniciar todo:
 #   docker-compose up -d
 #

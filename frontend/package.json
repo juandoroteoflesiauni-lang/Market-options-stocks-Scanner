@@ -6,19 +6,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "lucide-react": "^0.400.0",
     "next": "16.0.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "lucide-react": "^0.400.0"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",
-    "eslint": "^8",
+    "eslint": "^9.39.4",
     "eslint-config-next": "16.0.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.3.0",

@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class DataLineage(BaseModel):
     """Tracks the provenance of every MarketSnapshot.
-    
+
     A snapshot without lineage is an "orphan" and will be rejected
     by any Phase B/C engine.
     """
@@ -45,11 +45,11 @@ class DataLineage(BaseModel):
 
 class MarketSnapshot(BaseModel):
     """Canonical, immutable market data object. The inter-phase contract.
-    
+
     Aligned with FINOS CDM standards for financial instrument data.
     All fields are validated at construction time. Any invalid snapshot
     must be discarded at Phase A — never propagated.
-    
+
     Attributes:
         ticker            : Uppercase ticker symbol (e.g., "AAPL", "SPY").
         exchange          : Exchange identifier (e.g., "NASDAQ", "NYSE").
@@ -120,9 +120,9 @@ class Greeks(BaseModel):
 
 class OptionContract(BaseModel):
     """A single options contract node selected by Phase C.
-    
+
     Uses model composition (not flat dicts) as required by the architecture.
-    
+
     Attributes:
         underlying_ticker: The asset the option is written on.
         strike           : Strike price — Decimal precision.
@@ -167,7 +167,7 @@ class SignalStrength(StrEnum):
 
 class ExecutionSignal(BaseModel):
     """The output of Phase D — sent to the Frontend.
-    
+
     This is the final product of the entire funnel pipeline.
     """
     model_config = ConfigDict(frozen=True)
@@ -196,10 +196,10 @@ T = TypeVar("T")
 
 class Result(BaseModel, Generic[T]):
     """Type-safe wrapper for all Hub return values.
-    
+
     Enforces explicit error handling at every call site.
     The Hub never raises raw exceptions — it returns Result objects.
-    
+
     Usage:
         result = await hub.fetch_snapshot("AAPL")
         if result.is_failure:

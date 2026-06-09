@@ -36,16 +36,16 @@ async def place_order(
 ) -> dict:
     """
     Coloca una orden en el exchange.
-    
+
     Args:
         symbol: Par de trading (ej: BTCUSDT)
         quantity: Cantidad a operar
         side: BUY o SELL
         order_type: MARKET o LIMIT
-    
+
     Returns:
         dict con detalles de la orden ejecutada
-    
+
     Raises:
         InsufficientFundsError: Si no hay saldo suficiente
         ExchangeConnectionError: Si falla la conexión

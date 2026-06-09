@@ -143,4 +143,5 @@ def test_volatility_skew_analysis_failures():
 
 def pytest_approx(expected, abs=1e-6):
     import pytest
+
     return pytest.approx(expected, abs=abs)

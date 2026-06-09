@@ -31,12 +31,14 @@ def test_volume_profile_short_and_constant():
     engine = VolumeProfileEngine()
 
     # Short array (< 5 elements) -> neutral report
-    data_short = np.array([
-        [100.0, 10.0],
-        [101.0, 20.0],
-        [102.0, 15.0],
-        [103.0, 5.0],
-    ])
+    data_short = np.array(
+        [
+            [100.0, 10.0],
+            [101.0, 20.0],
+            [102.0, 15.0],
+            [103.0, 5.0],
+        ]
+    )
     res_short = engine.analyze("BTC", data_short, bins=10)
     assert res_short.is_success
     report_short = res_short.unwrap()
@@ -45,13 +47,15 @@ def test_volume_profile_short_and_constant():
     assert report_short.val == 0.0
 
     # Constant price (price_min == price_max) -> single POC level
-    data_const = np.array([
-        [100.0, 10.0],
-        [100.0, 20.0],
-        [100.0, 15.0],
-        [100.0, 5.0],
-        [100.0, 30.0],
-    ])
+    data_const = np.array(
+        [
+            [100.0, 10.0],
+            [100.0, 20.0],
+            [100.0, 15.0],
+            [100.0, 5.0],
+            [100.0, 30.0],
+        ]
+    )
     res_const = engine.analyze("BTC", data_const, bins=10)
     assert res_const.is_success
     report_const = res_const.unwrap()

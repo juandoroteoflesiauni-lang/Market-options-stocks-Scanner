@@ -70,7 +70,7 @@ API → Services → Repositories → Models
 **NUNCA:**
 - `api/` importando directamente de `repositories/` (saltarse services)
 - `models/` importando de `services/` (dependencia circular)
-- Lógica de negocio en `api/` 
+- Lógica de negocio en `api/`
 - Queries SQL en `services/`
 
 ---
@@ -165,19 +165,19 @@ const PriceDisplay = () => {
 // hooks/useWebSocket.ts
 export const useWebSocket = (symbol: string) => {
   const updatePrice = useMarketStore(s => s.updatePrice);
-  
+
   useEffect(() => {
     const ws = new WebSocket(`${WS_URL}/stream/${symbol}`);
-    
+
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       updatePrice(symbol, data.price);  // Solo actualizar store
     };
-    
+
     ws.onerror = (error) => {
       logger.error('WebSocket error', { symbol, error });
     };
-    
+
     return () => ws.close();  // SIEMPRE cleanup
   }, [symbol]);
 };
@@ -198,7 +198,7 @@ interface TradingState {
   // Estado
   openOrders: Order[];
   positions: Position[];
-  
+
   // Acciones (siempre separadas del estado)
   addOrder: (order: Order) => void;
   cancelOrder: (orderId: string) => void;
@@ -208,17 +208,17 @@ interface TradingState {
 export const useTradingStore = create<TradingState>((set) => ({
   openOrders: [],
   positions: [],
-  
+
   addOrder: (order) => set((state) => ({
     openOrders: [...state.openOrders, order]
   })),
-  
+
   cancelOrder: (orderId) => set((state) => ({
     openOrders: state.openOrders.filter(o => o.id !== orderId)
   })),
-  
+
   updatePosition: (positionId, update) => set((state) => ({
-    positions: state.positions.map(p => 
+    positions: state.positions.map(p =>
       p.id === positionId ? { ...p, ...update } : p
     )
   })),

@@ -36,7 +36,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     fmp_api_key: SecretStr    # repr() shows "**********", not the actual key
-    
+
 # CORRECT — accessing the value explicitly when needed
 key_value: str = settings.fmp_api_key.get_secret_value()
 
@@ -96,7 +96,7 @@ except (ValidationError, KeyError) as exc:
 
 - name: SAST scan (Python)
   run: bandit -r backend/ -ll -ii  # Level HIGH, confidence HIGH
-  
+
 - name: Audit npm dependencies
   run: npm audit --audit-level=moderate
 ```

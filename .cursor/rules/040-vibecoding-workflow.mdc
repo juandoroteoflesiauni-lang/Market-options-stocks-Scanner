@@ -144,7 +144,7 @@ Al comenzar una nueva sesión de trabajo, la IA DEBE:
 ❌ USUARIO: "Arregla el bug del login"
 ❌ IA: *también refactoriza el auth module, agrega 2FA, y cambia el DB schema*
 
-✅ IA: "Arreglé el bug del login. ¿Quieres que también revise el auth module 
+✅ IA: "Arreglé el bug del login. ¿Quieres que también revise el auth module
       en una sesión separada?"
 ```
 

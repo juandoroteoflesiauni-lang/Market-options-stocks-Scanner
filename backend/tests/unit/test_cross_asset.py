@@ -1,11 +1,11 @@
 import numpy as np
 
+from backend.models.result import Result
 from src.quant_engine.math.predictive.cross_asset import (
     CorrelationProfile,
     CrossAssetReport,
     get_cross_asset_analysis,
 )
-from backend.models.result import Result
 
 
 def test_cross_asset_success():
@@ -56,9 +56,7 @@ def test_cross_asset_validation_errors():
     assert "number of rows" in res.reason
 
     # Insufficient observations (< 10)
-    res = get_cross_asset_analysis(
-        "AAPL", t_prices[:8], ref_prices[:8], ref_tickers
-    )
+    res = get_cross_asset_analysis("AAPL", t_prices[:8], ref_prices[:8], ref_tickers)
     assert res.is_failure
     assert "at least 10" in res.reason
 

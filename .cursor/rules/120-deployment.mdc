@@ -111,25 +111,25 @@ CMD ["nginx", "-g", "daemon off;"]
 server {
     listen 80;
     server_name _;
-    
+
     root /usr/share/nginx/html;
     index index.html;
-    
+
     # Compresión
     gzip on;
     gzip_types text/plain application/javascript application/json text/css;
-    
+
     # Frontend — SPA fallback
     location / {
         try_files $uri $uri/ /index.html;
-        
+
         # Caché de archivos estáticos con hash en nombre
         location ~* \.(js|css|png|jpg|svg|woff2)$ {
             expires 1y;
             add_header Cache-Control "public, immutable";
         }
     }
-    
+
     # Proxy al backend API
     location /api/ {
         proxy_pass http://backend:8000/;
@@ -137,13 +137,13 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # Timeouts — importantes para operaciones largas
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
     }
-    
+
     # Proxy WebSocket
     location /ws/ {
         proxy_pass http://backend:8000/ws/;
@@ -152,7 +152,7 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 86400s;  # 24h — para WS de larga duración
     }
-    
+
     # Health check endpoint
     location /nginx-health {
         return 200 "healthy";
@@ -188,7 +188,7 @@ services:
     networks:
       - trading_net
     # NUNCA exponer el puerto directamente — solo a través de Nginx
-  
+
   frontend:
     build:
       context: ./frontend
@@ -201,7 +201,7 @@ services:
       - backend
     networks:
       - trading_net
-  
+
   postgres:
     image: postgres:15-alpine
     env_file: .env.production
@@ -216,7 +216,7 @@ services:
       timeout: 5s
       retries: 5
     # NUNCA exponer el puerto de Postgres en producción
-  
+
   redis:
     image: redis:7-alpine
     command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
@@ -295,7 +295,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict:
         "version": settings.APP_VERSION,
         "components": {}
     }
-    
+
     # Verificar DB
     try:
         await db.execute(text("SELECT 1"))
@@ -303,7 +303,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict:
     except Exception as e:
         health["status"] = "degraded"
         health["components"]["database"] = f"unhealthy: {str(e)}"
-    
+
     # Verificar Redis
     try:
         await cache.get_client()
@@ -311,7 +311,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict:
     except Exception as e:
         health["status"] = "degraded"
         health["components"]["redis"] = f"unhealthy: {str(e)}"
-    
+
     status_code = 200 if health["status"] == "healthy" else 503
     return JSONResponse(content=health, status_code=status_code)
 ```

@@ -239,7 +239,7 @@ Mantener `CHANGELOG.md` actualizado:
 - feat(auth): Sistema de autenticación JWT con refresh tokens
 - feat(orders): Endpoint para crear órdenes MARKET y LIMIT
 
-### Modificado  
+### Modificado
 - refactor(risk): Extraer validaciones a RiskService separado
 
 ### Corregido

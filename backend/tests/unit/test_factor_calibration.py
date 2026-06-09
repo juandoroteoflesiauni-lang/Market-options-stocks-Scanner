@@ -1,16 +1,24 @@
 import numpy as np
 import pytest
 
-from src.quant_engine.math.predictive.factor_calibration import (
-    FactorCalibrationEngine,
-    CalibrationReport,
-)
 from backend.models.result import Result
+from src.quant_engine.math.predictive.factor_calibration import (
+    CalibrationReport,
+    FactorCalibrationEngine,
+)
 
 
 def test_factor_calibration_engine():
     engine = FactorCalibrationEngine()
-    factor_names = ["momentum", "strength", "volatility", "put_call", "credit", "safe_haven", "event_risk"]
+    factor_names = [
+        "momentum",
+        "strength",
+        "volatility",
+        "put_call",
+        "credit",
+        "safe_haven",
+        "event_risk",
+    ]
     num_factors = len(factor_names)
 
     # Generate valid mock data

@@ -74,10 +74,10 @@ PRIORITY_QUEUE_MAX_SIZE: int = 1_000   # Smaller — must never back up
 
 class EventBus:
     """Decoupled pub/sub bus using asyncio.Queue primitives.
-    
+
     Producers publish events without knowing who consumes them.
     Consumers subscribe without knowing who produces.
-    
+
     Backpressure policy: Drop-Oldest when queue exceeds max size.
     This prevents memory overflow at the cost of losing stale events.
     """
@@ -92,9 +92,9 @@ class EventBus:
 
     async def publish(self, snapshot: MarketSnapshot) -> None:
         """Publishes a MarketSnapshot to the standard queue.
-        
+
         Applies Drop-Oldest backpressure if the queue is full.
-        
+
         Args:
             snapshot: The validated, frozen MarketSnapshot to publish.
         """
@@ -154,7 +154,7 @@ logger = logging.getLogger(__name__)
 
 class MicrostructureEngine:
     """Phase B: Consumes MarketSnapshots, computes VPIN/OFI, publishes top 20.
-    
+
     Isolation contract: This class has ZERO network imports.
     All data arrives via the EventBus.
     CPU-bound work is offloaded to ProcessPoolExecutor.
@@ -170,7 +170,7 @@ class MicrostructureEngine:
 
     async def run(self) -> None:
         """Main consumption loop. Runs until cancelled.
-        
+
         Graceful error handling: a single processing failure logs an error
         and continues with the next snapshot. The bus never stops.
         """
@@ -187,7 +187,7 @@ class MicrostructureEngine:
 
     async def _process_snapshot(self, snapshot: MarketSnapshot) -> None:
         """Offloads CPU-bound VPIN/OFI calculation to process pool.
-        
+
         Args:
             snapshot: The validated, frozen MarketSnapshot to process.
         """

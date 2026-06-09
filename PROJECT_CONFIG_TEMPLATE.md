@@ -8,18 +8,18 @@
 
 ## 🎯 DESCRIPCIÓN DEL PROYECTO
 
-**Nombre:** Deep Trading Terminal  
-**Objetivo:** Terminal de trading cuantitativo para opciones y futuros con análisis de microestructura  
-**Stack:** Python/FastAPI (backend) + TypeScript/Next.js (frontend) + PostgreSQL + Redis  
-**Arquitectura:** Funnel de 4 fases (Scanner → Microestructura → Opciones → Monitor)  
+**Nombre:** Deep Trading Terminal
+**Objetivo:** Terminal de trading cuantitativo para opciones y futuros con análisis de microestructura
+**Stack:** Python/FastAPI (backend) + TypeScript/Next.js (frontend) + PostgreSQL + Redis
+**Arquitectura:** Funnel de 4 fases (Scanner → Microestructura → Opciones → Monitor)
 **Exchange objetivo:** [Nombre del exchange — ej: Binance, Interactive Brokers, etc.]
 
 ---
 
 ## 📈 ESTADO ACTUAL DEL PROYECTO
 
-**Última actualización:** [Fecha — la IA actualiza esto]  
-**Sesiones completadas:** [Número]  
+**Última actualización:** [Fecha — la IA actualiza esto]
+**Sesiones completadas:** [Número]
 **Progreso general:** [X]% completado
 
 ---

@@ -1,16 +1,12 @@
-from datetime import datetime, UTC
 import numpy as np
-import pytest
 
-
+from backend.models.result import Result
 from src.quant_engine.engines.technical.cor3m import (
     COR3M_Signal_Engine,
     EngineConfig,
     MarketState,
     SignalType,
 )
-
-from backend.models.result import Result
 
 
 def test_cor3m_engine_insufficient_history():
@@ -21,7 +17,7 @@ def test_cor3m_engine_insufficient_history():
         memory_window=3,
     )
     engine = COR3M_Signal_Engine(config=config)
-    
+
     # Needs at least 10 (min_periods) + 3 (memory_window) = 13 bars
     history = np.ones(12, dtype=np.float64)
     res = engine.analyze_current_state(history)
@@ -72,7 +68,7 @@ def test_cor3m_engine_panic_and_buy_trigger():
         memory_window=3,
     )
     engine = COR3M_Signal_Engine(config=config)
-    
+
     # We want a 10-bar rolling window for each step.
     # We create an array of size 13.
     # index 0: 9.0
@@ -80,8 +76,11 @@ def test_cor3m_engine_panic_and_buy_trigger():
     # index 10: 19.0
     # index 11: 30.0 (panic! >= 0.90 percentile rank)
     # index 12: 12.0 (drops below signal threshold (< 0.80) within 3 bars)
-    history = np.array([9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 30.0, 12.0], dtype=np.float64)
-    
+    history = np.array(
+        [9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 30.0, 12.0],
+        dtype=np.float64,
+    )
+
     res = engine.analyze_current_state(history)
     assert res.is_success
     bar = res.unwrap()

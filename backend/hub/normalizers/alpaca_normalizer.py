@@ -1,6 +1,7 @@
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from backend.models.market_snapshot import DataLineage, MarketSnapshot
 
@@ -10,15 +11,15 @@ class AlpacaNormalizer:
 
     PROVIDER_NAME: str = "alpaca"
 
-    def normalize(self, raw: dict, ingestion_start_ns: int) -> MarketSnapshot:
+    def normalize(self, raw: dict[str, Any], ingestion_start_ns: int) -> MarketSnapshot:
         """Converts an Alpaca ticker response to MarketSnapshot."""
         ingestion_latency_ms = (time.time_ns() - ingestion_start_ns) // 1_000_000
-        
+
         ts = raw["timestamp"]
         if isinstance(ts, str):
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         else:
-            dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+            dt = datetime.fromtimestamp(ts, tz=UTC)
 
         return MarketSnapshot(
             ticker=raw["symbol"].upper(),

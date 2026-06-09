@@ -168,18 +168,18 @@ import signal
 
 async def shutdown(signal_received: signal.Signals, loop: asyncio.AbstractEventLoop) -> None:
     """Handles SIGINT/SIGTERM for graceful shutdown.
-    
+
     Args:
         signal_received: The OS signal that triggered shutdown.
         loop           : The running event loop.
     """
     logger.info("Shutdown initiated by signal: %s", signal_received.name)
-    
+
     # Cancel all running tasks
     tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
     for task in tasks:
         task.cancel()
-    
+
     await asyncio.gather(*tasks, return_exceptions=True)
     loop.stop()
     logger.info("Clean shutdown complete.")
@@ -246,7 +246,7 @@ from pydantic import BaseModel, PositiveInt, PositiveFloat
 
 class PhaseThresholds(BaseModel):
     """Configurable thresholds for the Deep Funnel phases."""
-    
+
     phase_a_max_candidates: PositiveInt = 300
     phase_b_top_n_assets: PositiveInt = 20
     phase_c_top_n_contracts: PositiveInt = 5

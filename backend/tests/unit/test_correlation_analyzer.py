@@ -1,11 +1,11 @@
 import numpy as np
 
+from backend.models.result import Result
 from src.quant_engine.math.predictive.correlation_analyzer import (
     CorrelationAnalysis,
     CorrelationAnalyzer,
     get_correlation_analysis,
 )
-from backend.models.result import Result
 
 
 def test_correlation_analyzer_success():

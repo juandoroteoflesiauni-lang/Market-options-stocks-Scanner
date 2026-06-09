@@ -62,14 +62,14 @@ from backend.hub.backoff import exponential_backoff
 )
 async def _call_fmp_api(self, endpoint: str, params: dict[str, str]) -> dict:
     """Calls FMP REST API with backoff protection.
-    
+
     Args:
         endpoint: The API endpoint path.
         params  : Query parameters dict.
-    
+
     Returns:
         Raw API response as dict.
-    
+
     Raises:
         ExternalAPIError: If all retries are exhausted.
     """
@@ -173,7 +173,7 @@ import time
 
 class FmpNormalizer:
     """Transforms FMP API raw response into a canonical MarketSnapshot.
-    
+
     Raises:
         ValidationError: If the raw response is missing required fields.
     """
@@ -182,14 +182,14 @@ class FmpNormalizer:
 
     def normalize(self, raw: dict, ingestion_start_ns: int) -> MarketSnapshot:
         """Converts an FMP ticker response to MarketSnapshot.
-        
+
         Args:
             raw             : The raw dict from FMP REST API.
             ingestion_start_ns: nanosecond timestamp when the fetch started.
-        
+
         Returns:
             A validated, frozen MarketSnapshot.
-        
+
         Raises:
             KeyError    : If a required FMP field is absent.
             ValidationError: If types fail Pydantic validation.

@@ -1,8 +1,6 @@
 import numpy as np
 
-from src.quant_engine.math.options.volatility_surface import (
-    VolatilitySurfaceEngine,
-)
+from src.quant_engine.math.options.volatility_surface import VolatilitySurfaceEngine
 
 
 def test_volatility_surface_validation_errors():
@@ -45,14 +43,16 @@ def test_volatility_surface_analysis():
     # 1. Neutral regime test
     # History of 6 points. Latest skew is middle-ranked.
     # Put IV, Call IV:
-    iv_data_neutral = np.array([
-        [0.45, 0.40],  # Latest: skew = 0.05
-        [0.50, 0.40],  # skew = 0.10
-        [0.40, 0.40],  # skew = 0.00
-        [0.48, 0.42],  # skew = 0.06
-        [0.38, 0.40],  # skew = -0.02
-        [0.35, 0.40],  # skew = -0.05
-    ])
+    iv_data_neutral = np.array(
+        [
+            [0.45, 0.40],  # Latest: skew = 0.05
+            [0.50, 0.40],  # skew = 0.10
+            [0.40, 0.40],  # skew = 0.00
+            [0.48, 0.42],  # skew = 0.06
+            [0.38, 0.40],  # skew = -0.02
+            [0.35, 0.40],  # skew = -0.05
+        ]
+    )
     # Skews: [0.05, 0.10, 0.00, 0.06, -0.02, -0.05]
     # Sorted skews: -0.05, -0.02, 0.00, 0.05, 0.06, 0.10
     # Latest skew is 0.05.
@@ -75,14 +75,16 @@ def test_volatility_surface_analysis():
 
     # 2. High skew regime test (percentile > 0.85)
     # Latest skew is the highest.
-    iv_data_high_skew = np.array([
-        [0.60, 0.40],  # Latest: skew = 0.20
-        [0.45, 0.40],  # skew = 0.05
-        [0.40, 0.40],  # skew = 0.00
-        [0.35, 0.40],  # skew = -0.05
-        [0.30, 0.40],  # skew = -0.10
-        [0.25, 0.40],  # skew = -0.15
-    ])
+    iv_data_high_skew = np.array(
+        [
+            [0.60, 0.40],  # Latest: skew = 0.20
+            [0.45, 0.40],  # skew = 0.05
+            [0.40, 0.40],  # skew = 0.00
+            [0.35, 0.40],  # skew = -0.05
+            [0.30, 0.40],  # skew = -0.10
+            [0.25, 0.40],  # skew = -0.15
+        ]
+    )
     res = engine.analyze("AAPL", iv_data_high_skew)
     assert res.is_success
     report = res.unwrap()
@@ -90,14 +92,16 @@ def test_volatility_surface_analysis():
     assert report.risk_signal == "BEARISH_HEDGING"
 
     # 3. Extreme put demand ratio test (ratio > 1.5)
-    iv_data_extreme = np.array([
-        [0.70, 0.40],  # Latest: skew = 0.30, ratio = 1.75 > 1.5
-        [0.45, 0.40],  # skew = 0.05
-        [0.40, 0.40],  # skew = 0.00
-        [0.35, 0.40],  # skew = -0.05
-        [0.30, 0.40],  # skew = -0.10
-        [0.25, 0.40],  # skew = -0.15
-    ])
+    iv_data_extreme = np.array(
+        [
+            [0.70, 0.40],  # Latest: skew = 0.30, ratio = 1.75 > 1.5
+            [0.45, 0.40],  # skew = 0.05
+            [0.40, 0.40],  # skew = 0.00
+            [0.35, 0.40],  # skew = -0.05
+            [0.30, 0.40],  # skew = -0.10
+            [0.25, 0.40],  # skew = -0.15
+        ]
+    )
     res = engine.analyze("AAPL", iv_data_extreme)
     assert res.is_success
     report = res.unwrap()

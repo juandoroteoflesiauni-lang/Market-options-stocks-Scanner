@@ -52,7 +52,7 @@ class Balance:
     asset: str
     free: Decimal
     locked: Decimal
-    
+
     @property
     def total(self) -> Decimal:
         return self.free + self.locked
@@ -60,21 +60,21 @@ class Balance:
 class BaseExchangeAdapter(ABC):
     """
     Interfaz que TODOS los exchanges deben implementar.
-    
+
     Si agregas un exchange nuevo, implementa esta clase.
     No modifiques el código que llama a esta interfaz.
     """
-    
+
     @abstractmethod
     async def get_ticker(self, symbol: str) -> Ticker:
         """Obtener precio actual y datos de mercado."""
         ...
-    
+
     @abstractmethod
     async def get_balances(self) -> list[Balance]:
         """Obtener todos los balances de la cuenta."""
         ...
-    
+
     @abstractmethod
     async def place_order(
         self,
@@ -86,17 +86,17 @@ class BaseExchangeAdapter(ABC):
     ) -> OrderResult:
         """Enviar orden al exchange."""
         ...
-    
+
     @abstractmethod
     async def cancel_order(self, symbol: str, order_id: str) -> bool:
         """Cancelar orden pendiente."""
         ...
-    
+
     @abstractmethod
     async def get_order_status(self, symbol: str, order_id: str) -> OrderResult:
         """Consultar estado de una orden."""
         ...
-    
+
     @abstractmethod
     async def stream_prices(self, symbol: str) -> AsyncIterator[Ticker]:
         """Stream de precios en tiempo real."""
@@ -123,10 +123,10 @@ from core.logger import logger
 
 class BinanceAdapter(BaseExchangeAdapter):
     """Adaptador para Binance Spot Trading."""
-    
+
     def __init__(self):
         self._client: AsyncClient | None = None
-    
+
     async def _get_client(self) -> AsyncClient:
         """Lazy initialization del cliente."""
         if self._client is None:
@@ -139,7 +139,7 @@ class BinanceAdapter(BaseExchangeAdapter):
             except Exception as e:
                 raise ExchangeConnectionError(f"No se pudo conectar a Binance: {e}")
         return self._client
-    
+
     async def get_ticker(self, symbol: str) -> Ticker:
         client = await self._get_client()
         try:
@@ -156,7 +156,7 @@ class BinanceAdapter(BaseExchangeAdapter):
         except BinanceAPIException as e:
             logger.error("binance.ticker.error", symbol=symbol, error=str(e))
             raise ExchangeConnectionError(f"Error obteniendo precio de {symbol}: {e}")
-    
+
     async def get_balances(self) -> list[Balance]:
         client = await self._get_client()
         try:
@@ -172,7 +172,7 @@ class BinanceAdapter(BaseExchangeAdapter):
             ]
         except BinanceAPIException as e:
             raise ExchangeConnectionError(f"Error obteniendo balances: {e}")
-    
+
     async def place_order(
         self,
         symbol: str,
@@ -192,10 +192,10 @@ class BinanceAdapter(BaseExchangeAdapter):
             if order_type == "LIMIT" and price:
                 params["price"] = str(price)
                 params["timeInForce"] = "GTC"
-            
+
             logger.info("binance.order.sending", **params)
             result = await client.create_order(**params)
-            
+
             return OrderResult(
                 order_id=str(result['orderId']),
                 symbol=result['symbol'],
@@ -210,7 +210,7 @@ class BinanceAdapter(BaseExchangeAdapter):
         except BinanceAPIException as e:
             logger.error("binance.order.failed", symbol=symbol, error=str(e), code=e.code)
             raise OrderExecutionError(f"Binance rechazó la orden: {e.message}")
-    
+
     async def cancel_order(self, symbol: str, order_id: str) -> bool:
         client = await self._get_client()
         try:
@@ -220,7 +220,7 @@ class BinanceAdapter(BaseExchangeAdapter):
             if e.code == -2011:  # Order not found / already cancelled
                 return False
             raise ExchangeConnectionError(f"Error cancelando orden: {e}")
-    
+
     async def get_order_status(self, symbol: str, order_id: str) -> OrderResult:
         client = await self._get_client()
         result = await client.get_order(symbol=symbol, orderId=order_id)
@@ -235,7 +235,7 @@ class BinanceAdapter(BaseExchangeAdapter):
             timestamp=datetime.fromtimestamp(result['time'] / 1000),
             exchange='binance'
         )
-    
+
     async def stream_prices(self, symbol: str) -> AsyncIterator[Ticker]:
         """Stream WebSocket de precios desde Binance."""
         client = await self._get_client()
@@ -269,9 +269,9 @@ class ExchangeFactory:
     Factory para obtener el adaptador correcto según configuración.
     Agregar nuevos exchanges aquí sin tocar el resto del código.
     """
-    
+
     _instances: dict[str, BaseExchangeAdapter] = {}
-    
+
     @classmethod
     def get_adapter(cls, exchange: str = "binance") -> BaseExchangeAdapter:
         if exchange not in cls._instances:

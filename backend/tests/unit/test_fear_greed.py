@@ -1,9 +1,9 @@
+from backend.models.result import Result
 from src.quant_engine.engines.predictive.fear_greed import (
     FearGreedEngine,
     FearGreedResult,
     MarketSentimentInput,
 )
-from backend.models.result import Result
 
 
 def test_fear_greed_engine_normal_state():
