@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Preguntas o Soporte General
+    url: https://github.com/tu-usuario/market-options-stocks-scanner/discussions
+    about: Por favor, pregunta y discute aquí antes de abrir un Issue si no es un bug claro.
