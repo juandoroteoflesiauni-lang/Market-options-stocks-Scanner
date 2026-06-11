@@ -164,9 +164,10 @@ export function GreeksDashboard({ underlyingPrice }: Props) {
   }));
 
   const thetaData = useMemo(() => {
+    // # [PD-3][TH][IM] - Use deterministic Math.sin to avoid Math.random impurity in render
     return Array.from({ length: 30 }, (_, i) => ({
       day: i + 1,
-      theta: +(-0.05 * Math.exp(-i * 0.05) * (1 + 0.3 * Math.random())).toFixed(
+      theta: +(-0.05 * Math.exp(-i * 0.05) * (1 + 0.3 * Math.abs(Math.sin(i * 10)))).toFixed(
         4,
       ),
     }));

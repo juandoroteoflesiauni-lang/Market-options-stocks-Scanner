@@ -309,9 +309,12 @@ export function useAuditComplex() {
   );
 
   React.useEffect(() => {
-    void refresh();
-    const id = setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    const id = setTimeout(() => void refresh(), 0);
+    const intervalId = setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    return () => {
+      clearTimeout(id);
+      clearInterval(intervalId);
+    };
   }, [refresh]);
 
   return {

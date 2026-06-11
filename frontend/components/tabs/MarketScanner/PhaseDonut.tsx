@@ -19,21 +19,31 @@ export function PhaseDonut({ tickers, size = 120 }: Props) {
     tickers.forEach((t) => counts[t.phase]++);
     const total = tickers.length || 1;
 
+    const slices: Array<{
+      phase: string;
+      frac: number;
+      start: number;
+      end: number;
+      color: string;
+      count: number;
+    }> = [];
     let angle = -Math.PI / 2;
-    const slices = PHASES.map((p) => {
+    for (const p of PHASES) {
       const frac = counts[p] / total;
-      const start = angle;
-      const end = angle + frac * 2 * Math.PI;
-      angle = end;
-      return {
-        phase: p,
-        frac,
-        start,
-        end,
-        color: phaseColor(p),
-        count: counts[p],
-      };
-    }).filter((s) => s.frac > 0);
+      if (frac > 0) {
+        const start = angle;
+        const end = angle + frac * 2 * Math.PI;
+        angle = end;
+        slices.push({
+          phase: p,
+          frac,
+          start,
+          end,
+          color: phaseColor(p),
+          count: counts[p],
+        });
+      }
+    }
 
     return { slices, counts };
   }, [tickers]);

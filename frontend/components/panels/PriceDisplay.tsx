@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { formatPrice } from "@/utils/format";
 
 interface Props {
@@ -23,21 +23,22 @@ export function PriceDisplay({
   size = "md",
 }: Props) {
   const [flashClass, setFlashClass] = useState("");
-  const prevRef = useRef(prevPrice ?? price);
+  const [lastSeenPrice, setLastSeenPrice] = useState(price);
 
-  useEffect(() => {
-    const prev = prevRef.current;
-    if (prev === price) return;
-    setFlashClass(price > prev ? "price-flash-up" : "price-flash-down");
-    const id = setTimeout(() => setFlashClass(""), 420);
-    prevRef.current = price;
-    return () => clearTimeout(id);
-  }, [price]);
+  if (lastSeenPrice !== price) {
+    const direction = price > lastSeenPrice ? "up" : "down";
+    setLastSeenPrice(price);
+    setFlashClass(
+      direction === "up" ? "price-flash-up" : "price-flash-down",
+    );
+    setTimeout(() => setFlashClass(""), 420);
+  }
 
+  const baseline = prevPrice ?? lastSeenPrice;
   const color =
-    prevRef.current === price
+    baseline === price
       ? "#E8EDF5"
-      : price > prevRef.current
+      : price > baseline
         ? "#00E676"
         : "#FF3D5A";
 

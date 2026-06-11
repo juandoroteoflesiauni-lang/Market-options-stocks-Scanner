@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useId } from "react";
 
 interface Props {
   data: number[];
@@ -9,9 +9,13 @@ interface Props {
 }
 
 export function MiniSparkline({ data, width = 80, height = 24, id }: Props) {
-  const { points, fillPath, isUp, gradId } = useMemo(() => {
+  const generatedId = useId();
+  // Safe unique ID for SVG linearGradient
+  const gradId = id ?? `sg-${generatedId.replace(/:/g, "")}`; // # [PD-3][TH][IM]
+
+  const { points, fillPath, isUp } = useMemo(() => {
     if (!data || data.length < 2)
-      return { points: "", fillPath: "", isUp: true, gradId: "sg0" };
+      return { points: "", fillPath: "", isUp: true };
 
     const min = Math.min(...data);
     const max = Math.max(...data);
@@ -33,15 +37,12 @@ export function MiniSparkline({ data, width = 80, height = 24, id }: Props) {
       "Z",
     ].join(" ");
 
-    const uid = id ?? `sg${Math.random().toString(36).slice(2, 6)}`;
-
     return {
       points: linePoints,
       fillPath,
       isUp: data[data.length - 1] >= data[0],
-      gradId: uid,
     };
-  }, [data, width, height, id]);
+  }, [data, width, height]);
 
   const color = isUp ? "#00E676" : "#FF3D5A";
 

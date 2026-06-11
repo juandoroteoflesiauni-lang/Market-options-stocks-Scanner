@@ -151,9 +151,12 @@ export function useBingxBot() {
   }, []);
 
   React.useEffect(() => {
-    void refresh();
-    const id = setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    const id = setTimeout(() => void refresh(), 0);
+    const intervalId = setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    return () => {
+      clearTimeout(id);
+      clearInterval(intervalId);
+    };
   }, [refresh]);
 
   return { status, isLoading, error, refresh };
@@ -225,9 +228,15 @@ export function useProductionReadiness() {
   }, [refresh]);
 
   React.useEffect(() => {
-    void refresh();
-    const id = setInterval(() => void refresh(), READINESS_POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    const id = setTimeout(() => void refresh(), 0);
+    const intervalId = setInterval(
+      () => void refresh(),
+      READINESS_POLL_INTERVAL_MS,
+    );
+    return () => {
+      clearTimeout(id);
+      clearInterval(intervalId);
+    };
   }, [refresh]);
 
   return {
@@ -265,9 +274,15 @@ export function useAccountState() {
   }, []);
 
   React.useEffect(() => {
-    void refresh();
-    const id = setInterval(() => void refresh(), ACCOUNT_POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    const id = setTimeout(() => void refresh(), 0);
+    const intervalId = setInterval(
+      () => void refresh(),
+      ACCOUNT_POLL_INTERVAL_MS,
+    );
+    return () => {
+      clearTimeout(id);
+      clearInterval(intervalId);
+    };
   }, [refresh]);
 
   return { account, isLoading, error, refresh };
