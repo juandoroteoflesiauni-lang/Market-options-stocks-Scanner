@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.quant_engine.engines.options.shadow_delta import (
+from backend.quant_engine.engines.options.shadow_delta import (
     ShadowDeltaEngine,
     shadow_delta_position_multiplier,
 )

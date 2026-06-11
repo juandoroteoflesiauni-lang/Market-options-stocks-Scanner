@@ -1,0 +1,43 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["CLAUDE.md", "AGENTS.md", "ARCHITECTURE.md"],
+  "provider": {
+    "bai": {
+      "name": "B.AI",
+      "npm": "@ai-sdk/openai-compatible",
+      "models": {
+        "z-ai/glm-5.1": { "name": "GLM 5.1" }
+      },
+      "options": {
+        "baseURL": "https://api.b.ai/v1"
+      }
+    },
+    "tokenrouter": {
+      "name": "TokenRouter",
+      "npm": "@ai-sdk/openai-compatible",
+      "models": {},
+      "options": {
+        "baseURL": "https://api.tokenrouter.com/v1",
+        "apiKey": "{env:TOKENROUTER_API_KEY}"
+      }
+    }
+  },
+  "command": {
+    "test": {
+      "description": "Run all backend tests with coverage",
+      "template": "Run pytest with coverage on the backend: cd backend && poetry run pytest --cov --cov-fail-under=80 -v"
+    },
+    "lint": {
+      "description": "Run ruff + mypy on backend, eslint + tsc on frontend",
+      "template": "Run linting across the entire project: (cd backend && poetry run ruff check . && poetry run mypy --strict .) ; (cd frontend && npm run lint && npm run type-check)"
+    },
+    "dev": {
+      "description": "Start backend (uvicorn) and frontend (next dev) concurrently",
+      "template": "Start both servers: start backend with 'cd backend && poetry run uvicorn main:app --reload' in one terminal and frontend with 'cd frontend && npm run dev' in another"
+    },
+    "build": {
+      "description": "Build frontend for production",
+      "template": "Build the Next.js frontend: cd frontend && npm run build"
+    }
+  }
+}

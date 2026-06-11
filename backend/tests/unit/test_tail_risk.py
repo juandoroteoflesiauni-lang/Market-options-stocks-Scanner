@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.quant_engine.math.predictive.tail_risk import TailRiskEngine
+from backend.quant_engine.math.predictive.tail_risk import TailRiskEngine
 
 
 def test_tail_risk_analysis_success():

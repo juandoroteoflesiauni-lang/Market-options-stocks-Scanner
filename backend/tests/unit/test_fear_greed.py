@@ -1,5 +1,5 @@
 from backend.models.result import Result
-from src.quant_engine.engines.predictive.fear_greed import (
+from backend.quant_engine.engines.predictive.fear_greed import (
     FearGreedEngine,
     FearGreedResult,
     MarketSentimentInput,

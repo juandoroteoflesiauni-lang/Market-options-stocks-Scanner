@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from backend.models.result import Result
-from src.quant_engine.engines.predictive.ml_optimizer import MLOptimizer, OptimizationResult
+from backend.quant_engine.engines.predictive.ml_optimizer import MLOptimizer, OptimizationResult
 
 
 def test_ml_optimizer():

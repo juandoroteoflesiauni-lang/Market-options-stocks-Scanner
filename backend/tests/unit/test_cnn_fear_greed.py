@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.quant_engine.engines.predictive.cnn_fear_greed import (
+from backend.quant_engine.engines.predictive.cnn_fear_greed import (
     AlternativeFearGreedSource,
     CNNFearGreedFetcher,
 )

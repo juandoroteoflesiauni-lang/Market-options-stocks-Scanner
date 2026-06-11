@@ -14,12 +14,12 @@ Building unreleased features wastes tokens, creates dead code, and causes
 architectural drift. **Check the current phase before every session.**
 
 ```
-Current Lock: PHASE 1
+Current Lock: PHASE 4
 ```
 
 ---
 
-## 2. PHASE 1 — PERMITTED SCOPE
+## 2. PHASE 4 — PERMITTED SCOPE
 
 Everything below is explicitly permitted. Anything not on this list is BLOCKED.
 
@@ -33,19 +33,16 @@ Everything below is explicitly permitted. Anything not on this list is BLOCKED.
 | Top Navigation Bar | Glassmorphism floating nav (Apple-style) |
 | Font loading | SF Pro Display / system font stack |
 | Dark mode baseline | CSS variables, Tailwind v4 dark foundation |
-| `lib/env.ts` | Type-safe env var validation module |
-| `hooks/useAuthToken.ts` | Token state isolated in a custom hook |
+| Dashboard routes | Full routing and tab layout |
+| Trading charts | Recharts and full visual data implementation |
+| Real-time WebSocket client | Live data feeds via Phase D integration |
+| Portfolio views | Complex panels and metric cards |
+| shadcn/ui primitives | Full interactive UI suite |
 
-### ❌ Blocked Until Phase 2
+### ❌ Blocked Until Phase 5
 | Item | Blocked Because |
 |------|----------------|
-| Dashboard routes | Phase 2 feature |
-| Trading charts | Phase 3 feature (Apache ECharts integration) |
-| Real-time WebSocket client | Phase 4 feature |
-| Portfolio views | Phase 2+ feature |
-| Any `app/(routes)/*` beyond root | Not in Phase 1 scope |
-| shadcn/ui data tables | Phase 2+ feature |
-| Authentication UI (login form) | Phase 2 feature |
+| Live Execution / Routing | Trading endpoints not yet built |
 
 ---
 

@@ -59,7 +59,7 @@ class GreeksCalculator:
             Result con GreeksResult o razón de fallo.
         """
         try:
-            from src.quant_engine.math.options.bsm import BlackScholesPricer, OptionType
+            from backend.quant_engine.math.options.bsm import BlackScholesPricer, OptionType
 
             opt = OptionType.CALL if option_type == "CALL" else OptionType.PUT
 
@@ -115,7 +115,7 @@ class GreeksCalculator:
             Result con IV o razón de fallo.
         """
         try:
-            from src.quant_engine.math.options.bsm import BlackScholesPricer, OptionType
+            from backend.quant_engine.math.options.bsm import BlackScholesPricer, OptionType
 
             opt = OptionType.CALL if option_type == "CALL" else OptionType.PUT
             iv = BlackScholesPricer.implied_vol(

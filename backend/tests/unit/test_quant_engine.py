@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from src.quant_engine.domain.confluence.confluence_models import GEXLevels
-from src.quant_engine.engines.confluence.options_confluence import OptionsConfluenceEngine
-from src.quant_engine.engines.options.options import OptionsEngine
-from src.quant_engine.engines.options.options_flow import OptionsFlowSignalEngine
-from src.quant_engine.math.options.bsm import BlackScholesPricer, OptionType
-from src.quant_engine.math.options.derivatives import SVIParameters, VolatilitySurfaceMath
-from src.quant_engine.math.options.gamma_flip_probability import estimate_gamma_flip_probability
+from backend.quant_engine.domain.confluence.confluence_models import GEXLevels
+from backend.quant_engine.engines.confluence.options_confluence import OptionsConfluenceEngine
+from backend.quant_engine.engines.options.options import OptionsEngine
+from backend.quant_engine.engines.options.options_flow import OptionsFlowSignalEngine
+from backend.quant_engine.math.options.bsm import BlackScholesPricer, OptionType
+from backend.quant_engine.math.options.derivatives import SVIParameters, VolatilitySurfaceMath
+from backend.quant_engine.math.options.gamma_flip_probability import estimate_gamma_flip_probability
 
 
 def test_black_scholes_pricer():
@@ -144,7 +144,7 @@ def test_options_flow_signal_engine():
 
 
 def test_matrix_ops_and_filters():
-    from src.quant_engine.math.technical.matrix_ops import (
+    from backend.quant_engine.math.technical.matrix_ops import (
         ParticleFilter,
         estimate_mjd_params,
         safe_divide,
@@ -173,8 +173,8 @@ def test_matrix_ops_and_filters():
 
 
 def test_microstructure_engines():
-    from src.quant_engine.engines.technical.cor3m import COR3M_Signal_Engine, EngineConfig
-    from src.quant_engine.engines.technical.vsa_forecast import VSAForecastEngine
+    from backend.quant_engine.engines.technical.cor3m import COR3M_Signal_Engine, EngineConfig
+    from backend.quant_engine.engines.technical.vsa_forecast import VSAForecastEngine
 
     # Test COR3M Engine instantiation and analysis
     cfg = EngineConfig(
@@ -198,8 +198,10 @@ def test_predictive_engines():
 
     import torch
 
-    from src.quant_engine.engines.predictive.multimodal_predictive import MultimodalPredictiveEngine
-    from src.quant_engine.engines.predictive.quantum_alpha import (
+    from backend.quant_engine.engines.predictive.multimodal_predictive import (
+        MultimodalPredictiveEngine,
+    )
+    from backend.quant_engine.engines.predictive.quantum_alpha import (
         MultimodalModelConfig,
         QuantumAlphaEngine,
         QuantumAlphaLSTM,
@@ -239,7 +241,10 @@ def test_predictive_engines():
 
 
 def test_expected_move_engine():
-    from src.quant_engine.math.options.expected_move import ExpectedMoveEngine, ExpectedMoveResult
+    from backend.quant_engine.math.options.expected_move import (
+        ExpectedMoveEngine,
+        ExpectedMoveResult,
+    )
 
     # Test valid calculations
     res = ExpectedMoveEngine.calculate(spot=100.0, iv=0.20, dte=30)
@@ -265,7 +270,7 @@ def test_expected_move_engine():
 def test_markov_regime_engine():
     import pandas as pd
 
-    from src.quant_engine.math.predictive.markov_regime import MarkovRegimeEngine, MarkovReport
+    from backend.quant_engine.math.predictive.markov_regime import MarkovRegimeEngine, MarkovReport
 
     # Create synthetic price series
     prices = [100.0 * (1.01**i) for i in range(100)]
@@ -284,7 +289,7 @@ def test_markov_regime_engine():
 
 
 def test_ensemble_meta_learner_predictor():
-    from src.quant_engine.engines.predictive.meta_learner import (
+    from backend.quant_engine.engines.predictive.meta_learner import (
         CalibratorBundle,
         EnsembleMetaLearnerPredictor,
     )
@@ -350,7 +355,7 @@ def test_ensemble_meta_learner_predictor():
 
 
 def test_vol_term_structure_engine():
-    from src.quant_engine.math.options.vol_term_structure import (
+    from backend.quant_engine.math.options.vol_term_structure import (
         VolatilityTermStructureEngine,
         VolTermStructureReport,
         analyze_vol_term_structure,

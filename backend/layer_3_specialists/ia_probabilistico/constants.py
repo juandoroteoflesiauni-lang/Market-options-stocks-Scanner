@@ -1,0 +1,25 @@
+"""
+backend/layer_3_specialists/ia_probabilistico/constants.py
+════════════════════════════════════════════════════════════════════════════════
+Constants for the AI Probabilistic Sector.
+════════════════════════════════════════════════════════════════════════════════
+"""
+
+# Multimodal Engine Defaults
+MULTIMODAL_SEQUENCE_LENGTH_DEFAULT = 20
+MULTIMODAL_NEWS_LOOKBACK_DAYS_DEFAULT = 6
+MULTIMODAL_PREDICTION_HORIZON_DEFAULT = 6
+MULTIMODAL_HIDDEN_CHANNELS_DEFAULT = 32
+MULTIMODAL_EVENT_DIM_DEFAULT = 5
+MULTIMODAL_N_LAYERS_DEFAULT = 2
+MULTIMODAL_N_CLASSES_DEFAULT = 3  # Bearish, Neutral, Bullish
+MULTIMODAL_DROPOUT_DEFAULT = 0.2
+MULTIMODAL_KERNEL_SIZE_DEFAULT = 3
+MULTIMODAL_NORMALIZATION_EPSILON = 1e-9
+
+# Sentiment Engine Defaults
+SENTIMENT_CRISIS_ENGAGEMENT_PERCENTILE = 0.95
+SENTIMENT_CRISIS_NEGATIVE_THRESHOLD = -0.5
+SENTIMENT_MIN_TOKENS_FOR_SIGNIFICANCE = 3
+SENTIMENT_BATCH_SIZE_DEFAULT = 100
+SENTIMENT_RELIABILITY_VARIANCE_THRESHOLD = 0.1

@@ -1,7 +1,7 @@
 import numpy as np
 
 from backend.models.result import Result
-from src.quant_engine.engines.technical.cor3m import (
+from backend.quant_engine.engines.technical.cor3m import (
     COR3M_Signal_Engine,
     EngineConfig,
     MarketState,

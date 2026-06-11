@@ -23,6 +23,14 @@ class FmpNormalizer:
         """
         ingestion_latency_ms = (time.time_ns() - ingestion_start_ns) // 1_000_000
 
+        raw_change = raw.get("changesPercentage")
+        daily_change_pct = float(raw_change) if isinstance(raw_change, int | float) else 0.0
+
+        raw_avg_vol = raw.get("avgVolume")
+        avg_volume = (
+            int(raw_avg_vol) if isinstance(raw_avg_vol, int | float) and raw_avg_vol > 0 else 0
+        )
+
         return MarketSnapshot(
             ticker=raw["symbol"].upper(),
             exchange=raw.get("exchange", "UNKNOWN"),
@@ -34,4 +42,6 @@ class FmpNormalizer:
                 ingestion_latency_ms=ingestion_latency_ms,
                 raw_field_count=len(raw),
             ),
+            daily_change_pct=daily_change_pct,
+            avg_volume=avg_volume,
         )

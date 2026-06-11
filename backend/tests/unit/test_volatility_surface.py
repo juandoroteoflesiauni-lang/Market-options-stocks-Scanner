@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.quant_engine.math.options.volatility_surface import VolatilitySurfaceEngine
+from backend.quant_engine.math.options.volatility_surface import VolatilitySurfaceEngine
 
 
 def test_volatility_surface_validation_errors():

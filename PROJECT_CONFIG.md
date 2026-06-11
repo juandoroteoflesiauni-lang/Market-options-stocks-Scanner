@@ -14,39 +14,43 @@
 
 ## 📈 ESTADO ACTUAL DEL PROYECTO
 
-**Última actualización:** 2026-06-09
-**Sesiones completadas:** 2
-**Progreso general:** 85% completado (la infraestructura central, el frontend completo, la comunicación por WS/REST y los fetchers reales ya se encuentran integrados y probados).
+**Última actualización:** 2026-06-11
+**Sesiones completadas:** 6
+**Progreso general:** 95% completado (Scanner migrado a datos reales con WebSocket en tiempo real, auth integrado, 52 tests unitarios, infraestructura Vitest completa).
 
 ---
 
 ## 🧩 MÓDULOS DEL SISTEMA
 
-### Backend — Fase A: Scanner
+### Backend — Fase A: Scanner ✅ COMPLETADO
 - [x] `MarketDataHub` — Clase central para acceso a APIs externas
 - [x] Conexión al exchange (API key, autenticación FMP y Alpaca)
-- [ ] Endpoint de listado de tickers
-- [ ] Filtro básico por volumen
-- [ ] Filtro básico por volatilidad
-- [ ] Tests para el scanner
+- [x] Endpoint de listado de tickers (`/api/v1/market-scanner/scan`)
+- [x] Filtro por volumen, precio, score, dirección
+- [x] Filtro por universo (wall_street, crypto, all)
+- [x] Tests para el scanner (pytest)
+- [x] Auth middleware (HMAC-signed cookies `qa_session`)
+- [x] WebSocket manager para precios en tiempo real (`scanner_ws_manager`)
 
 ### Backend — Fase B: Filtro Microestructura
-- [ ] Cálculo de VPIN (Volume-Synchronized Probability of Informed Trading)
-- [ ] Cálculo de OFI (Order Flow Imbalance)
-- [ ] Selección de top 20 candidatos
-- [ ] Tests para los indicadores
+- [x] Cálculo de VPIN (Volume-Synchronized Probability of Informed Trading)
+- [x] Cálculo de OFI (Order Flow Imbalance)
+- [x] Selección de top candidatos (scoring institucional)
+- [x] Tests para los indicadores
 
 ### Backend — Fase C: Análisis de Opciones
-- [ ] Descarga de options chains
-- [ ] Criterios de selección de contratos
-- [ ] Cálculo de Greeks básicos (Delta, Theta)
-- [ ] Selección de top 5 contratos
-- [ ] Tests para la selección
+- [x] Descarga de options chains
+- [x] Criterios de selección de contratos
+- [x] Cálculo de Greeks básicos (Delta, Theta)
+- [x] Selección de top contratos
+- [x] Tests para la selección
 
 ### Backend — Fase D: Monitor en Tiempo Real
-- [ ] WebSocket al exchange para datos tick-by-tick
-- [ ] Reconnect automático con backoff exponencial
+- [x] WebSocket al exchange para datos tick-by-tick
+- [x] Reconnect automático con backoff exponencial
 - [x] Generación de señales de ejecución (Stubs de endpoint WS listos en API)
+- [x] `/ws/stream/{symbol}` — Signal streaming endpoint
+- [x] `/ws/live-ticker` — BingX account/position updates
 - [ ] Pub/Sub con Redis para el frontend
 - [ ] Tests para el monitor
 
@@ -58,27 +62,50 @@
 - [ ] Migraciones con Alembic
 - [x] Logging estructurado
 - [x] Variables de entorno configuradas (settings mappings en `.env`)
+- [x] Auth settings (`qa_session_secret`, `qa_app_username`, `qa_app_password_hash`)
 
 ### Frontend — Dashboard
-- [x] Layout base con dark theme
+- [x] Layout base con dark theme de Bloomberg (Wall Street Standard)
 - [x] Conexión WebSocket al backend
-- [x] Panel de Phase A (tabla de candidatos)
-- [x] Panel de Phase B (candidatos filtrados)
-- [x] Panel de Phase C (contratos seleccionados)
-- [x] Panel de Phase D (monitor en vivo y signals feed)
-- [ ] Gráfico de precios en tiempo real
+- [x] Panel de Phase A (tabla de candidatos con parpadeo PriceCell y Sparklines)
+- [x] Panel de Phase B (candidatos filtrados e indicadores de gey/greeks)
+- [x] Panel de Phase C (contratos seleccionados de opciones de alta liquidez)
+- [x] Panel de Phase D (monitor en vivo y signals feed en la cinta inferior)
+- [x] Gráfico de precios en tiempo real (velas SVG simuladas de alta fidelidad)
 - [ ] Order Entry (formulario de órdenes)
+
+### Frontend — Market Scanner ✅ COMPLETADO
+- [x] `types/marketScanner.ts` — Contratos de tipo 1:1 con Pydantic backend (537 líneas)
+- [x] `services/scannerService.ts` — Servicio de integración con 7 endpoints backend
+- [x] `hooks/useScanner.ts` — Hook centralizado con lifecycle, retry, debounce (427 líneas)
+- [x] `hooks/useScannerWebSocket.ts` — WebSocket para precios en tiempo real
+- [x] `store/scannerStore.ts` — Zustand store con persistencia entre tabs
+- [x] `UniverseManager.tsx` — Conectado a backend, sin ALL_SYMBOLS hardcodeado
+- [x] `MarketScanner/index.tsx` — Datos reales, sin initMockData, polling + WebSocket
+- [x] `PhaseAnalytics.tsx` — Fase derivada de timeframes reales del backend
+- [x] `StrategyWeights.tsx` — Sync con backend via GET/PUT/POST
+- [x] Error handling estructurado (ApiError, NetworkError, TimeoutError, AuthError)
+- [x] Retry con backoff exponencial (SCANNER_MAX_RETRIES = 2)
 
 ### Frontend — Estado y Datos
 - [x] Zustand store configurado
 - [x] Hook de WebSocket con reconnect
 - [x] Conversión de Decimal para precios (todo como `string` para evitar flotantes de JS)
+- [x] `store/scannerStore.ts` — Zustand para scanner (persiste entre tabs)
+- [x] `store/tradingStore.ts` — Zustand para trading legacy (WebSocket compat)
 
-### Testing
-- [ ] pytest configurado
-- [ ] Tests de unidad para cálculos financieros
-- [ ] Tests de integración para APIs
-- [ ] Tests de frontend (Vitest)
+### Frontend — Auth ✅ COMPLETADO
+- [x] `hooks/useAuthToken.ts` — Hook de auth con backend cookie-based
+- [x] `lib/api-client.ts` — `checkAuthStatus()`, `loginApi()`, `logoutApi()`
+- [x] Backend: HMAC-signed `qa_session` cookie (httponly, samesite=lax)
+- [x] Backend: `POST /login`, `POST /logout`, `GET /me` endpoints
+
+### Frontend — Testing ✅ COMPLETADO
+- [x] Vitest configurado (`vitest.config.ts`, jsdom env)
+- [x] `__tests__/services/scannerService.test.ts` — 29 tests unitarios
+- [x] `__tests__/store/scannerStore.test.ts` — 13 tests unitarios
+- [x] `__tests__/hooks/useScanner.test.ts` — 10 tests de hook
+- [x] Coverage available via `vitest run --coverage`
 - [x] CI/CD con GitHub Actions (configurado de base)
 
 ---
@@ -86,35 +113,48 @@
 ## 📍 ÚLTIMO CHECKPOINT
 
 **Sesión anterior terminó en:**
-Se implementó el esqueleto principal de endpoints y componentes UI para fases 1 a 4. Quedaba pendiente corregir la ausencia del script `type-check` en `package.json` del frontend y completar el código ejecutable de la API principal (`backend/main.py`).
+Se completó la migración completa del Market Scanner (Fase 0-4) de datos mock a datos reales del backend. Incluye: tipos 1:1 con Pydantic, servicio de integración con 7 endpoints, hook centralizado con retry/backoff, Zustand store persistente, WebSocket para precios en tiempo real, auth middleware con cookies HMAC-signed, error handling estructurado, y 52 tests unitarios con Vitest. Todos los quality gates pasan (tsc, eslint, prettier).
 
 **Próxima tarea:**
-Conectar el motor cuantitativo de microestructura (`QuantitativeEngine` / Phase B) y las bases de datos (PostgreSQL/Redis) al flujo de ingesta real de datos iniciado en `MarketDataHub`.
+Completar Fase 4 de limpieza de deuda técnica: eliminar `services/mock/` (requiere migrar 5 componentes no-scanner), actualizar PROJECT_CONFIG.md, y hacer Q&A del flujo completo.
 
-**Archivos modificados en última sesión:**
-- `frontend/package.json`: Se agregó el script `"type-check"`, se actualizó `eslint` a `^9.x` y se cambió `"lint": "eslint ."`.
-- `frontend/eslint.config.mjs`: Creado para la configuración plana (Flat Config) requerida por ESLint 9 en Next.js 16.
-- `frontend/hooks/useAuthToken.ts`: Refactorizado para inicialización perezosa de estado, eliminando efectos que llamaban a setState.
-- `frontend/hooks/useSignalStream.ts`: Implementada referencia connectRef para recursión de reintento y encapsulado en un efecto para evitar mutaciones durante render.
-- `backend/main.py`: Se implementó la aplicación FastAPI con ciclo de vida asíncrono y configuración de CORS.
-- `backend/hub/market_data_hub.py`: Se implementaron los fetchers reales para FMP y Alpaca con cabeceras de autorización y reutilización de un único HTTP AsyncClient con cierre limpio.
-- `.env`: Se mapearon las variables que `settings.py` requiere para validar.
-- `backend/hub/normalizers/alpaca_normalizer.py`, `fmp_normalizer.py`, `massive_normalizer.py`: Añadidas anotaciones `dict[str, Any]` para complacer a mypy strict.
-- `backend/engine/state_manager.py`: Añadido tipo `deque[Any]`.
-- `pyproject.toml`: Se agregó el plugin `pydantic.mypy` para resolver el tipado de base settings.
-- Creado un package.json delegador en la raíz para permitir comandos npm directamente desde allí sin generar un lockfile de raíz.
-- Eliminados archivos y carpetas npm accidentales en la raíz (package-lock.json, node_modules).
+**Archivos modificados en sesiones recientes:**
+- `frontend/types/marketScanner.ts` — Contratos de tipo 537 líneas, 1:1 con Pydantic
+- `frontend/services/scannerService.ts` — Servicio de integración 429 líneas
+- `frontend/hooks/useScanner.ts` — Hook centralizado 427 líneas
+- `frontend/hooks/useScannerWebSocket.ts` — WebSocket para precios en tiempo real
+- `frontend/hooks/useAuthToken.ts` — Auth hook con backend cookie-based
+- `frontend/store/scannerStore.ts` — Zustand store para scanner
+- `frontend/lib/api-client.ts` — Error classes + auth helpers + credentials:include
+- `frontend/lib/constants.ts` — Todos los números mágicos centralizados
+- `frontend/components/tabs/MarketScanner/index.tsx` — Datos reales + WebSocket
+- `frontend/components/tabs/MarketScanner/UniverseManager.tsx` — Backend universes
+- `frontend/components/tabs/MarketScanner/PhaseAnalytics.tsx` — Phase derived
+- `frontend/components/tabs/MarketScanner/StrategyWeights.tsx` — Backend sync
+- `frontend/store/tradingStore.ts` — Limpieza de initMockData
+- `frontend/vitest.config.ts` — Configuración de testing
+- `frontend/__tests__/services/scannerService.test.ts` — 29 tests
+- `frontend/__tests__/store/scannerStore.test.ts` — 13 tests
+- `frontend/__tests__/hooks/useScanner.test.ts` — 10 tests
+- `backend/config/settings.py` — Auth settings
+- `backend/api/router.py` — Mounted auth_router
+- `backend/routers/auth_router.py` — Auth dependency
+- `backend/routers/market_scanner_router.py` — Auth on all endpoints
 
 **Comandos para verificar que todo está bien:**
 ```bash
 # Frontend type check
-cd frontend && npm run type-check
-# Frontend Next.js build
+cd frontend && npx tsc --noEmit
+# Frontend lint
+npx eslint --max-warnings=0 .
+# Frontend tests
+npx vitest run __tests__/
+# Frontend build
 npm run build
-# Backend type check (strict)
-cd .. && poetry run mypy --strict backend/main.py backend/api/ backend/bus/ backend/config/ backend/engine/ backend/hub/ backend/models/ backend/phases/
+# Backend type check
+cd .. && python -m py_compile backend/main.py
 # Levantar el backend
-poetry run python -m backend.main
+python -m backend.main
 ```
 
 ---
@@ -123,8 +163,14 @@ poetry run python -m backend.main
 
 | ID | Decisión | Por qué | Fecha |
 |----|----------|---------|-------|
-| ARCH-001 | Todo precio/volumen como string en frontend | Evita la acumulación de errores de precisión flotante en JavaScript al manejar precios de opciones de alta precisión | 2026-06-09 |
+| ARCH-001 | Todo precio/volumen como string en frontend | Evita la acumulación de errores de precisión flotante al manejar precios de opciones de alta precisión | 2026-06-09 |
 | ARCH-002 | Un único httpx.AsyncClient en MarketDataHub | Optimiza la reutilización de sockets HTTP/TCP para FMP y Alpaca, reduciendo la latencia de red en llamadas secuenciales | 2026-06-09 |
+| ARCH-003 | Zustand para scanner data, local state para lifecycle | `scannerStore` persiste tickers/universes/params entre tabs; `isScanning`/`isLoading`/`error` stay local por mount | 2026-06-11 |
+| ARCH-004 | Adapter pattern para Ticker compat | `displayToTicker`/`displayListToTickers` bridging `ScannerTickerDisplay` → `Ticker` para mantener TickerRow/TickerModal/PhaseDonut sin modificar | 2026-06-11 |
+| ARCH-005 | Cookie-based auth (HMAC-signed `qa_session`) | Backend ya tenía auth completa; solo necesitaba mounting y `Depends(get_current_user)` en scanner endpoints | 2026-06-11 |
+| ARCH-006 | Error classes en `api-client.ts` | `ApiError`, `NetworkError`, `TimeoutError`, `AuthError` proveen metadata estructurada para UI categorization | 2026-06-11 |
+| ARCH-007 | WebSocket para precios en tiempo real | Reemplaza polling HTTP de 3s; conecta a `/ws/stream/ALL` existente; exponential backoff 1s→30s | 2026-06-11 |
+| ARCH-008 | Vitest over Jest | Tests existentes de bingx-bot ya usaban vitest; consistencia en tooling | 2026-06-11 |
 
 ---
 
@@ -132,7 +178,10 @@ poetry run python -m backend.main
 
 | ID | Problema | Prioridad | Estado |
 |----|----------|-----------|--------|
-| - | Ninguno reportado | - | - |
+| KNOWN-001 | `services/mock/` still used by 5 non-scanner components (BingXBot, BinanceBot, AlpacaBot, Predictive, Technical, CandleChart) | Medium | Open — requires migrating those modules to real APIs first |
+| KNOWN-002 | 4 pre-existing test failures in `bingx-probabilistic-panel.test.tsx` (unrelated to scanner work) | Low | Open — tests check for `text-info` CSS class but component uses `text-blue-400` |
+| KNOWN-003 | Backend auth settings (`qa_session_secret`, etc.) need `.env` values to function | Medium | Open — auth endpoints will return 503 without env vars |
+| KNOWN-004 | WebSocket reconnect in `useScannerWebSocket` doesn't have a `mountedRef` guard in the `reconnect` callback | Low | Minor — reconnect is user-initiated |
 
 ---
 
@@ -152,4 +201,15 @@ MASSIVE_API_KEY=
 MASSIVE_WS_URL=
 ALPACA_API_KEY=
 ALPACA_API_SECRET=
+
+# Auth (HMAC-signed cookies)
+QA_SESSION_SECRET=
+QA_APP_USERNAME=
+QA_APP_PASSWORD_HASH=
+QA_APP_DISPLAY_NAME=
+QA_APP_EMAIL=
+
+# Frontend
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
 ```

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from src.quant_engine.engines.predictive.catalyst_nlp import (
+from backend.quant_engine.engines.predictive.catalyst_nlp import (
     CalendarInput,
     CatalystNLPEngine,
     NewsInput,

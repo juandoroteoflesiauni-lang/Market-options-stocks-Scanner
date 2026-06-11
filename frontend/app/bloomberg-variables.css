@@ -1,0 +1,464 @@
+/**
+ * Deep Trading Terminal — Bloomberg Design System
+ * CSS Custom Properties (generated from figma-tokens.json)
+ *
+ * USO: Importar en globals.css de Next.js
+ * @import './bloomberg-variables.css';
+ */
+
+/* ============================================================
+   1. PRIMITIVE PALETTE
+   Nunca usar directamente en componentes
+   ============================================================ */
+:root {
+  /* Grays */
+  --primitive-black-0: #000000;
+  --primitive-black-50: #080808;
+  --primitive-black-100: #101010;
+  --primitive-black-150: #141414;
+  --primitive-black-200: #181818;
+  --primitive-black-250: #1c1c1c;
+  --primitive-black-300: #202020;
+  --primitive-black-350: #242424;
+  --primitive-black-400: #2c2c2c;
+  --primitive-black-500: #3a3a3a;
+  --primitive-black-600: #505050;
+  --primitive-black-700: #6a6a6a;
+  --primitive-black-800: #888888;
+  --primitive-black-900: #a0a0a0;
+  --primitive-black-950: #c8c8c8;
+  --primitive-black-1000: #ebebeb;
+
+  /* Orange (Bloomberg brand) */
+  --primitive-orange-100: #3d1800;
+  --primitive-orange-200: #6e2d00;
+  --primitive-orange-300: #a84000;
+  --primitive-orange-400: #cc5200;
+  --primitive-orange-500: #ff6600;
+  --primitive-orange-600: #ff7d26;
+  --primitive-orange-700: #ff9a55;
+  --primitive-orange-800: #ffb880;
+  --primitive-orange-900: #ffd6b3;
+
+  /* Green (positive / up) */
+  --primitive-green-100: #001f14;
+  --primitive-green-200: #003d27;
+  --primitive-green-300: #006b45;
+  --primitive-green-400: #009960;
+  --primitive-green-500: #00c87b;
+  --primitive-green-600: #00e08a;
+  --primitive-green-700: #39eba0;
+  --primitive-green-800: #80f2c4;
+  --primitive-green-900: #c0f8e0;
+
+  /* Red (negative / down) */
+  --primitive-red-100: #1f0000;
+  --primitive-red-200: #3d0000;
+  --primitive-red-300: #6b0000;
+  --primitive-red-400: #cc1a1a;
+  --primitive-red-500: #ff3b3b;
+  --primitive-red-600: #ff5c5c;
+  --primitive-red-700: #ff8080;
+  --primitive-red-800: #ffb3b3;
+  --primitive-red-900: #ffd9d9;
+
+  /* Yellow (warning) */
+  --primitive-yellow-100: #1f1400;
+  --primitive-yellow-200: #3d2800;
+  --primitive-yellow-300: #7a5200;
+  --primitive-yellow-400: #c28500;
+  --primitive-yellow-500: #f5a623;
+  --primitive-yellow-600: #ffb84d;
+  --primitive-yellow-700: #ffcc80;
+  --primitive-yellow-800: #ffe0b2;
+
+  /* Cyan (info / volume) */
+  --primitive-cyan-100: #001a26;
+  --primitive-cyan-200: #003347;
+  --primitive-cyan-300: #005c7a;
+  --primitive-cyan-400: #008ab3;
+  --primitive-cyan-500: #00bfff;
+  --primitive-cyan-600: #33cbff;
+  --primitive-cyan-700: #80deff;
+  --primitive-cyan-800: #b3ecff;
+
+  /* Violet (derivatives) */
+  --primitive-violet-400: #7b2fff;
+  --primitive-violet-500: #9b4dff;
+  --primitive-violet-600: #b865ff;
+  --primitive-violet-700: #d09aff;
+
+  /* Chart palette */
+  --primitive-chart-1: #00c87b;
+  --primitive-chart-2: #ff3b3b;
+  --primitive-chart-3: #ff6600;
+  --primitive-chart-4: #00bfff;
+  --primitive-chart-5: #ffd700;
+  --primitive-chart-6: #b865ff;
+  --primitive-chart-7: #ff69b4;
+  --primitive-chart-8: #4dc9ff;
+}
+
+/* ============================================================
+   2. SEMANTIC TOKENS
+   Usar SIEMPRE estos en componentes
+   ============================================================ */
+:root {
+  /* --- BACKGROUNDS --- */
+  --bg-base: var(--primitive-black-50); /* Fondo de app */
+  --bg-surface: var(--primitive-black-100); /* Paneles, cards */
+  --bg-elevated: var(--primitive-black-200); /* Modales, dropdowns */
+  --bg-overlay: var(--primitive-black-300); /* Hover rows */
+  --bg-inset: var(--primitive-black-0); /* Inputs internos */
+
+  /* --- BORDERS --- */
+  --border-subtle: var(--primitive-black-350); /* Separadores internos */
+  --border-default: var(--primitive-black-400); /* Bordes de panel */
+  --border-strong: var(--primitive-black-500); /* Inputs activos */
+  --border-accent: var(--primitive-orange-500); /* Panel activo seleccionado */
+
+  /* --- TEXT --- */
+  --text-primary: var(--primitive-black-1000);
+  --text-secondary: var(--primitive-black-900);
+  --text-muted: var(--primitive-black-700);
+  --text-inverse: var(--primitive-black-50);
+  --text-accent: var(--primitive-orange-500);
+
+  /* --- DATA (financial semantic) --- */
+  --data-positive: var(--primitive-green-500);
+  --data-negative: var(--primitive-red-500);
+  --data-neutral: var(--primitive-black-900);
+  --data-warning: var(--primitive-yellow-500);
+  --data-critical: var(--primitive-red-600);
+  --data-info: var(--primitive-cyan-500);
+  --data-flash-up: var(--primitive-green-200);
+  --data-flash-down: var(--primitive-red-200);
+
+  /* --- ACCENT (Bloomberg orange) --- */
+  --accent-primary: var(--primitive-orange-500);
+  --accent-hover: var(--primitive-orange-600);
+  --accent-muted: var(--primitive-orange-100);
+  --accent-on-accent: var(--primitive-black-50);
+
+  /* --- PHASE COLORS --- */
+  --phase-a: var(--primitive-cyan-500);
+  --phase-b: var(--primitive-yellow-500);
+  --phase-c: var(--primitive-violet-600);
+  --phase-d: var(--primitive-orange-500);
+
+  /* --- CHART COLORS --- */
+  --chart-1: var(--primitive-chart-1);
+  --chart-2: var(--primitive-chart-2);
+  --chart-3: var(--primitive-chart-3);
+  --chart-4: var(--primitive-chart-4);
+  --chart-5: var(--primitive-chart-5);
+  --chart-6: var(--primitive-chart-6);
+  --chart-7: var(--primitive-chart-7);
+  --chart-8: var(--primitive-chart-8);
+  --chart-grid: var(--primitive-black-350);
+  --chart-axis: var(--primitive-black-600);
+}
+
+/* ============================================================
+   3. TYPOGRAPHY TOKENS
+   ============================================================ */
+:root {
+  --font-ui: "Inter", "IBM Plex Sans", -apple-system, sans-serif;
+  --font-data: "JetBrains Mono", "IBM Plex Mono", "Fira Mono", monospace;
+  --font-heading: "IBM Plex Sans", "Inter", -apple-system, sans-serif;
+
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-base: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+  --font-size-xl: 16px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+  --font-size-4xl: 32px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1;
+  --line-height-snug: 1.2;
+  --line-height-compact: 1.4;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
+
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0em;
+  --letter-spacing-wide: 0.04em;
+  --letter-spacing-caps: 0.08em;
+}
+
+/* ============================================================
+   4. SPACING + SIZING
+   ============================================================ */
+:root {
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  --size-topbar: 48px;
+  --size-nav: 240px;
+  --size-nav-collapsed: 48px;
+  --size-panel-header: 32px;
+  --size-row-compact: 24px;
+  --size-row-normal: 32px;
+  --size-row-relaxed: 40px;
+  --size-statusbar: 24px;
+}
+
+/* ============================================================
+   5. ANIMATION TOKENS
+   ============================================================ */
+:root {
+  --duration-instant: 80ms;
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 400ms;
+  --duration-chart: 600ms;
+
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-linear: cubic-bezier(0, 0, 1, 1);
+}
+
+/* ============================================================
+   6. BASE RESETS — Bloomberg-style global defaults
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow: hidden; /* Terminal no hace scroll en el root */
+}
+
+/* Números financieros — tabular por defecto */
+.data,
+.price,
+.quantity,
+.pct,
+[data-numeric] {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings:
+    "tnum" 1,
+    "zero" 1;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-compact);
+}
+
+/* Scrollbar — Bloomberg style */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primitive-black-600);
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-muted);
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   7. KEYFRAMES — Bloomberg price animations
+   ============================================================ */
+@keyframes price-flash-up {
+  0% {
+    background-color: transparent;
+    color: var(--text-primary);
+  }
+  25% {
+    background-color: var(--data-flash-up);
+    color: var(--data-positive);
+  }
+  100% {
+    background-color: transparent;
+    color: var(--data-positive);
+  }
+}
+
+@keyframes price-flash-down {
+  0% {
+    background-color: transparent;
+    color: var(--text-primary);
+  }
+  25% {
+    background-color: var(--data-flash-down);
+    color: var(--data-negative);
+  }
+  100% {
+    background-color: transparent;
+    color: var(--data-negative);
+  }
+}
+
+@keyframes price-flash-neutral {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes status-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes chart-draw {
+  from {
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ============================================================
+   8. UTILITY CLASSES
+   ============================================================ */
+
+/* Price states */
+.price-up {
+  color: var(--data-positive);
+}
+.price-down {
+  color: var(--data-negative);
+}
+.price-flat {
+  color: var(--data-neutral);
+}
+
+/* Animated price update */
+.price-flash-up {
+  animation: price-flash-up var(--duration-slow) var(--ease-out) forwards;
+}
+.price-flash-down {
+  animation: price-flash-down var(--duration-slow) var(--ease-out) forwards;
+}
+
+/* Panel animation */
+.panel-enter {
+  animation: panel-enter var(--duration-fast) var(--ease-out);
+}
+
+/* Status dots */
+.status-connected {
+  color: var(--data-positive);
+}
+.status-connected::before {
+  content: "●";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+  animation: status-dot-pulse 2s ease-in-out infinite;
+}
+.status-error {
+  color: var(--data-negative);
+}
+.status-warning {
+  color: var(--data-warning);
+}
+
+/* Truncate */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Caps label (panel headers, column headers) */
+.label-caps {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-caps);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+}
+.divider-v {
+  width: 1px;
+  background: var(--border-subtle);
+  align-self: stretch;
+}

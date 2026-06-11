@@ -6,12 +6,14 @@ import httpx
 
 from backend.bus.event_bus import EventBus
 from backend.config.settings import MarketDataSettings
+from backend.hub.api_consumption_monitor import ApiCallStatus, api_consumption_monitor
 from backend.hub.backoff import exponential_backoff
 from backend.hub.circuit_breaker import CircuitBreaker
 from backend.hub.normalizers.alpaca_normalizer import AlpacaNormalizer
 from backend.hub.normalizers.fmp_normalizer import FmpNormalizer
 from backend.hub.normalizers.massive_normalizer import MassiveNormalizer
 from backend.hub.normalizers.massive_options_normalizer import MassiveOptionsNormalizer
+from backend.hub.rate_limiter import rate_limiter
 from backend.models.market_snapshot import MarketSnapshot
 from backend.models.option_contract import OptionChainSnapshot
 from backend.models.result import Result
@@ -58,13 +60,39 @@ class MarketDataHub:
         """
         url = f"https://financialmodelingprep.com/api/v3/quote/{ticker.upper()}"
         params = {"apikey": self._settings.fmp_api_key.get_secret_value()}
+        start = time.perf_counter()
+
+        await rate_limiter.acquire("fmp")
 
         response = await self._client.get(url, params=params, timeout=10.0)
         response.raise_for_status()
         data = response.json()
 
+        duration = time.perf_counter() - start
+        content_length = int(response.headers.get("content-length", 0))
+        status = ApiCallStatus.SUCCESS
+
         if not isinstance(data, list) or len(data) == 0:
+            status = ApiCallStatus.ERROR
+            await api_consumption_monitor.record(
+                provider="fmp",
+                endpoint="/api/v3/quote/{symbol}",
+                api_key_label="primary",
+                status=status,
+                duration_seconds=duration,
+                bytes_received=content_length,
+                error_message="Empty response",
+            )
             raise ValueError(f"Ticker {ticker} not found or invalid format from FMP")
+
+        await api_consumption_monitor.record(
+            provider="fmp",
+            endpoint="/api/v3/quote/{symbol}",
+            api_key_label="primary",
+            status=status,
+            duration_seconds=duration,
+            bytes_received=content_length,
+        )
 
         # FMP returns a list of quotes; extract the first matched quote dict
         quote: dict[str, Any] = data[0]
@@ -85,14 +113,38 @@ class MarketDataHub:
             "APCA-API-KEY-ID": self._settings.alpaca_api_key.get_secret_value(),
             "APCA-API-SECRET-KEY": self._settings.alpaca_api_secret.get_secret_value(),
         }
+        start = time.perf_counter()
+
+        await rate_limiter.acquire("alpaca")
 
         response = await self._client.get(url, headers=headers, timeout=10.0)
         response.raise_for_status()
         data = response.json()
 
+        duration = time.perf_counter() - start
+        content_length = int(response.headers.get("content-length", 0))
+
         bar = data.get("bar")
         if not bar:
+            await api_consumption_monitor.record(
+                provider="alpaca",
+                endpoint="/v2/stocks/{symbol}/bars/latest",
+                api_key_label="primary",
+                status=ApiCallStatus.ERROR,
+                duration_seconds=duration,
+                bytes_received=content_length,
+                error_message="No bar data",
+            )
             raise ValueError(f"No bar data returned from Alpaca for ticker {ticker}")
+
+        await api_consumption_monitor.record(
+            provider="alpaca",
+            endpoint="/v2/stocks/{symbol}/bars/latest",
+            api_key_label="primary",
+            status=ApiCallStatus.SUCCESS,
+            duration_seconds=duration,
+            bytes_received=content_length,
+        )
 
         # Map Alpaca response to normalized format expected by AlpacaNormalizer
         return {
@@ -115,6 +167,14 @@ class MarketDataHub:
                 return Result.success(snapshot)
             except Exception as exc:
                 self._fmp_breaker.record_failure()
+                await api_consumption_monitor.record(
+                    provider="fmp",
+                    endpoint="/api/v3/quote/{symbol}",
+                    api_key_label="primary",
+                    status=ApiCallStatus.ERROR,
+                    duration_seconds=0.0,
+                    error_message=str(exc)[:200],
+                )
                 logger.warning("FMP fetch failed for %s: %s", ticker, exc)
 
         if self._alpaca_breaker.can_execute():
@@ -126,9 +186,38 @@ class MarketDataHub:
                 return Result.success(snapshot)
             except Exception as exc:
                 self._alpaca_breaker.record_failure()
+                await api_consumption_monitor.record(
+                    provider="alpaca",
+                    endpoint="/v2/stocks/{symbol}/bars/latest",
+                    api_key_label="primary",
+                    status=ApiCallStatus.ERROR,
+                    duration_seconds=0.0,
+                    error_message=str(exc)[:200],
+                )
                 logger.warning("Alpaca fetch failed for %s: %s", ticker, exc)
 
         return Result.failure(reason="All providers exhausted or circuits open")
+
+    async def get_vix_level(self) -> Result[float]:
+        """Fetches the current VIX level via FMP.
+
+        Uses the existing _fetch_fmp pipeline (circuit-breaker, rate-limiter,
+        exponential backoff) with ticker "^VIX".
+
+        Returns:
+            Result.success(vix_price) or Result.failure(reason).
+        """
+        try:
+            raw = await self._fetch_fmp("^VIX")
+        except Exception as exc:
+            return Result.failure(reason=f"VIX fetch failed: {exc}")
+
+        vix = raw.get("price")
+        if vix is None or not isinstance(vix, int | float) or vix <= 0:
+            return Result.failure(reason=f"Invalid VIX price from FMP: {vix}")
+
+        self._fmp_breaker.record_success()
+        return Result.success(float(vix))
 
     async def get_raw_quote(self, ticker: str) -> Result[dict[str, Any]]:
         """Fetches the raw quote dictionary (useful for previousClose etc)."""
@@ -148,13 +237,26 @@ class MarketDataHub:
 
         if self._fmp_breaker.can_execute():
             try:
+                start = time.perf_counter()
                 tickers_str = ",".join([t.upper() for t in tickers])
                 url = f"https://financialmodelingprep.com/api/v4/batch-pre-post-market-trade/{tickers_str}"
                 params = {"apikey": self._settings.fmp_api_key.get_secret_value()}
 
+                await rate_limiter.acquire("fmp")
                 response = await self._client.get(url, params=params, timeout=10.0)
                 response.raise_for_status()
                 data = response.json()
+                duration = time.perf_counter() - start
+                content_length = int(response.headers.get("content-length", 0))
+
+                await api_consumption_monitor.record(
+                    provider="fmp",
+                    endpoint="/api/v4/batch-pre-post-market-trade/{tickers}",
+                    api_key_label="primary",
+                    status=ApiCallStatus.SUCCESS,
+                    duration_seconds=duration,
+                    bytes_received=content_length,
+                )
 
                 result = {}
                 if isinstance(data, list):
@@ -257,13 +359,36 @@ class MarketDataHub:
             "Authorization": f"Bearer {self._settings.massive_api_key.get_secret_value()}",
             "Content-Type": "application/json",
         }
+        start = time.perf_counter()
 
+        await rate_limiter.acquire("massive")
         response = await self._client.get(url, headers=headers, timeout=15.0)
         response.raise_for_status()
         data = response.json()
 
+        duration = time.perf_counter() - start
+        content_length = int(response.headers.get("content-length", 0))
+
         if not isinstance(data, dict):
+            await api_consumption_monitor.record(
+                provider="massive",
+                endpoint="/v1/options/chain/{symbol}",
+                api_key_label="primary",
+                status=ApiCallStatus.ERROR,
+                duration_seconds=duration,
+                bytes_received=content_length,
+                error_message="Invalid format",
+            )
             raise ValueError(f"Invalid options response format from Massive for {ticker}")
+
+        await api_consumption_monitor.record(
+            provider="massive",
+            endpoint="/v1/options/chain/{symbol}",
+            api_key_label="primary",
+            status=ApiCallStatus.SUCCESS,
+            duration_seconds=duration,
+            bytes_received=content_length,
+        )
 
         return data
 

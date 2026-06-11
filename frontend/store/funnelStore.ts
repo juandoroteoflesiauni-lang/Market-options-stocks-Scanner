@@ -3,48 +3,51 @@
 import { create } from "zustand";
 
 import type {
-  CandidateSnapshot,
-  ExecutionSignal,
-  FilteredAsset,
-  FunnelOverview,
-  OptionContract,
   SystemHealth,
+  Ticker,
+  Position,
+  OptionContract,
+  Universe,
 } from "./types";
-
-// ── Constants ─────────────────────────────────────────────────
-
-const MAX_SIGNALS_DISPLAYED = 50;
 
 // ── Store Interface ───────────────────────────────────────────
 
+export type TabId =
+  | "SCANNER"
+  | "BINGX"
+  | "ALPACA"
+  | "BINANCE"
+  | "FUNDING"
+  | "DERIVATIVES"
+  | "TECHNICAL"
+  | "PREDICTIVE";
+
 interface FunnelState {
-  // Phase A — Scanner
-  candidates: CandidateSnapshot[];
+  // Navigation
+  activeTab: TabId;
 
-  // Phase B — Microstructure
-  filteredAssets: FilteredAsset[];
+  // Tab 1: Scanner Data
+  activeUniverseId: string | null;
+  universes: Universe[];
+  scannerResults: Ticker[];
 
-  // Phase C — Derivatives
-  selectedContracts: OptionContract[];
+  // Bots Data (BingX, Alpaca, Binance)
+  positions: Position[];
 
-  // Phase D — Signals
-  signals: ExecutionSignal[];
+  // Tab 6: Options Data
+  optionsChain: OptionContract[];
 
-  // System
-  funnelOverview: FunnelOverview | null;
+  // System State
   systemHealth: SystemHealth | null;
   isConnected: boolean;
   lastUpdated: string | null;
 
-  // Actions — Phase Data
-  setCandidates: (candidates: CandidateSnapshot[]) => void;
-  setFilteredAssets: (assets: FilteredAsset[]) => void;
-  setSelectedContracts: (contracts: OptionContract[]) => void;
-  addSignal: (signal: ExecutionSignal) => void;
-  clearSignals: () => void;
-
-  // Actions — System
-  setFunnelOverview: (overview: FunnelOverview) => void;
+  // Actions
+  setActiveTab: (tabId: TabId) => void;
+  setScannerResults: (results: Ticker[]) => void;
+  fetchScannerCandidates: () => Promise<void>;
+  setPositions: (positions: Position[]) => void;
+  setOptionsChain: (chain: OptionContract[]) => void;
   setSystemHealth: (health: SystemHealth) => void;
   setConnected: (connected: boolean) => void;
 }
@@ -53,47 +56,61 @@ interface FunnelState {
 
 export const useFunnelStore = create<FunnelState>()((set) => ({
   // Initial state
-  candidates: [],
-  filteredAssets: [],
-  selectedContracts: [],
-  signals: [],
-  funnelOverview: null,
+  activeTab: "SCANNER",
+
+  activeUniverseId: "tech-core",
+  universes: [
+    {
+      id: "tech-core",
+      name: "Tech Core",
+      tickers: ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA"],
+    },
+    { id: "high-iv", name: "High IV", tickers: ["TSLA", "MSTR", "COIN"] },
+  ],
+  scannerResults: [],
+
+  positions: [],
+  optionsChain: [],
+
   systemHealth: null,
   isConnected: false,
   lastUpdated: null,
 
-  // Phase A
-  setCandidates: (candidates) =>
+  // Actions
+  setActiveTab: (tabId) => set({ activeTab: tabId }),
+
+  setScannerResults: (results) =>
     set({
-      candidates,
+      scannerResults: results,
       lastUpdated: new Date().toISOString(),
     }),
 
-  // Phase B
-  setFilteredAssets: (assets) =>
+  fetchScannerCandidates: async () => {
+    try {
+      // Inline import to avoid circular dependencies if any, or just standard fetch
+      const { fetchScannerCandidates: fetchApi } = await import("@/lib/api");
+      const candidates = await fetchApi();
+      set({
+        scannerResults: candidates,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Failed to fetch scanner candidates:", error);
+    }
+  },
+
+  setPositions: (positions) =>
     set({
-      filteredAssets: assets,
+      positions: positions,
       lastUpdated: new Date().toISOString(),
     }),
 
-  // Phase C
-  setSelectedContracts: (contracts) =>
+  setOptionsChain: (chain) =>
     set({
-      selectedContracts: contracts,
+      optionsChain: chain,
       lastUpdated: new Date().toISOString(),
     }),
 
-  // Phase D — Signals capped at MAX_SIGNALS_DISPLAYED
-  addSignal: (signal) =>
-    set((state) => ({
-      signals: [signal, ...state.signals].slice(0, MAX_SIGNALS_DISPLAYED),
-      lastUpdated: new Date().toISOString(),
-    })),
-
-  clearSignals: () => set({ signals: [] }),
-
-  // System
-  setFunnelOverview: (overview) => set({ funnelOverview: overview }),
   setSystemHealth: (health) => set({ systemHealth: health }),
   setConnected: (connected) => set({ isConnected: connected }),
 }));

@@ -1,21 +1,58 @@
-import { FunnelOverview } from "@/components/dashboard/FunnelOverview";
-import { SignalFeed } from "@/components/signals/SignalFeed";
-import { SystemStatusBar } from "@/components/dashboard/SystemStatusBar";
+"use client";
+import React from "react";
 
-export default function HomePage() {
+import { TabProvider, useTabStore } from "@/store/tabStore";
+import { Shell } from "@/components/layout/Shell";
+import { TabTransition } from "@/components/layout/TabTransition";
+import { MarketScanner } from "@/components/tabs/MarketScanner";
+import { BingXBot } from "@/components/tabs/BingXBot";
+import { AlpacaBot } from "@/components/tabs/AlpacaBot";
+import { BinanceBot } from "@/components/tabs/BinanceBot";
+import { FundingChallenge } from "@/components/tabs/FundingChallenge";
+import { Derivatives } from "@/components/tabs/Derivatives";
+import { Technical } from "@/components/tabs/Technical";
+import { Predictive } from "@/components/tabs/Predictive";
+import { ApiConsumptionMonitor } from "@/components/tabs/ApiConsumptionMonitor";
+import { AuditComplex } from "@/components/tabs/AuditComplex";
+import type { TabId } from "@/types";
+
+// ── Tab definitions ─────────────────────────────────────────────────────────
+const TAB_CONTENT: Record<TabId, React.JSX.Element> = {
+  scanner: <MarketScanner />,
+  bingx: <BingXBot />,
+  alpaca: <AlpacaBot />,
+  binance: <BinanceBot />,
+  funding: <FundingChallenge />,
+  derivatives: <Derivatives />,
+  technical: <Technical />,
+  predictive: <Predictive />,
+  consumption: <ApiConsumptionMonitor />,
+  audit: <AuditComplex />,
+};
+
+import { useWebSocket } from "@/hooks/useWebSocket";
+
+// ── Main routed view ─────────────────────────────────────────────────────────
+function AppContent() {
+  const { activeTab } = useTabStore();
+  useWebSocket(); // Mount real-time data connection
+
   return (
-    <div className="flex flex-col min-h-[calc(100vh-3.5rem)]">
-      {/* Main content */}
-      <div className="flex-1 px-6 py-6 space-y-6">
-        {/* Funnel overview — 4 phase cards */}
-        <FunnelOverview />
+    <Shell>
+      <TabTransition tabKey={activeTab}>{TAB_CONTENT[activeTab]}</TabTransition>
+    </Shell>
+  );
+}
 
-        {/* Execution signals feed */}
-        <SignalFeed />
-      </div>
+export default function Home() {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
 
-      {/* System status bar — fixed bottom */}
-      <SystemStatusBar />
-    </div>
+  if (!mounted) return null;
+
+  return (
+    <TabProvider>
+      <AppContent />
+    </TabProvider>
   );
 }

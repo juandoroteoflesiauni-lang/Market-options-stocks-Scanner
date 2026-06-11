@@ -1,6 +1,6 @@
 import pytest
 
-from src.quant_engine.engines.predictive.regime_weights import (
+from backend.quant_engine.engines.predictive.regime_weights import (
     MarketRegime,
     RegimeWeightingEngine,
     blend_meta_with_engines,

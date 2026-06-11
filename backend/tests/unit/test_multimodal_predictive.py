@@ -6,12 +6,12 @@ import pytest
 import torch
 
 from backend.models.result import Result
-from src.quant_engine.engines.predictive.multimodal_predictive import (
+from backend.quant_engine.engines.predictive.multimodal_predictive import (
     FusionReport,
     MultimodalBatch,
     MultimodalPredictiveEngine,
 )
-from src.quant_engine.engines.predictive.quantum_alpha import (
+from backend.quant_engine.engines.predictive.quantum_alpha import (
     MultimodalModelConfig,
     QuantumAlphaLSTM,
 )

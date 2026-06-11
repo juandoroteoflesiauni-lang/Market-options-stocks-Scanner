@@ -1,0 +1,10 @@
+# requirements.txt additions for Mesa de Dinero Virtual
+# Add these to your existing requirements.txt
+
+# Redis support for caching
+redis>=4.5.0
+aioredis>=2.0.1
+
+# Additional dependencies for Mesa de Dinero
+websockets>=11.0.3
+sse-starlette>=1.8.0

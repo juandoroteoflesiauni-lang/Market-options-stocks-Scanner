@@ -1,7 +1,7 @@
 import numpy as np
 
 from backend.models.result import Result
-from src.quant_engine.math.predictive.parametric_optimizer import (
+from backend.quant_engine.math.predictive.parametric_optimizer import (
     BacktestResult,
     OptimizationResult,
     ParameterRange,

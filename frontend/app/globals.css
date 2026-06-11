@@ -1,93 +1,382 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@custom-variant dark (&:is(.dark *));
 
-/* ── Design System — Deep Funnel Station ─────────────────────
-   Inspired by Bloomberg Terminal + Apple design language.
-   Dark mode only. No light mode. No conditional themes.
-   All colors via CSS variables — never raw hex in components.
-   ──────────────────────────────────────────────────────────── */
+/* ─── FIMA Bloomberg Terminal — Design Tokens ─── */
+:root {
+  /* Background layers — Bloomberg-flat near-black */
+  --bg-void: #000000;
+  --bg-base: #050505;
+  --bg-panel: #0a0a0a;
+  --bg-elevated: #111111;
+  --bg-hover: #161616;
+  --bg-active: #1c1c1c;
 
-@theme {
-  /* ── Backgrounds ── */
-  --color-bg-base: #0a0a0f;
-  --color-bg-surface: #111118;
-  --color-bg-elevated: #1a1a24;
-  --color-bg-glass: rgba(17, 17, 24, 0.72);
+  /* Borders — neutral, no cyan tint */
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-muted: rgba(255, 255, 255, 0.08);
+  --border-accent: rgba(255, 176, 32, 0.35);
 
-  /* ── Borders ── */
-  --color-border-subtle: rgba(255, 255, 255, 0.06);
-  --color-border-default: rgba(255, 255, 255, 0.1);
-  --color-border-strong: rgba(255, 255, 255, 0.18);
+  /* Text */
+  --text-primary: #e6e6e6;
+  --text-secondary: #7a7a7a;
+  --text-muted: #4a4a4a;
+  --text-accent: #ffb020;
+  --text-inverse: #000000;
 
-  /* ── Text ── */
-  --color-text-primary: #f0f0f5;
-  --color-text-secondary: #8b8b9e;
-  --color-text-muted: #4a4a5e;
-  --color-text-inverse: #0a0a0f;
+  /* Signal colors — desaturated terminal */
+  --signal-bull: #2fb67c;
+  --signal-bear: #e04e5c;
+  --signal-warn: #ffb020;
+  --signal-info: #6fa8dc;
+  --signal-neutral: #6b6b6b;
 
-  /* ── Trading Signal Accents ── */
-  --color-signal-buy: #00d4aa;
-  --color-signal-sell: #ff4d6d;
-  --color-signal-neutral: #a78bfa;
-  --color-signal-warning: #f59e0b;
+  /* Phase colors — muted */
+  --phase-A: #6d4aa8;
+  --phase-B: #3b6fb8;
+  --phase-C: #b86e1f;
+  --phase-D: #a8333b;
 
-  /* ── Chart Palette ── */
-  --color-chart-1: #818cf8;
-  --color-chart-2: #34d399;
-  --color-chart-3: #f472b6;
-  --color-chart-4: #fb923c;
+  /* Gradient accents */
+  --grad-start: #1e3a5f;
+  --grad-mid: #ffb020;
+  --grad-end: #2fb67c;
 
-  /* ── Typography ── */
-  --font-sans: "Inter", "SF Pro Display", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  /* Typography */
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", "Fira Code", monospace;
+  --font-ui: "Inter", "Geist", system-ui, sans-serif;
+  --font-display: "Space Grotesk", "DM Sans", sans-serif;
+
+  /* Type scale */
+  --fima-text-xs: 10px;
+  --fima-text-sm: 11px;
+  --fima-text-base: 13px;
+  --fima-text-md: 14px;
+  --fima-text-lg: 16px;
+  --fima-text-xl: 20px;
+  --fima-text-2xl: 28px;
+  --fima-text-3xl: 40px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
 }
 
-/* ── Glassmorphism Utility ── */
-@utility glass-panel {
-  background-color: var(--color-bg-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border-subtle);
+/* ─── Keyframes ─── */
+@keyframes bgShift {
+  0% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      50% 50%;
+  }
+  50% {
+    background-position:
+      30% 20%,
+      70% 80%,
+      60% 40%;
+  }
+  100% {
+    background-position:
+      10% 40%,
+      90% 60%,
+      45% 55%;
+  }
 }
 
-@utility glass-card {
-  background-color: var(--color-bg-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--color-border-default);
-  border-radius: 12px;
+@keyframes priceFlashUp {
+  0% {
+    background-color: transparent;
+  }
+  20% {
+    background-color: rgba(0, 230, 118, 0.25);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
-/* ── Base Layer ── */
+@keyframes priceFlashDown {
+  0% {
+    background-color: transparent;
+  }
+  20% {
+    background-color: rgba(255, 61, 90, 0.25);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes pulse-green {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.6);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 6px rgba(0, 230, 118, 0);
+  }
+}
+
+@keyframes strobe-red {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* ─── Tailwind v4 token mapping ─── */
+@theme inline {
+  --color-bg-void: var(--bg-void);
+  --color-bg-base: var(--bg-base);
+  --color-bg-panel: var(--bg-panel);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-muted: var(--border-muted);
+  --color-border-accent: var(--border-accent);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-accent: var(--text-accent);
+  --color-signal-bull: var(--signal-bull);
+  --color-signal-bear: var(--signal-bear);
+  --color-signal-warn: var(--signal-warn);
+  --color-signal-neutral: var(--signal-neutral);
+  --color-phase-A: var(--phase-A);
+  --color-phase-B: var(--phase-B);
+  --color-phase-C: var(--phase-C);
+  --color-phase-D: var(--phase-D);
+}
+
+/* ─── Utility classes ─── */
+.price-flash-up {
+  animation: priceFlashUp 0.4s ease-out;
+}
+.price-flash-down {
+  animation: priceFlashDown 0.4s ease-out;
+}
+
+:root {
+  --font-size: 16px;
+  --background: #ffffff;
+  --foreground: oklch(0.145 0 0);
+  --card: #ffffff;
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #030213;
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.0058 264.53);
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: transparent;
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #030213;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
 @layer base {
-  html {
-    color-scheme: dark;
+  * {
+    @apply border-border outline-ring/50;
   }
 
   body {
-    background-color: var(--color-bg-base);
-    color: var(--color-text-primary);
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--bg-void);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
   }
 
-  /* Scrollbar styling for trading terminal aesthetic */
+  /* Custom scrollbars */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
-
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: var(--bg-panel);
   }
-
   ::-webkit-scrollbar-thumb {
-    background: var(--color-border-default);
-    border-radius: 3px;
+    background: var(--border-muted);
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
   }
 
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-border-strong);
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
   }
 }

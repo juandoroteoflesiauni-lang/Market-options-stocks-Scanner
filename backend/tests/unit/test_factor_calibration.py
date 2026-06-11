@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from backend.models.result import Result
-from src.quant_engine.math.predictive.factor_calibration import (
+from backend.quant_engine.math.predictive.factor_calibration import (
     CalibrationReport,
     FactorCalibrationEngine,
 )

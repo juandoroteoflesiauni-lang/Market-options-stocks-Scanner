@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from backend.models.result import Result
-from src.quant_engine.engines.technical.volume_oi import (
+from backend.quant_engine.engines.technical.volume_oi import (
     AnalyzerConfig,
     Signal,
     VolumeOIDynamicsReport,

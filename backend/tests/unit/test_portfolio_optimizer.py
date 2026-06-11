@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.quant_engine.math.predictive.portfolio_optimizer import (
+from backend.quant_engine.math.predictive.portfolio_optimizer import (
     BlackLittermanOptimizer,
     calculate_covariance,
 )

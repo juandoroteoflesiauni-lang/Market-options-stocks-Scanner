@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.quant_engine.engines.options.zero_day import ZeroDayReport, analyze_zero_day
+from backend.quant_engine.engines.options.zero_day import ZeroDayReport, analyze_zero_day
 
 
 def test_zero_day_success():

@@ -1,7 +1,7 @@
 import numpy as np
 
 from backend.models.result import Result
-from src.quant_engine.engines.technical.vsa_forecast import VSAForecastEngine, VSAForecastResult
+from backend.quant_engine.engines.technical.vsa_forecast import VSAForecastEngine, VSAForecastResult
 
 
 def test_vsa_forecast_engine():

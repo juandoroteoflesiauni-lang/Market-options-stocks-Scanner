@@ -35,6 +35,39 @@ class MarketDataSettings(BaseSettings):
     alpaca_api_key: SecretStr
     alpaca_api_secret: SecretStr
 
+    # BingX API and Bot config
+    bingx_api_key: SecretStr | None = None
+    bingx_secret: SecretStr | None = None
+    bingx_bot_enable_live: bool = False
+    bingx_bot_trading_env: str = "paper"
+    bingx_bot_live_symbol_allowlist: str = ""
+    bingx_bot_allow_all_live: bool = False
+    bingx_bot_live_require_healthcheck: bool = True
+    bingx_bot_paper_trading: bool = True
+    bingx_bot_audit_db_path: str = "data/bingx_bot_audit.sqlite"
+    bingx_bot_live_healthcheck_ttl_s: int = 300
+
+    # Phase A Scanner
+    phase_a_scan_interval_s: int = 300
+
+    # Audit Complex
+    audit_db_path: str = "data/audit_complex.duckdb"
+
+    # Operator Auth (HMAC-signed session cookies)
+    qa_session_secret: str = ""
+    qa_app_username: str = "admin"
+    qa_app_password_hash: str = ""
+    qa_app_display_name: str = "Operator"
+    qa_app_email: str | None = None
+
+    def get_bingx_live_allowlist(self) -> frozenset[str]:
+        """Return the live-mode symbol allowlist as a frozenset (empty = none allowed)."""
+        if not self.bingx_bot_live_symbol_allowlist.strip():
+            return frozenset()
+        return frozenset(
+            s.strip() for s in self.bingx_bot_live_symbol_allowlist.split(",") if s.strip()
+        )
+
     @field_validator(
         "secret_key",
         "fmp_api_key",
@@ -48,3 +81,15 @@ class MarketDataSettings(BaseSettings):
         if not value.get_secret_value().strip():
             raise ValueError("Secret field cannot be empty or consist only of whitespace.")
         return value
+
+
+from functools import lru_cache
+
+
+@lru_cache(maxsize=1)
+def load_settings() -> MarketDataSettings:
+    """Load settings for the application."""
+    return MarketDataSettings()
+
+
+Config = MarketDataSettings

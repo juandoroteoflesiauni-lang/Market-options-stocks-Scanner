@@ -64,6 +64,21 @@ class PhaseMetricsResponse(BaseModel):
     processing_time_ms: int | None
 
 
+class MarketBreadthResponse(BaseModel):
+    """Real-time market breadth snapshot from SuperTrend Regime."""
+
+    model_config = ConfigDict(frozen=True)
+
+    bullish: int
+    bearish: int
+    no_data: int
+    total_scanned: int
+    bullish_pct: float
+    bearish_pct: float
+    coverage_pct: float
+    last_updated: str | None
+
+
 class FunnelOverviewResponse(BaseModel):
     """Overview of all funnel phases."""
 
@@ -72,6 +87,7 @@ class FunnelOverviewResponse(BaseModel):
     phases: list[PhaseMetricsResponse]
     total_signals_emitted: int
     updated_at: str
+    market_breadth: MarketBreadthResponse | None = None
 
 
 # ── Scanner Candidates ────────────────────────────────────────
@@ -87,17 +103,47 @@ class DataLineageResponse(BaseModel):
     raw_field_count: int
 
 
-class CandidateResponse(BaseModel):
-    """A scanner candidate — prices as strings, never float."""
+class GreeksResponse(BaseModel):
+    """Option Greeks for the asset."""
 
     model_config = ConfigDict(frozen=True)
 
-    ticker: str
-    exchange: str
-    price: str  # Decimal serialized as string — PD-2
-    volume: str  # Large numbers as string to avoid JS precision loss
-    exchange_timestamp: str
-    data_lineage: DataLineageResponse
+    delta: str
+    gamma: str
+    theta: str
+    vega: str
+    rho: str | None = None
+
+
+class EngineSignalResponse(BaseModel):
+    """A predictive or technical signal for the scanner."""
+
+    model_config = ConfigDict(frozen=True)
+
+    engineName: str
+    value: str
+    direction: Literal["BULL", "BEAR", "NEUTRAL"]
+    weight: int
+
+
+class CandidateResponse(BaseModel):
+    """A scanner candidate — aligned with the frontend Ticker interface."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    price: str
+    priceChange: str
+    priceChangePct: str
+    volume: str
+    avgVolume: str
+    iv: str
+    ivRank: str
+    phase: Literal["A", "B", "C", "D"]
+    momentum: str
+    signals: list[EngineSignalResponse]
+    greeks: GreeksResponse
+    sparkline: list[float]
 
 
 # ── Execution Signals ──────────────────────────────────────────

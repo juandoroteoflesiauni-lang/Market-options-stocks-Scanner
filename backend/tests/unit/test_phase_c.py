@@ -574,18 +574,11 @@ def test_adapter_empty_chain():
 
 
 # ── DerivativesEngine Scoring Tests ──────────────────────────────────────────
+# (scoring logic extracted to backend.phases.phase_c.scoring)
 
 
-def test_derivatives_engine_scoring():
-    from backend.phases.phase_c.derivatives_engine import DerivativesEngine
-
-    class DummyHub:
-        async def get_options_chain(self, ticker):
-            from backend.models.result import Result
-
-            return Result.failure(reason="dummy")
-
-    engine = DerivativesEngine(hub=DummyHub())
+def test_score_contract():
+    from backend.phases.phase_c.scoring import score_contract
 
     contract = _make_contract(volume=1000, open_interest=5000, delta=0.35)
     engine_scores = {
@@ -599,7 +592,7 @@ def test_derivatives_engine_scoring():
         "phase_b_momentum": 70.0,
     }
 
-    score = engine._score_contract(
+    score = score_contract(
         contract=contract,
         spot=Decimal("150.0"),
         candidate=_make_enriched_snapshot(),
@@ -609,79 +602,47 @@ def test_derivatives_engine_scoring():
     assert 0 <= score <= 100
 
 
-def test_derivatives_engine_liquidity_score():
-    from backend.phases.phase_c.derivatives_engine import DerivativesEngine
-
-    class DummyHub:
-        async def get_options_chain(self, ticker):
-            from backend.models.result import Result
-
-            return Result.failure(reason="dummy")
-
-    engine = DerivativesEngine(hub=DummyHub())
+def test_liquidity_score():
+    from backend.phases.phase_c.scoring import liquidity_score
 
     high_liq = _make_contract(volume=2000, open_interest=10000)
     low_liq = _make_contract(volume=10, open_interest=50)
 
-    high_score = engine._liquidity_score(high_liq)
-    low_score = engine._liquidity_score(low_liq)
+    high_score = liquidity_score(high_liq)
+    low_score = liquidity_score(low_liq)
 
     assert high_score > low_score
 
 
-def test_derivatives_engine_delta_score():
-    from backend.phases.phase_c.derivatives_engine import DerivativesEngine
-
-    class DummyHub:
-        async def get_options_chain(self, ticker):
-            from backend.models.result import Result
-
-            return Result.failure(reason="dummy")
-
-    engine = DerivativesEngine(hub=DummyHub())
+def test_delta_score():
+    from backend.phases.phase_c.scoring import delta_score
 
     on_target = _make_contract(delta=0.35)
     off_target = _make_contract(delta=0.80)
 
-    on_score = engine._delta_score(on_target)
-    off_score = engine._delta_score(off_target)
+    on_score = delta_score(on_target)
+    off_score = delta_score(off_target)
 
     assert on_score > off_score
 
 
-def test_derivatives_engine_dte_score():
-    from backend.phases.phase_c.derivatives_engine import DerivativesEngine
-
-    class DummyHub:
-        async def get_options_chain(self, ticker):
-            from backend.models.result import Result
-
-            return Result.failure(reason="dummy")
-
-    engine = DerivativesEngine(hub=DummyHub())
+def test_dte_score():
+    from backend.phases.phase_c.scoring import dte_score
 
     sweet_spot = _make_contract(dte=35)
     too_short = _make_contract(dte=5)
     too_long = _make_contract(dte=120)
 
-    sweet_score = engine._dte_score(sweet_spot)
-    short_score = engine._dte_score(too_short)
-    long_score = engine._dte_score(too_long)
+    sweet_score = dte_score(sweet_spot)
+    short_score = dte_score(too_short)
+    long_score = dte_score(too_long)
 
     assert sweet_score > short_score
     assert sweet_score > long_score
 
 
-def test_derivatives_engine_regime_classification():
-    from backend.phases.phase_c.derivatives_engine import DerivativesEngine
-
-    class DummyHub:
-        async def get_options_chain(self, ticker):
-            from backend.models.result import Result
-
-            return Result.failure(reason="dummy")
-
-    engine = DerivativesEngine(hub=DummyHub())
+def test_classify_regime():
+    from backend.phases.phase_c.scoring import classify_regime
 
     bull_scores = {
         "gex_score": 80,
@@ -704,46 +665,30 @@ def test_derivatives_engine_regime_classification():
         "phase_b_momentum": 35,
     }
 
-    assert engine._classify_regime(bull_scores) == "BULLISH"
-    assert engine._classify_regime(bear_scores) == "BEARISH"
+    assert classify_regime(bull_scores) == "BULLISH"
+    assert classify_regime(bear_scores) == "BEARISH"
 
 
-def test_derivatives_engine_gex_score():
-    from backend.phases.phase_c.derivatives_engine import DerivativesEngine
+def test_gex_score():
+    from backend.phases.phase_c.scoring import gex_score
 
-    class DummyHub:
-        async def get_options_chain(self, ticker):
-            from backend.models.result import Result
-
-            return Result.failure(reason="dummy")
-
-    engine = DerivativesEngine(hub=DummyHub())
-
-    assert engine._gex_score(None) == 50.0
+    assert gex_score(None) == 50.0
 
     class MockResult:
         options_mic_score = 75.0
 
-    assert engine._gex_score(MockResult()) == 75.0
+    assert gex_score(MockResult()) == 75.0
 
 
-def test_derivatives_engine_phase_b_momentum():
-    from backend.phases.phase_c.derivatives_engine import DerivativesEngine
+def test_phase_b_momentum_score():
+    from backend.phases.phase_c.scoring import phase_b_momentum_score
 
-    class DummyHub:
-        async def get_options_chain(self, ticker):
-            from backend.models.result import Result
-
-            return Result.failure(reason="dummy")
-
-    engine = DerivativesEngine(hub=DummyHub())
-
-    score = engine._phase_b_momentum_score(_make_enriched_snapshot())
+    score = phase_b_momentum_score(_make_enriched_snapshot())
     assert score > 60
 
 
 def test_quant_engine_results_container():
-    from backend.phases.phase_c.derivatives_engine import QuantEngineResults
+    from backend.phases.phase_c.engine_models import QuantEngineResults
 
     results = QuantEngineResults()
     assert results.options_result is None
@@ -755,8 +700,170 @@ def test_quant_engine_results_container():
     assert results.delta_flow_snapshot is None
 
 
-def test_engine_weights_sum_to_one():
-    from backend.phases.phase_c.derivatives_engine import ENGINE_WEIGHTS
+def test_gamma_flip_score_edge_cases():
+    from backend.phases.phase_c.scoring import gamma_flip_score
 
-    total = sum(ENGINE_WEIGHTS.values())
-    assert abs(total - 1.0) < 0.01
+    assert gamma_flip_score(None, 100.0) == 50.0
+
+    class NoFlip:
+        pass
+
+    assert gamma_flip_score(NoFlip(), 100.0) == 50.0
+
+    class NearFlip:
+        flip_point = 101.0
+
+    assert gamma_flip_score(NearFlip(), 100.0) == 90.0
+
+    class MidFlip:
+        flip_point = 104.0
+
+    assert gamma_flip_score(MidFlip(), 100.0) == 75.0
+
+    class FarFlip:
+        flip_point = 109.0
+
+    assert gamma_flip_score(FarFlip(), 100.0) == 60.0
+
+    class VeryFarFlip:
+        flip_point = 120.0
+
+    assert gamma_flip_score(VeryFarFlip(), 100.0) == 40.0
+
+
+def test_dex_score_edge_cases():
+    from backend.phases.phase_c.scoring import dex_score
+
+    assert dex_score(None) == 50.0
+
+    class NoDex:
+        pass
+
+    assert dex_score(NoDex()) == 50.0
+
+    class WithDex:
+        dex_as_pct_adtv = 5.0
+
+    assert dex_score(WithDex()) > 0.0
+
+
+def test_flow_score_edge_cases():
+    from backend.phases.phase_c.scoring import flow_score
+
+    assert flow_score(None) == 50.0
+
+
+def test_zero_day_score_edge_cases():
+    from backend.phases.phase_c.scoring import zero_day_score
+
+    assert zero_day_score(None) == 50.0
+
+
+def test_shadow_delta_score_edge_cases():
+    from backend.phases.phase_c.scoring import shadow_delta_score
+
+    assert shadow_delta_score(None) == 50.0
+
+    class NoPortfolio:
+        pass
+
+    assert shadow_delta_score(NoPortfolio()) == 50.0
+
+
+def test_delta_flow_score_edge_cases():
+    from backend.phases.phase_c.scoring import delta_flow_score
+
+    assert delta_flow_score(None) == 50.0
+
+    class NoZScore:
+        pass
+
+    assert delta_flow_score(NoZScore()) == 50.0
+
+    class ExhaustionSignal:
+        z_score = 2.0
+        signal = "EXHAUSTION"
+
+    assert delta_flow_score(ExhaustionSignal()) == 85.0
+
+    class LongSetup:
+        z_score = 2.0
+        signal = "LONG_SETUP"
+
+    assert delta_flow_score(LongSetup()) == 90.0
+
+    class HoldSignal:
+        z_score = 1.0
+        signal = "HOLD"
+
+    assert delta_flow_score(HoldSignal()) == 65.0
+
+
+def test_delta_flow_score_no_zscore_returns_50():
+    from backend.phases.phase_c.scoring import delta_flow_score
+
+    class NoZ:
+        signal = "NEUTRAL"
+
+    assert delta_flow_score(NoZ()) == 50.0
+
+
+def test_delta_flow_score_with_enum_signal():
+    from backend.phases.phase_c.scoring import delta_flow_score
+
+    class EnumLikeSignal:
+        def __init__(self, val: str) -> None:
+            self.value = val
+
+    class WithEnumSignal:
+        z_score = 2.0
+        signal = EnumLikeSignal("EXHAUSTION")
+
+    assert delta_flow_score(WithEnumSignal()) == 85.0
+
+
+def test_delta_flow_score_neutral_signal():
+    from backend.phases.phase_c.scoring import delta_flow_score
+
+    class NeutralSignal:
+        z_score = 1.0
+        signal = "NEUTRAL"
+
+    assert delta_flow_score(NeutralSignal()) == 50.0
+
+
+def test_iv_score_all_branches():
+    from backend.phases.phase_c.scoring import iv_score
+
+    low_iv = _make_contract(iv=0.05)
+    mid_iv = _make_contract(iv=0.25)
+    high_iv = _make_contract(iv=0.60)
+    extreme_iv = _make_contract(iv=1.50)
+
+    assert iv_score(low_iv) == 30.0
+    assert iv_score(mid_iv) == 80.0
+    assert iv_score(high_iv) == 60.0
+    assert iv_score(extreme_iv) == 40.0
+
+
+def test_compute_confidence_empty():
+    from backend.phases.phase_c.scoring import compute_confidence
+
+    assert compute_confidence({}, []) == 0.0
+
+
+def test_engine_weights_sum_to_one():
+    from backend.models.strategy_weights import PhaseCEngineWeights
+
+    weights = PhaseCEngineWeights()
+    total = (
+        weights.gex_score
+        + weights.gamma_flip
+        + weights.dex_exposure
+        + weights.flow_signal
+        + weights.zero_day
+        + weights.shadow_delta
+        + weights.delta_flow
+        + weights.phase_b_momentum
+    )
+    assert abs(total - 1.0) < 0.001

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.quant_engine.math.technical.volume_profile import VolumeProfileEngine
+from backend.quant_engine.math.technical.volume_profile import VolumeProfileEngine
 
 
 def test_volume_profile_validation_errors():

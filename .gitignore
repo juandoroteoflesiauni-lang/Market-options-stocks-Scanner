@@ -138,6 +138,7 @@ market_data/
 historical_data/
 trading_cache/
 *.csv.gz         # Datos históricos comprimidos
+*.duckdb         # DuckDB databases (too large for git)
 
 # ── SCRATCH / TEMP FILES ───────────────────────────────
 scratch/

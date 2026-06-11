@@ -203,7 +203,7 @@ def test_tick_analysis_frozen():
 
 
 def test_tick_buffer_add():
-    from backend.phases.phase_d.signal_emitter import TickBuffer
+    from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer(max_size=10)
     buffer.add(150.0, 100, 1.0)
@@ -214,7 +214,7 @@ def test_tick_buffer_add():
 
 
 def test_tick_buffer_max_size():
-    from backend.phases.phase_d.signal_emitter import TickBuffer
+    from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer(max_size=3)
     buffer.add(150.0, 100, 1.0)
@@ -228,7 +228,7 @@ def test_tick_buffer_max_size():
 
 
 def test_tick_buffer_vwap():
-    from backend.phases.phase_d.signal_emitter import TickBuffer
+    from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer()
     buffer.add(100.0, 10, 1.0)
@@ -240,7 +240,7 @@ def test_tick_buffer_vwap():
 
 
 def test_tick_buffer_price_change():
-    from backend.phases.phase_d.signal_emitter import TickBuffer
+    from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer()
     buffer.add(100.0, 10, 1.0)
@@ -251,7 +251,7 @@ def test_tick_buffer_price_change():
 
 
 def test_tick_buffer_volatility():
-    from backend.phases.phase_d.signal_emitter import TickBuffer
+    from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer()
     for i in range(25):
@@ -262,7 +262,7 @@ def test_tick_buffer_volatility():
 
 
 def test_tick_buffer_volume_spike():
-    from backend.phases.phase_d.signal_emitter import TickBuffer
+    from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer()
     for i in range(10):
@@ -273,7 +273,7 @@ def test_tick_buffer_volume_spike():
 
 
 def test_tick_buffer_no_volume_spike():
-    from backend.phases.phase_d.signal_emitter import TickBuffer
+    from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer()
     for i in range(10):

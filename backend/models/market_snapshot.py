@@ -26,6 +26,19 @@ class DataLineage(BaseModel):
     raw_field_count: int = Field(ge=0)
 
 
+class OHLCVBar(BaseModel):
+    """Una vela OHLCV individual para el resumen de Phase A."""
+
+    model_config = ConfigDict(frozen=True)
+
+    time: str
+    open: float = Field(ge=0.0)
+    high: float = Field(ge=0.0)
+    low: float = Field(ge=0.0)
+    close: float = Field(ge=0.0)
+    volume: float = Field(ge=0.0)
+
+
 class MarketSnapshot(BaseModel):
     """Objeto canónico e inmutable de datos de mercado.
 
@@ -42,6 +55,10 @@ class MarketSnapshot(BaseModel):
     volume: int = Field(ge=0)
     exchange_timestamp: datetime
     data_lineage: DataLineage
+    ohlcv: tuple[OHLCVBar, ...] = Field(default_factory=tuple)
+    daily_change_pct: float = Field(default=0.0)
+    avg_volume: int = Field(default=0, ge=0)
+    high_priority: bool = Field(default=False)
 
     @field_validator("ticker")
     @classmethod

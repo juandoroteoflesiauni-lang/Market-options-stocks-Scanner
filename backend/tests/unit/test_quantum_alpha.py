@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from backend.models.result import Result
-from src.quant_engine.engines.predictive.quantum_alpha import (
+from backend.quant_engine.engines.predictive.quantum_alpha import (
     MultimodalModelConfig,
     MultimodalPredictionResult,
     QuantumAlphaEngine,
@@ -27,7 +27,7 @@ def test_engine_initialization_and_prediction():
 
     # Instantiate temporary model to save weights
     # We must use the same structure
-    from src.quant_engine.engines.predictive.quantum_alpha import QuantumAlphaLSTM
+    from backend.quant_engine.engines.predictive.quantum_alpha import QuantumAlphaLSTM
 
     temp_model = QuantumAlphaLSTM(config)
 
