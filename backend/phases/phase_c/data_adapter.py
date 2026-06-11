@@ -1,4 +1,4 @@
-"""Adaptador de datos de opciones para motores de src/quant_engine.
+"""Adaptador de datos de opciones para motores de backend/quant_engine.
 
 Convierte OptionChainSnapshot y OptionContract al formato numpy 2D
 que esperan los motores matemáticos existentes.

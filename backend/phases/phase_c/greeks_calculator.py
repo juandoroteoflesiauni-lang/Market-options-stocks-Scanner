@@ -1,7 +1,7 @@
 """Calculadora de Greeks como wrapper del motor BSM existente.
 
 Proporciona una interfaz simplificada para calcular Greeks de opciones
-usando el motor BlackScholesPricer de src/quant_engine/math/options/bsm.py.
+usando el motor BlackScholesPricer de backend/quant_engine/math/options/bsm.py.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class GreeksResult(BaseModel):
 
 
 class GreeksCalculator:
-    """Calculadora de Greeks usando BSM de src/quant_engine.
+    """Calculadora de Greeks usando BSM de backend/quant_engine.
 
     Esta clase actúa como bridge entre el modelo OptionContract del dominio
     y el motor matemático BSM existente en el código base.

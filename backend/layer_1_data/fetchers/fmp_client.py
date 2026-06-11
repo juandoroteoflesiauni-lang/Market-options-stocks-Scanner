@@ -28,7 +28,6 @@ except ImportError:
     logger.warning("httpx not installed — FMPClient disabled. Install: pip install httpx")
 
 
-
 def _get_fmp_keys() -> dict[str, str]:
     """Retrieve all FMP keys from environment variables."""
     return {

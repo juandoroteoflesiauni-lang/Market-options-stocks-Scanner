@@ -258,11 +258,8 @@ class TechnicalMath:
             if st[i - 1] == final_ub[i - 1] and c[i] <= final_ub[i]:
                 st[i] = final_ub[i]
                 d[i] = -1
-            elif (
-                (st[i - 1] == final_ub[i - 1]
-                and c[i] > final_ub[i])
-                or (st[i - 1] == final_lb[i - 1]
-                and c[i] >= final_lb[i])
+            elif (st[i - 1] == final_ub[i - 1] and c[i] > final_ub[i]) or (
+                st[i - 1] == final_lb[i - 1] and c[i] >= final_lb[i]
             ):
                 st[i] = final_lb[i]
                 d[i] = 1

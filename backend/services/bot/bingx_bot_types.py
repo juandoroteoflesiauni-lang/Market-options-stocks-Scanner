@@ -25,24 +25,12 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Protocol
 
 from backend.config.logger_setup import get_logger
-from backend.domain.market_scanner_models import (
-    MarketScannerRequest,
-)
-from backend.layer_1_data.datos.bingx_client import (
-    VALID_KLINE_INTERVAL,
-    BingXOrderResponse,
-)
+from backend.domain.market_scanner_models import MarketScannerRequest
+from backend.layer_1_data.datos.bingx_client import VALID_KLINE_INTERVAL, BingXOrderResponse
 from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
-from backend.services.bingx_candidate_analysis import (
-    BingXCandidateAnalysis,
-)
-from backend.services.bingx_decision_engine import (
-    BingXDecision,
-)
-from backend.services.bingx_risk_desk import (
-    OrderIntent,
-    RiskDeskDecision,
-)
+from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
+from backend.services.bingx_decision_engine import BingXDecision
+from backend.services.bingx_risk_desk import OrderIntent, RiskDeskDecision
 
 logger = get_logger(__name__)
 

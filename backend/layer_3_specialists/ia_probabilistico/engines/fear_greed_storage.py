@@ -290,7 +290,9 @@ class FearGreedStorage:
         correlation = np.corrcoef(our_scores, cnn_scores)[0, 1]
 
         # Calculate mean absolute error
-        mean_error = sum(abs(o - c) for o, c in zip(our_scores, cnn_scores, strict=False)) / len(our_scores)
+        mean_error = sum(abs(o - c) for o, c in zip(our_scores, cnn_scores, strict=False)) / len(
+            our_scores
+        )
 
         return {
             "correlation": float(correlation),

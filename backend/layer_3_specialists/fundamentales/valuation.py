@@ -252,7 +252,9 @@ class FundamentalValuation:
             if weights and ivs and len(weights) == len(ivs):
                 total_w = sum(weights)
                 iv_avg = (
-                    sum(iv * w for iv, w in zip(ivs, weights, strict=False)) / total_w if total_w > 0 else None
+                    sum(iv * w for iv, w in zip(ivs, weights, strict=False)) / total_w
+                    if total_w > 0
+                    else None
                 )
 
         iv_label = "N/D"

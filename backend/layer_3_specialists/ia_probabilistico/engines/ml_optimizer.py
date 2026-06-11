@@ -140,12 +140,15 @@ class MLOptimizer:
 
             # Feature importance (absolute coefficients)
             importance = {
-                name: float(abs(coeff)) for name, coeff in zip(self._feature_names, coefficients, strict=False)
+                name: float(abs(coeff))
+                for name, coeff in zip(self._feature_names, coefficients, strict=False)
             }
 
             return OptimizationResult(
                 method="ridge",
-                weights={name: float(w) for name, w in zip(self._feature_names, weights, strict=False)},
+                weights={
+                    name: float(w) for name, w in zip(self._feature_names, weights, strict=False)
+                },
                 score=float(scores.mean()),
                 feature_importance=importance,
                 timestamp=datetime.now(),
@@ -183,7 +186,10 @@ class MLOptimizer:
 
             # Feature importance
             importances = model.feature_importances_
-            importance = {name: float(imp) for name, imp in zip(self._feature_names, importances, strict=False)}
+            importance = {
+                name: float(imp)
+                for name, imp in zip(self._feature_names, importances, strict=False)
+            }
 
             # Cross-validation
             kf = self.KFold(n_splits=5, shuffle=True, random_state=42)
@@ -191,7 +197,10 @@ class MLOptimizer:
 
             return OptimizationResult(
                 method="random_forest",
-                weights={name: float(w) for name, w in zip(self._feature_names, importances, strict=False)},
+                weights={
+                    name: float(w)
+                    for name, w in zip(self._feature_names, importances, strict=False)
+                },
                 score=float(scores.mean()),
                 feature_importance=importance,
                 timestamp=datetime.now(),

@@ -394,7 +394,9 @@ def compute_volatility_skew_payload(
             {"strike": float(k), "iv_fitted_pct": float(iv) * 100.0}
             for k, iv in zip(sg.tolist(), eng._iv_fitted.tolist(), strict=False)
         ]
-        curv_pts = [{"strike": k, "curvature_norm": v} for k, v in zip(curv_k, curv_norm, strict=False)]
+        curv_pts = [
+            {"strike": k, "curvature_norm": v} for k, v in zip(curv_k, curv_norm, strict=False)
+        ]
         coeffs = np.asarray(m.poly_coeffs).astype(float).tolist()
         return {
             "ok": True,

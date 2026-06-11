@@ -5,11 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 from backend.services.research.research_types import *
-from backend.services.research.research_types import (
-    _now_iso,
-    _safe_float,
-    _unavailable_desk_status,
-)
+from backend.services.research.research_types import _now_iso, _safe_float, _unavailable_desk_status
 
 
 def _project_technical_desk(

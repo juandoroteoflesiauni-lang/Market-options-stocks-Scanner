@@ -241,10 +241,12 @@ class BBGEXEngine:
         o viceversa (cruce del nivel de Gamma Flip).
         """
         crossed = (
-            (self._last_regime is not None
-            and self._last_regime != current_regime
-            and "GAMMA" in (self._last_regime or "")
-            and "GAMMA" not in (current_regime or ""))
+            (
+                self._last_regime is not None
+                and self._last_regime != current_regime
+                and "GAMMA" in (self._last_regime or "")
+                and "GAMMA" not in (current_regime or "")
+            )
             or (
                 self._last_regime in ("PINNED", "CONTROLLED")
                 and current_regime in ("COILING", "TRENDING")

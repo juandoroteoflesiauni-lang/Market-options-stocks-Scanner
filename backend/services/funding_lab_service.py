@@ -780,10 +780,8 @@ def _smc_order_block_strength(
     for order_block in smc_order_blocks:
         ob_direction = str(getattr(order_block, "direction", "")).upper()
         if (
-            (prediction_direction == "UP"
-            and ob_direction == "BULLISH")
-            or (prediction_direction == "DOWN"
-            and ob_direction == "BEARISH")
+            (prediction_direction == "UP" and ob_direction == "BULLISH")
+            or (prediction_direction == "DOWN" and ob_direction == "BEARISH")
             or prediction_direction == "NEUTRAL"
         ):
             directional_obs.append(order_block)

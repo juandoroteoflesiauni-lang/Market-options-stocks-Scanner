@@ -7,9 +7,7 @@ from backend.services.bot.bingx_bot_types import *
 from typing import Any
 
 from backend.config.logger_setup import get_logger
-from backend.domain.market_scanner_models import (
-    ScannerCustomization,
-)
+from backend.domain.market_scanner_models import ScannerCustomization
 
 logger = get_logger(__name__)
 

@@ -54,7 +54,8 @@ class ParameterSpaceExpander:
         param_values = [p.to_values() for p in param_space.parameters.values()]
         for scenario_id, combination in enumerate(itertools.product(*param_values)):
             yield ScenarioConfig(
-                scenario_id=scenario_id, parameters=dict(zip(param_names, combination, strict=False))
+                scenario_id=scenario_id,
+                parameters=dict(zip(param_names, combination, strict=False)),
             )
 
 

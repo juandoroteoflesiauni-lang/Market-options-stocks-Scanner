@@ -632,7 +632,9 @@ def shadow_delta_position_multiplier(
     if delta_divergence > edge_threshold:
         edge_strength = min(1.0, delta_divergence / 0.50)
 
-        if (option_type == "CALL" and shadow_delta > bs_delta) or (option_type == "PUT" and shadow_delta < bs_delta):
+        if (option_type == "CALL" and shadow_delta > bs_delta) or (
+            option_type == "PUT" and shadow_delta < bs_delta
+        ):
             multiplier = 1.0 + (edge_strength * 0.40)
         else:
             multiplier = 1.0

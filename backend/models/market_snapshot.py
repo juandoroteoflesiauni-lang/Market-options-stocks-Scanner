@@ -32,11 +32,11 @@ class OHLCVBar(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     time: str
-    open: float = Field(ge=0.0)
-    high: float = Field(ge=0.0)
-    low: float = Field(ge=0.0)
-    close: float = Field(ge=0.0)
-    volume: float = Field(ge=0.0)
+    open: Decimal = Field(ge=Decimal("0"))
+    high: Decimal = Field(ge=Decimal("0"))
+    low: Decimal = Field(ge=Decimal("0"))
+    close: Decimal = Field(ge=Decimal("0"))
+    volume: Decimal = Field(ge=Decimal("0"))
 
 
 class MarketSnapshot(BaseModel):

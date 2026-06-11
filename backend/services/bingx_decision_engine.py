@@ -737,11 +737,8 @@ def decide(
         gamma_regime = "Pos" if spot_price > gamma_flip else "Neg"
         gamma_contradicts = False
 
-        if (
-            (direction == "LONG"
-            and spot_price < gamma_flip)
-            or (direction == "SHORT"
-            and spot_price > gamma_flip)
+        if (direction == "LONG" and spot_price < gamma_flip) or (
+            direction == "SHORT" and spot_price > gamma_flip
         ):
             gamma_contradicts = True
 
@@ -857,11 +854,8 @@ def decide(
                 charm_contradicts = True
         elif isinstance(charm_flow_val, str):
             cf_upper = charm_flow_val.upper().strip()
-            if (
-                (direction == "LONG"
-                and cf_upper in ("BEARISH", "SHORT", "NEGATIVE"))
-                or (direction == "SHORT"
-                and cf_upper in ("BULLISH", "LONG", "POSITIVE"))
+            if (direction == "LONG" and cf_upper in ("BEARISH", "SHORT", "NEGATIVE")) or (
+                direction == "SHORT" and cf_upper in ("BULLISH", "LONG", "POSITIVE")
             ):
                 charm_contradicts = True
 
@@ -1024,11 +1018,8 @@ def decide(
                     break
 
         funding_overheating = False
-        if (
-            (direction == "LONG"
-            and avg_funding > 0.0008)
-            or (direction == "SHORT"
-            and avg_funding < -0.0008)
+        if (direction == "LONG" and avg_funding > 0.0008) or (
+            direction == "SHORT" and avg_funding < -0.0008
         ):
             funding_overheating = True
 

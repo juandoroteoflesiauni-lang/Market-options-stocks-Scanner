@@ -19,10 +19,7 @@ import pandas as pd  # type: ignore[import-untyped]
 import torch as _torch
 import torch.nn as _nn
 
-from ..domain.multimodal_models import (
-    MultimodalBatch,
-    MultimodalModelConfig,
-)
+from ..domain.multimodal_models import MultimodalBatch, MultimodalModelConfig
 from .cm_math import calculate_probabilistic_gex_gating
 from .quantum_alpha import QuantumAlphaEngine
 from .vsa_forecast_engine import VSAForecastEngine

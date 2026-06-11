@@ -21,9 +21,7 @@ from datetime import datetime
 from typing import Any
 
 from backend.infrastructure.cache.multi_level_cache import MultiLevelCache, get_cache
-from backend.infrastructure.cache.volatility_ttl import (
-    get_ttl_for_endpoint,
-)
+from backend.infrastructure.cache.volatility_ttl import get_ttl_for_endpoint
 from backend.layer_1_data.fetchers.fmp_client import FMPClient
 
 logger = logging.getLogger(__name__)

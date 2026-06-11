@@ -14,17 +14,11 @@ from typing import Annotated, Final
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from backend.domain.morning_briefing_models import (
-    MacroSnapshot,
-    NewsEvent,
-    RiskRegime,
-    SectorTilt,
-)
+from backend.domain.morning_briefing_models import MacroSnapshot, NewsEvent, RiskRegime, SectorTilt
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ENUMS
 # ─────────────────────────────────────────────────────────────────────────────
-
 
 
 # ─────────────────────────────────────────────────────────────────────────────

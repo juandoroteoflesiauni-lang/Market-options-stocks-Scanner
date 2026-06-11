@@ -6,7 +6,7 @@ Cubre:
 - MassiveOptionsNormalizer
 - GreeksCalculator
 - OptionsDataAdapter (conversión a numpy)
-- DerivativesEngine scoring con motores de src/quant_engine
+- DerivativesEngine scoring con motores de backend/quant_engine
 """
 
 from datetime import UTC, date, datetime
