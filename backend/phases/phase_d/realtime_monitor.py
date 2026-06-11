@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import json
 import logging
+from decimal import Decimal
 from typing import Any
 
 import websockets
@@ -183,13 +184,13 @@ class RealtimeMonitor:
         if not symbol or price is None:
             return
 
-        price_float = float(price)
+        price_decimal = Decimal(str(price))
         volume_int = int(volume)
         ts_float = float(timestamp) if timestamp else None
 
         analysis = self._emitter.process_tick(
             contract_symbol=symbol,
-            price=price_float,
+            price=price_decimal,
             volume=volume_int,
             timestamp=ts_float,
         )

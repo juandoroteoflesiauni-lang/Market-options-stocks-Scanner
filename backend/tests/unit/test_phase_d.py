@@ -206,33 +206,33 @@ def test_tick_buffer_add():
     from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer(max_size=10)
-    buffer.add(150.0, 100, 1.0)
-    buffer.add(151.0, 200, 2.0)
+    buffer.add(Decimal("150.0"), 100, 1.0)
+    buffer.add(Decimal("151.0"), 200, 2.0)
 
     assert buffer.count == 2
-    assert buffer.last_price == 151.0
+    assert buffer.last_price == Decimal("151.0")
 
 
 def test_tick_buffer_max_size():
     from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer(max_size=3)
-    buffer.add(150.0, 100, 1.0)
-    buffer.add(151.0, 200, 2.0)
-    buffer.add(152.0, 300, 3.0)
-    buffer.add(153.0, 400, 4.0)
+    buffer.add(Decimal("150.0"), 100, 1.0)
+    buffer.add(Decimal("151.0"), 200, 2.0)
+    buffer.add(Decimal("152.0"), 300, 3.0)
+    buffer.add(Decimal("153.0"), 400, 4.0)
 
     assert buffer.count == 3
-    assert buffer.last_price == 153.0
-    assert buffer.prices[0] == 151.0
+    assert buffer.last_price == Decimal("153.0")
+    assert buffer.prices[0] == Decimal("151.0")
 
 
 def test_tick_buffer_vwap():
     from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer()
-    buffer.add(100.0, 10, 1.0)
-    buffer.add(200.0, 20, 2.0)
+    buffer.add(Decimal("100.0"), 10, 1.0)
+    buffer.add(Decimal("200.0"), 20, 2.0)
 
     # VWAP = (100*10 + 200*20) / (10+20) = 5000/30 = 166.67
     expected_vwap = (100 * 10 + 200 * 20) / 30
@@ -243,8 +243,8 @@ def test_tick_buffer_price_change():
     from backend.phases.phase_d.tick_buffer import TickBuffer
 
     buffer = TickBuffer()
-    buffer.add(100.0, 10, 1.0)
-    buffer.add(105.0, 10, 2.0)
+    buffer.add(Decimal("100.0"), 10, 1.0)
+    buffer.add(Decimal("105.0"), 10, 2.0)
 
     change = buffer.price_change_pct(window=2)
     assert abs(change - 0.05) < 0.001
@@ -255,7 +255,7 @@ def test_tick_buffer_volatility():
 
     buffer = TickBuffer()
     for i in range(25):
-        buffer.add(100.0 + i * 0.5, 100, float(i))
+        buffer.add(Decimal(str(100.0 + i * 0.5)), 100, float(i))
 
     vol = buffer.volatility(window=20)
     assert vol > 0
@@ -266,8 +266,8 @@ def test_tick_buffer_volume_spike():
 
     buffer = TickBuffer()
     for i in range(10):
-        buffer.add(100.0, 100, float(i))
-    buffer.add(100.0, 500, 10.0)
+        buffer.add(Decimal("100.0"), 100, float(i))
+    buffer.add(Decimal("100.0"), 500, 10.0)
 
     assert buffer.volume_spike(threshold=2.5) is True
 
@@ -277,7 +277,7 @@ def test_tick_buffer_no_volume_spike():
 
     buffer = TickBuffer()
     for i in range(10):
-        buffer.add(100.0, 100, float(i))
+        buffer.add(Decimal("100.0"), 100, float(i))
 
     assert buffer.volume_spike(threshold=2.5) is False
 
@@ -300,7 +300,7 @@ def test_signal_emitter_ignores_unknown_contract():
     selection = _make_selection()
     emitter = SignalEmitter(selections=[selection])
 
-    result = emitter.process_tick("UNKNOWN", 100.0, 100)
+    result = emitter.process_tick("UNKNOWN", Decimal("100.0"), 100)
     assert result is None
 
 
@@ -311,7 +311,7 @@ def test_signal_emitter_needs_min_ticks():
     emitter = SignalEmitter(selections=[selection], config={"min_ticks_for_signal": 5})
 
     for i in range(4):
-        result = emitter.process_tick("AAPL240119C00000150", 150.0 + i * 0.1, 100)
+        result = emitter.process_tick("AAPL240119C00000150", Decimal(str(150.0 + i * 0.1)), 100)
         assert result is None
 
 
@@ -321,9 +321,9 @@ def test_signal_emitter_generates_analysis():
     selection = _make_selection()
     emitter = SignalEmitter(selections=[selection], config={"min_ticks_for_signal": 3})
 
-    emitter.process_tick("AAPL240119C00000150", 150.0, 100)
-    emitter.process_tick("AAPL240119C00000150", 150.5, 100)
-    result = emitter.process_tick("AAPL240119C00000150", 151.0, 100)
+    emitter.process_tick("AAPL240119C00000150", Decimal("150.0"), 100)
+    emitter.process_tick("AAPL240119C00000150", Decimal("150.5"), 100)
+    result = emitter.process_tick("AAPL240119C00000150", Decimal("151.0"), 100)
 
     assert result is not None
     assert result.contract_symbol == "AAPL240119C00000150"
@@ -346,7 +346,7 @@ def test_signal_emitter_detects_momentum():
 
     prices = [150.0, 150.1, 150.3, 150.6, 151.0, 151.5]
     for price in prices:
-        result = emitter.process_tick("AAPL240119C00000150", price, 100)
+        result = emitter.process_tick("AAPL240119C00000150", Decimal(str(price)), 100)
 
     assert result is not None
     assert result.price_change_pct > 0
@@ -366,9 +366,9 @@ def test_signal_emitter_volume_spike():
     )
 
     for _i in range(5):
-        emitter.process_tick("AAPL240119C00000150", 150.0, 100)
+        emitter.process_tick("AAPL240119C00000150", Decimal("150.0"), 100)
 
-    result = emitter.process_tick("AAPL240119C00000150", 151.0, 500)
+    result = emitter.process_tick("AAPL240119C00000150", Decimal("151.0"), 500)
     assert result is not None
 
 
@@ -387,7 +387,7 @@ def test_signal_emitter_cooldown():
     )
 
     for i in range(10):
-        emitter.process_tick("AAPL240119C00000150", 150.0 + i * 2.0, 100)
+        emitter.process_tick("AAPL240119C00000150", Decimal(str(150.0 + i * 2.0)), 100)
 
     stats = emitter.get_buffer_stats("AAPL240119C00000150")
     assert stats is not None
@@ -401,12 +401,12 @@ def test_signal_emitter_buffer_stats():
     emitter = SignalEmitter(selections=[selection])
 
     for i in range(5):
-        emitter.process_tick("AAPL240119C00000150", 150.0 + i, 100)
+        emitter.process_tick("AAPL240119C00000150", Decimal(str(150.0 + i)), 100)
 
     stats = emitter.get_buffer_stats("AAPL240119C00000150")
     assert stats is not None
     assert stats["count"] == 5
-    assert stats["last_price"] == 154.0
+    assert stats["last_price"] == Decimal("154.0")
 
 
 def test_signal_emitter_empty_buffer_stats():

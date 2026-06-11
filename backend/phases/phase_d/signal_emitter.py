@@ -76,7 +76,7 @@ class SignalEmitter:
     def process_tick(
         self,
         contract_symbol: str,
-        price: float,
+        price: Decimal,
         volume: int,
         timestamp: float | None = None,
     ) -> TickAnalysis | None:
@@ -167,7 +167,7 @@ class SignalEmitter:
     def _generate_signal(
         self,
         contract_symbol: str,
-        price: float,
+        price: Decimal,
         momentum: float,
         volatility: float,
         vwap: float,
@@ -196,8 +196,8 @@ class SignalEmitter:
         strength = self._classify_strength(momentum, volatility, vol_spike)
         confidence = self._compute_confidence(momentum, volatility, vol_spike, selection)
 
-        stop_loss_pct = self._config["stop_loss_pct"]
-        take_profit_pct = self._config["take_profit_pct"]
+        stop_loss_pct = Decimal(str(self._config["stop_loss_pct"]))
+        take_profit_pct = Decimal(str(self._config["take_profit_pct"]))
 
         if direction == "LONG":
             stop_loss = price * (1 - stop_loss_pct)
@@ -208,7 +208,7 @@ class SignalEmitter:
 
         risk = abs(price - stop_loss)
         reward = abs(take_profit - price)
-        rr_ratio = reward / max(risk, 1e-8)
+        rr_ratio = float(reward / max(risk, Decimal("1e-8")))
 
         engine_scores: dict[str, float] = {}
         if selection:
@@ -219,9 +219,10 @@ class SignalEmitter:
             trigger_parts.append(f"Momentum {momentum:+.4%}")
         if vol_spike:
             trigger_parts.append("Volume spike")
-        if vwap > 0 and price > vwap:
+        vwap_decimal = Decimal(str(vwap))
+        if vwap > 0 and price > vwap_decimal:
             trigger_parts.append("Price > VWAP")
-        elif vwap > 0 and price < vwap:
+        elif vwap > 0 and price < vwap_decimal:
             trigger_parts.append("Price < VWAP")
 
         return ExecutionSignal(
@@ -231,10 +232,10 @@ class SignalEmitter:
             signal_type=signal_type,
             strength=strength,
             direction=direction,
-            entry_price=Decimal(str(round(price, 2))),
-            current_price=Decimal(str(round(price, 2))),
-            stop_loss_price=Decimal(str(round(stop_loss, 2))),
-            take_profit_price=Decimal(str(round(take_profit, 2))),
+            entry_price=Decimal(str(price.quantize(Decimal("0.01")))),
+            current_price=Decimal(str(price.quantize(Decimal("0.01")))),
+            stop_loss_price=Decimal(str(stop_loss.quantize(Decimal("0.01")))),
+            take_profit_price=Decimal(str(take_profit.quantize(Decimal("0.01")))),
             confidence=confidence,
             expected_move_pct=abs(momentum) * 100,
             risk_reward_ratio=rr_ratio,

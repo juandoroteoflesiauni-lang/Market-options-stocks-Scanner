@@ -7,18 +7,19 @@ para la generación de señales de ejecución en Phase D.
 from __future__ import annotations
 
 from collections import deque
+from decimal import Decimal
 
 
 class TickBuffer:
     """Buffer circular para almacenar ticks recientes de un contrato."""
 
     def __init__(self, max_size: int = 100) -> None:
-        self._prices: deque[float] = deque(maxlen=max_size)
+        self._prices: deque[Decimal] = deque(maxlen=max_size)
         self._volumes: deque[int] = deque(maxlen=max_size)
         self._timestamps: deque[float] = deque(maxlen=max_size)
-        self._vwap_prices: deque[float] = deque(maxlen=max_size)
+        self._vwap_prices: deque[Decimal] = deque(maxlen=max_size)
 
-    def add(self, price: float, volume: int, timestamp: float) -> None:
+    def add(self, price: Decimal, volume: int, timestamp: float) -> None:
         self._prices.append(price)
         self._volumes.append(volume)
         self._timestamps.append(timestamp)
@@ -29,11 +30,11 @@ class TickBuffer:
         return len(self._prices)
 
     @property
-    def last_price(self) -> float | None:
+    def last_price(self) -> Decimal | None:
         return self._prices[-1] if self._prices else None
 
     @property
-    def prices(self) -> list[float]:
+    def prices(self) -> list[Decimal]:
         return list(self._prices)
 
     @property
@@ -45,7 +46,7 @@ class TickBuffer:
             return 0.0
         total_value = sum(self._vwap_prices)
         total_volume = sum(self._volumes)
-        return total_value / max(total_volume, 1)
+        return float(total_value / max(total_volume, 1))
 
     def price_change_pct(self, window: int = 10) -> float:
         if len(self._prices) < 2:
@@ -53,14 +54,15 @@ class TickBuffer:
         recent = list(self._prices)[-window:]
         if not recent or recent[0] == 0:
             return 0.0
-        return (recent[-1] - recent[0]) / recent[0]
+        return float((recent[-1] - recent[0]) / recent[0])
 
     def volatility(self, window: int = 20) -> float:
         if len(self._prices) < window:
             return 0.0
         recent = list(self._prices)[-window:]
         returns = [
-            (recent[i] - recent[i - 1]) / max(recent[i - 1], 1e-8) for i in range(1, len(recent))
+            float((recent[i] - recent[i - 1]) / max(recent[i - 1], Decimal("1e-8")))
+            for i in range(1, len(recent))
         ]
         if not returns:
             return 0.0

@@ -259,7 +259,7 @@ class TestFullPipeline:
 
         results: list[TickAnalysis] = []
         for i in range(15):
-            price = 8.50 + i * 0.05
+            price = Decimal(str(8.50 + i * 0.05))
             analysis = emitter.process_tick(
                 contract_symbol=sym,
                 price=price,
@@ -318,7 +318,7 @@ class TestFullPipeline:
         for sel in selections:
             for contract in sel.selected_contracts:
                 for i in range(20):
-                    price = float(contract.bid) + i * 0.03
+                    price = contract.bid + Decimal(str(i * 0.03))
                     analysis = emitter.process_tick(
                         contract_symbol=contract.contract_symbol,
                         price=price,
@@ -391,7 +391,7 @@ class TestPipelineEdgeCases:
     async def test_signal_emitter_ignores_unknown_contract(self) -> None:
         """SignalEmitter ignora ticks de contratos no seleccionados."""
         emitter = SignalEmitter(selections=[])
-        analysis = emitter.process_tick("UNKNOWN", 100.0, 100, 1.0)
+        analysis = emitter.process_tick("UNKNOWN", Decimal("100.0"), 100, 1.0)
         assert analysis is None
 
     def test_default_emitter_config_is_valid(self) -> None:
