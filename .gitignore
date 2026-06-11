@@ -15,6 +15,7 @@
 secrets/
 credentials/
 api_keys.txt
+opencode.json
 
 # ── PYTHON ───────────────────────────────────────────────
 __pycache__/
@@ -138,10 +139,19 @@ historical_data/
 trading_cache/
 *.csv.gz         # Datos históricos comprimidos
 
+# ── SCRATCH / TEMP FILES ───────────────────────────────
+scratch/
+*.tmp
+*.bak
+*.backup
+fix_research_types.py
+fmp_imports.txt
+split_*.py
+test_ws.py
+map.txt
+image.png
+
 # ── MISC ─────────────────────────────────────────────────
 .temp/
 tmp/
 temp/
-*.tmp
-*.bak
-*.backup

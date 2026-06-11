@@ -1,230 +1,265 @@
-# 🏦 DEEP TRADING TERMINAL
-## Sistema de Control para Vibecoding — v3.0
+# Deep Funnel Station
 
-> **Tu mapa de navegación:** Leer esto al comenzar cada sesión de desarrollo con IA.
+> An AI-governed quantitative trading terminal with a 4-phase asymmetric data funnel architecture.
 
----
-
-## 🎯 ¿Qué es este repositorio?
-
-Este repositorio contiene el **sistema nervioso de control** para desarrollar una terminal de trading cuantitativo profesional usando 100% IA (Vibecoding).
-
-Son las reglas, configuraciones y la constitución que hacen que la IA (Claude Code, Cursor, VS Code Copilot) se comporte como un desarrollador senior de software financiero — en lugar de generar código spaghetti que no sirve en producción.
-
-| Sin estas reglas | Con estas reglas |
-|-----------------|-----------------|
-| ❌ Código desorganizado y entrelazado | ✅ Arquitectura clara en capas |
-| ❌ API keys en el código fuente | ✅ Secrets siempre en variables de entorno |
-| ❌ Float para cálculos de dinero | ✅ Decimal para toda operación financiera |
-| ❌ Memory leaks en WebSockets | ✅ Lifecycle correcto con cleanup |
-| ❌ Sin tests = sin confianza | ✅ Tests obligatorios para lógica financiera |
-| ❌ Cambios destructivos sin aviso | ✅ Git como red de seguridad permanente |
+[![Backend CI](https://github.com/juandoroteoflesiauni-lang/Market-options-stocks-Scanner/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/juandoroteoflesiauni-lang/Market-options-stocks-Scanner/actions/workflows/backend-ci.yml)
+[![Frontend CI](https://github.com/juandoroteoflesiauni-lang/Market-options-stocks-Scanner/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/juandoroteoflesiauni-lang/Market-options-stocks-Scanner/actions/workflows/frontend-ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-black)](https://docs.astral.sh/ruff/)
+[![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy--strict-brightgreen)](https://mypy-lang.org/)
 
 ---
 
-## 📁 ESTRUCTURA DEL SISTEMA
+## What is this?
+
+Deep Funnel Station processes **thousands of market tickers** down to **5 high-liquidity options contracts** for real-time execution. It's a quantitative trading system built with an **AI-native governance framework** — a set of rules (`CLAUDE.md` + `AGENTS.md`) that instruct AI coding assistants to behave as senior financial software developers.
+
+The core insight: AI assistants will generate code that *looks* correct but contains subtle, dangerous bugs in financial systems — floating-point precision errors, hardcoded secrets, missing error handling. This project solves that by encoding domain-specific rules directly into the AI's context.
+
+### The 4-Phase Funnel
 
 ```
-deep-trading-terminal/
-│
-├── 🤖 CONSTITUCIÓN DEL AGENTE (cargar siempre al inicio)
-│   ├── CLAUDE.md                    ← Reglas maestras: la "mente" de la IA
-│   ├── PROJECT_CONFIG.md            ← Estado actual: módulos y progreso
-│   └── WORKFLOW_STATE.md            ← Tarea exacta donde quedamos
-│
-├── 🎯 REGLAS PARA CURSOR (.cursor/rules/)
-│   ├── 000-master.mdc               ← Comportamiento base (siempre activa)
-│   ├── 010-architecture.mdc         ← Anti-spaghetti, capas
-│   ├── 020-security.mdc             ← Seguridad financiera y secrets
-│   ├── 030-realtime-data.mdc        ← WebSockets y feeds de mercado
-│   ├── 040-workflow.mdc             ← Blueprint→Construct→Validate
-│   ├── 050-testing.mdc              ← Tests obligatorios
-│   ├── 060-git.mdc                  ← Control de versiones
-│   ├── 070-ui-components.mdc        ← React para interfaces de trading
-│   └── 080-python-backend.mdc       ← FastAPI, SQLAlchemy, Pydantic
-│
-├── 💻 VS CODE / GITHUB COPILOT
-│   ├── .vscode/settings.json        ← Editor + instrucciones para Copilot
-│   └── .vscode/extensions.json      ← Extensiones recomendadas
-│
-├── 🔧 CONFIGURACIÓN DEL PROYECTO
-│   ├── .env.local.example           ← Template de variables de entorno
-│   ├── pyproject.toml               ← Config Python (black, ruff, mypy)
-│   ├── .pre-commit-config.yaml      ← Quality checks automáticos antes de commit
-│   └── docker-compose.yml           ← PostgreSQL + Redis para desarrollo
-│
-├── 📚 DOCUMENTACIÓN
-│   ├── GUIA-REFERENCIA-RAPIDA.md    ← Para el usuario (sin jerga técnica)
-│   ├── ARCHITECTURE.md              ← Diseño del sistema en detalle
-│   └── CHANGELOG.md                 ← Historial de todo lo construido
-│
-├── backend/                         ← Código Python (FastAPI)
-└── frontend/                        ← Código TypeScript (Next.js)
+Phase A — Scanner
+  Input:  Thousands of tickers (REST APIs)
+  Output: ~300 candidates as MarketSnapshot objects
+
+Phase B — Microstructure Filter (zero network, isolated)
+  Input:  300 candidates
+  Process: VPIN + Order Flow Imbalance calculations
+  Output: Top 20 assets
+
+Phase C — Derivatives Engine
+  Input:  Top 20 candidates
+  Process: Options chain analysis, strike/expiration selection
+  Output: Top 5 OptionContracts
+
+Phase D — Real-Time Monitor (WebSocket tick-by-tick)
+  Input:  5 contracts
+  Process: Live feed, execution signal generation
+  Output: Signals → Frontend Dashboard
 ```
+
+### Key Architectural Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `MarketDataHub` as sole API gateway | Single Anti-Corruption Layer — circuit breaker, retries, normalization in one place |
+| Pydantic `frozen=True` for all cross-phase models | Prevents mutation bugs across async tasks |
+| `asyncio.Queue` as Event Bus | Avoids external broker dependency |
+| `ProcessPoolExecutor` for Phase B/C | Prevents CPU-bound math from blocking the event loop |
+| `Result[T]` monad over raw exceptions | Forces callers to handle errors explicitly |
+| `Decimal` for all price fields | Float precision errors are unacceptable in trading systems |
 
 ---
 
-## 🚀 INSTALACIÓN EN UN PROYECTO NUEVO
+## AI Governance Framework
 
-### Paso 1: Copiar los archivos de control
+The `CLAUDE.md` and `AGENTS.md` files are **reusable across any financial software project**. They encode 9 Primary Directives:
+
+| ID | Directive | Why it matters |
+|----|-----------|----------------|
+| PD-1 | Never hardcode secrets | Exposed API keys = compromised account |
+| PD-2 | Never use `float` for money | Precision errors = real losses |
+| PD-3 | Always Blueprint before code | No plan = spaghetti code |
+| PD-4 | Max 2 files per turn | Controllable, reviewable changes |
+| PD-5 | Always read before modifying | Never assume code state |
+| PD-6 | Tests mandatory for financial logic | No tests = no confidence |
+| PD-7 | Explain in user's language | Communication clarity |
+| PD-8 | Complete code, never fragments | Fragments create broken code |
+| PD-9 | Update config on session end | Next session depends on it |
+
+The framework also enforces a **Blueprint → Construct → Validate** workflow and defines prohibited actions (e.g., no `float` for money, no `eval()`, no secrets in code).
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Backend | Python + FastAPI | 3.12+ |
+| Data Validation | Pydantic v2 | 2.x (frozen models) |
+| Async Runtime | asyncio + uvloop | latest |
+| HTTP Client | httpx | latest |
+| Config | pydantic-settings | 2.x |
+| Testing | pytest + pytest-asyncio | latest |
+| Type Checking | mypy --strict | latest |
+| Linting | ruff + black + isort | latest |
+| Security | bandit + gitleaks + pip-audit | latest |
+| Frontend | Next.js + React | 16.x |
+| Styling | Tailwind CSS | 4.x |
+| Components | shadcn/ui | latest |
+| Database | PostgreSQL | 16 |
+| Cache | Redis | 7 |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.12+
+- Node.js 18+
+- PostgreSQL 16 (or Docker)
+- Redis 7 (or Docker)
+
+### Installation
+
 ```bash
-cp CLAUDE.md        /ruta/de/tu/proyecto/
-cp PROJECT_CONFIG.md /ruta/de/tu/proyecto/
-cp -r .cursor/      /ruta/de/tu/proyecto/
-cp -r .vscode/      /ruta/de/tu/proyecto/
-```
+# Clone the repository
+git clone https://github.com/juandoroteoflesiauni-lang/Market-options-stocks-Scanner.git
+cd Market-options-stocks-Scanner
 
-### Paso 2: Instalar herramientas de calidad (una sola vez)
-```bash
-pip install pre-commit
-pre-commit install
+# Backend setup
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install poetry
+poetry install
 
-cp .env.local.example .env.local
-# Editar .env.local con tus API keys reales del exchange
-```
+# Frontend setup
+cd frontend
+npm install
+cd ..
 
-### Paso 3: Levantar la base de datos de desarrollo
-```bash
+# Environment variables
+cp .env.example .env
+# Edit .env with your API keys (NEVER commit this file)
+
+# Start infrastructure
 docker-compose up -d postgres redis
+
+# Run quality checks
+pre-commit install
+pre-commit run --all-files
 ```
 
-### Paso 4: Primera sesión con la IA
-```
-"Lee CLAUDE.md y PROJECT_CONFIG.md.
-¿Cuántos módulos están completos? ¿Cuál es el primer paso?"
-```
+### Running
 
----
+```bash
+# Backend
+cd backend
+uvicorn main:app --reload
 
-## 🤖 GUÍA DE SESIÓN CON IA
-
-### Para iniciar cada sesión
-```
-"Lee CLAUDE.md. Mi tarea de hoy es: [UNA SOLA ORACIÓN]."
+# Frontend
+cd frontend
+npm run dev
 ```
 
-### Según el tipo de trabajo (cargar el rule book correspondiente)
-```
-Para módulos nuevos o arquitectura:
-  "También lee .cursor/rules/040-workflow.mdc"
+### Testing
 
-Para APIs del exchange o datos de mercado:
-  "También lee .cursor/rules/030-realtime-data.mdc"
+```bash
+# Backend tests
+pytest tests/ -v --cov=backend --cov-fail-under=80
 
-Para seguridad, .env o autenticación:
-  "También lee .cursor/rules/020-security.mdc"
-
-Para componentes de UI del dashboard:
-  "También lee .cursor/rules/070-ui-components.mdc"
-
-Para código Python del backend:
-  "También lee .cursor/rules/080-python-backend.mdc"
-
-Para tests:
-  "También lee .cursor/rules/050-testing.mdc"
-```
-
-### Checkpoints durante la sesión
-```
-Cada 10 intercambios con la IA:
-  "Checkpoint: resumí qué construimos y qué sigue."
-
-Al terminar la sesión:
-  "Listá los TODO, FIXME y CHECKPOINT que agregamos hoy."
-
-Antes de cada commit:
-  "Corremos los tests y hacemos el commit."
+# Frontend tests
+cd frontend
+npm run test
 ```
 
 ---
 
-## 📋 REGLAS ACTIVAS POR CONTEXTO
+## CI/CD Pipeline
 
-| Regla | Se activa cuando... | Qué controla |
-|-------|---------------------|-------------|
-| `000-master` | **Siempre** | Comportamiento base del agente |
-| `010-architecture` | Archivos .py o .ts | Capas, anti-spaghetti, SRP |
-| `020-security` | Backend, configs, auth | Secrets, validaciones, rate limiting |
-| `030-realtime-data` | WebSockets, stores | Feeds de mercado, lifecycle, pub/sub |
-| `040-workflow` | **Siempre** | Blueprint→Construct→Validate |
-| `050-testing` | Archivos de tests | Tests financieros obligatorios |
-| `060-git` | Archivos git, changelog | Commits semánticos, branching |
-| `070-ui-components` | Componentes React | Dashboard, gráficos, order entry |
-| `080-python-backend` | Archivos Python | FastAPI, SQLAlchemy, Pydantic |
+Every PR automatically runs through 7 quality gates:
 
----
-
-## 🧠 ARQUITECTURA EN UN PÁRRAFO
-
-El sistema es un **funnel cuantitativo de 4 fases**. La Fase A escanea miles de tickers del mercado vía REST APIs y produce hasta 300 candidatos. La Fase B ejecuta análisis de microestructura (VPIN/OFI) localmente sin red y selecciona los 20 mejores. La Fase C descarga options chains y selecciona los 5 mejores contratos. La Fase D monitorea esos 5 contratos vía WebSocket tick-by-tick y emite señales de ejecución al frontend. Todos los datos entre fases se intercambian como Pydantic `MarketSnapshot` objects inmutables. Un `MarketDataHub` actúa como Anti-Corruption Layer — es el único componente que toca APIs externas. Un Event Bus basado en `asyncio.Queue` desacopla productores de consumidores.
+| Gate | Tool | Purpose |
+|------|------|---------|
+| Secret Scan | gitleaks | Detect leaked API keys/tokens |
+| Format | black + isort | Code formatting |
+| Lint | ruff | Code quality |
+| Type Check | mypy --strict | Type safety |
+| SAST | bandit | Security vulnerabilities |
+| Dependency Audit | pip-audit | CVE scanning |
+| Tests | pytest | Coverage ≥ 80% |
 
 ---
 
-## 🏗️ STACK TECNOLÓGICO
+## Project Structure
 
-| Capa | Tecnología | Por qué |
-|------|-----------|---------|
-| Backend | Python 3.12 + FastAPI | Async nativo, tipado, performance |
-| ORM | SQLAlchemy 2.0 + Alembic | Migrations, queries type-safe |
-| Validación | Pydantic v2 | Validación automática, serialización |
-| Frontend | Next.js 14 + TypeScript | SSR, tipos estrictos, ecosistema |
-| Estado | Zustand | Simple y performante para real-time |
-| Estilos | Tailwind v4 | Utilidades, dark theme nativo |
-| DB | PostgreSQL 16 | ACID, JSON nativo, confiable |
-| Cache | Redis 7 | Pub/Sub para WebSocket, caché tickers |
-| CI/CD | GitHub Actions + pre-commit | Quality gates automáticos |
-
----
-
-## 🔒 POLÍTICA DE SEGURIDAD
-
-- **Cero secrets en código:** API keys, passwords y tokens van exclusivamente en `.env.local` (gitignoreado)
-- **Cero float en dinero:** Toda operación financiera usa `Decimal` en Python y `string` en TypeScript
-- **Validación antes de órdenes:** Quantity > 0, Price > 0, Total ≤ límite de posición, Exchange conectado
-- **Rate limiting obligatorio:** Backoff exponencial en todas las llamadas a exchanges
-- **Pre-commit obligatorio:** Todo el código pasa los quality checks antes de subir al repositorio
-
-Para reportar vulnerabilidades: GitHub Security Advisories (privado).
-
----
-
-## 🔄 ESTADO DEL BUILD
-
-## 🔄 ESTADO DEL BUILD
-
-| Gate | Estado |
-|------|--------|
-| Backend CI | [![Backend CI](https://github.com/juandoroteoflesiauni-lang/deep-funnel-station/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/juandoroteoflesiauni-lang/deep-funnel-station/actions/workflows/backend-ci.yml) |
-| Frontend CI | [![Frontend CI](https://github.com/juandoroteoflesiauni-lang/deep-funnel-station/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/juandoroteoflesiauni-lang/deep-funnel-station/actions/workflows/frontend-ci.yml) |
-| Coverage | [![Coverage](https://codecov.io/gh/juandoroteoflesiauni-lang/deep-funnel-station/graph/badge.svg)](https://codecov.io/gh/juandoroteoflesiauni-lang/deep-funnel-station) |
-
-*(Reemplazar TU_ORG con tu usuario de GitHub)*
+```
+deep-funnel-station/
+├── CLAUDE.md                    # AI agent constitution
+├── AGENTS.md                    # Universal agent rules
+├── ARCHITECTURE.md              # System design document
+├── backend/
+│   ├── config/                  # Pydantic Settings (loads .env)
+│   ├── hub/                     # Anti-Corruption Layer (sole API gateway)
+│   │   ├── market_data_hub.py   # The ONLY file that calls external APIs
+│   │   ├── circuit_breaker.py   # Resilience patterns
+│   │   └── normalizers/         # Per-provider data normalization
+│   ├── models/                  # Pydantic schemas (frozen, immutable)
+│   ├── phases/                  # The 4 processing engines
+│   │   ├── phase_a/             # Scanner (polling, worker pool)
+│   │   ├── phase_b/             # Microstructure (VPIN/OFI, isolated)
+│   │   ├── phase_c/             # Derivatives (options chain analysis)
+│   │   └── phase_d/             # Real-time monitor (WebSocket)
+│   ├── bus/                     # Event infrastructure (asyncio.Queue)
+│   └── tests/                   # Unit + integration tests
+├── frontend/
+│   ├── app/                     # Next.js 16 App Router
+│   ├── components/              # React components
+│   ├── hooks/                   # Client-side logic
+│   └── lib/                     # Utilities
+└── .github/
+    └── workflows/               # CI/CD pipelines
+```
 
 ---
 
-## 📐 FILOSOFÍA DE DISEÑO
+## Contributing
 
-Este sistema se construye con los estándares usados por firmas de trading cuantitativo.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
-**Fuentes de inspiración:**
-- [NautilusTrader](https://github.com/nautechsystems/nautilus_trader) — Motor de trading determinístico y event-driven
-- [cursor-rule-framework](https://github.com/fbrbovic/cursor-rule-framework) — Estructura Blueprint/Construct/Validate
-- [cursor-security-rules](https://github.com/matank001/cursor-security-rules) — Reglas de seguridad para APIs financieras
-- [agent-rules-books](https://github.com/ciembor) — Gobernanza de agentes IA desde libros de programación
-- [Prompt Engineering Guide](https://github.com/dair-ai/Prompt-Engineering-Guide) — Prompts efectivos para desarrollo
+### Quick Start for Contributors
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Read `CLAUDE.md` — understand the Primary Directives
+4. Make your changes following the Blueprint → Construct → Validate workflow
+5. Ensure all CI gates pass
+6. Submit a pull request using the provided template
 
 ---
 
-## ⚠️ AVISO CRÍTICO — LEER ANTES DE OPERAR
+## Security
 
-Esta terminal maneja **dinero real**. Antes de operar en producción:
+- **Zero secrets in code:** API keys go in `.env` only (gitignored)
+- **Zero float for money:** All financial calculations use `Decimal` (Python) or `string` (TypeScript)
+- **Mandatory validation:** All external inputs validated with Pydantic
+- **Rate limiting:** Exponential backoff on all exchange API calls
+- **Pre-commit hooks:** Code passes quality checks before reaching the repo
 
-1. ✅ Probar 100% en testnet/sandbox del exchange (nunca saltear este paso)
-2. ✅ Todos los tests pasando al 100%
-3. ✅ Revisar cada validación de riesgo manualmente
-4. ✅ Auditar el código de seguridad (especialmente manejo de API keys)
-5. ✅ Backup de la base de datos antes de cada deploy
-6. ✅ Empezar con posiciones mínimas del exchange
+To report vulnerabilities: Use [GitHub Security Advisories](https://github.com/juandoroteoflesiauni-lang/Market-options-stocks-Scanner/security/advisories/new) (private).
 
-**La IA puede cometer errores. SIEMPRE revisar el código antes de ejecutar en producción.**
-**Nunca operar con dinero que no puedas permitirte perder.**
+---
+
+## License
+
+This project is licensed under the Apache License 2.0 — see [LICENSE](LICENSE) for details.
+
+---
+
+## Disclaimer
+
+This terminal handles **real money**. Before operating in production:
+
+1. Test 100% on testnet/sandbox first
+2. All tests passing at 100%
+3. Review every risk validation manually
+4. Audit security code (especially API key handling)
+5. Backup database before each deploy
+6. Start with minimum position sizes
+
+**AI can make mistakes. ALWAYS review code before executing in production.**
+**Never trade with money you cannot afford to lose.**
+
+---
+
+## Acknowledgments
+
+Built with inspiration from:
+
+- [NautilusTrader](https://github.com/nautechsystems/nautilus_trader) — Deterministic, event-driven trading engine
+- [cursor-rule-framework](https://github.com/fbrbovic/cursor-rule-framework) — Blueprint/Construct/Validate structure
+- [cursor-security-rules](https://github.com/matank001/cursor-security-rules) — Financial API security rules
+- [Prompt Engineering Guide](https://github.com/dair-ai/Prompt-Engineering-Guide) — Effective prompts for development

@@ -1,6 +1,196 @@
-# AGENTS.md — deep-funnel-station
+# AGENTS.md — Universal Agent Rules
+
 ## Universal Agent Rules v3.0
-### Compatible con: Claude Code · Cursor · GitHub Copilot · Windsurf · Codex
+### Compatible with: Claude Code · Cursor · GitHub Copilot · Windsurf · Codex
+
+> This file is the universal standard for all AI agents.
+> CLAUDE.md takes precedence for Claude Code.
+> Cursor additionally uses `.cursor/rules/*.mdc`.
+
+---
+
+## 1. Project in One Sentence
+
+`deep-funnel-station` is a quantitative trading terminal that filters
+thousands of tickers down to 5 high-liquidity options contracts for
+real-time execution. Stack: Python 3.12 (backend) + Next.js 16 (frontend).
+
+---
+
+## 2. Repository Structure
+
+```
+deep-funnel-station/
+├── CLAUDE.md               ← Master constitution (read first always)
+├── AGENTS.md               ← This file
+├── ARCHITECTURE.md         ← System map for onboarding
+│
+├── .cursor/rules/          ← Cursor rules (.mdc) loaded automatically
+│   ├── 00-master.mdc       ← Always active
+│   ├── 01-backend-python.mdc
+│   ├── 02-data-models.mdc
+│   ├── 03-frontend-nextjs.mdc
+│   ├── 04-data-hub.mdc
+│   └── 05-async-events.mdc
+│
+├── .antigravity/skills/    ← Claude Code custom skills
+│
+├── .docs/                  ← Complete reference rule books
+│   ├── ARCHITECTURE.md
+│   ├── SECURITY.md
+│   ├── CICD.md
+│   ├── backend/
+│   │   ├── 01-deep-funnel.md
+│   │   ├── 02-data-hub.md
+│   │   ├── 03-python-standards.md
+│   │   ├── 04-data-modeling.md
+│   │   └── 05-async-event-engine.md
+│   └── frontend/
+│       ├── 01-scope.md
+│       ├── 02-design-system.md
+│       └── 03-clean-code.md
+│
+├── .github/
+│   ├── workflows/
+│   │   ├── backend-ci.yml
+│   │   └── frontend-ci.yml
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── dependabot.yml
+│
+├── backend/                ← Python trading engine
+├── frontend/               ← Next.js UI shell
+├── .pre-commit-config.yaml
+└── pyproject.toml
+```
+
+---
+
+## 3. Tech Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Python | Python | 3.12+ |
+| Validation | Pydantic v2 | 2.x (frozen models) |
+| Async | asyncio + uvloop | latest |
+| HTTP | httpx | latest |
+| Config | pydantic-settings | 2.x |
+| Tests | pytest + pytest-asyncio | latest |
+| Types | mypy --strict | latest |
+| Lint | ruff + black + isort | latest |
+| Frontend | Next.js | 16.x |
+| Styles | Tailwind CSS | 4.x |
+| Components | shadcn/ui | latest |
+
+---
+
+## 4. Agent Behavior Rules
+
+### 4.1 Before Writing Code
+1. Identify the phase/layer of work
+2. Load the specific rule (max 2 per session)
+3. Declare your plan — no code until confirmation on destructive changes
+
+### 4.2 During Writing
+- Tag applied rules in comments: `# [PD-3][TH][IM]`
+- One function = one task. Max 30 lines.
+- If you find spaghetti code: **propose refactor before adding features**
+
+### 4.3 When Presenting Code
+Declare explicitly:
+- Which files are created/modified
+- Which rules are applied
+- Which CI gates must pass
+
+### 4.4 When Uncertain
+```
+UNCERTAINTY: I'm not sure about [X].
+   Option A: [description]
+   Option B: [description]
+   Recommendation: A, because [reason].
+   Waiting for confirmation before proceeding.
+```
+
+---
+
+## 5. Commit Standards
+
+```
+<type>(<scope>): <short description in present tense>
+
+Valid types:
+  feat     → new feature
+  fix      → bug fix
+  refactor → restructuring without behavior change
+  docs     → documentation only
+  test     → tests only
+  ci       → pipeline / configuration
+  sec      → security
+
+Examples:
+  feat(phase-b): add VPIN calculation with ProcessPoolExecutor
+  fix(hub): handle FMP API timeout with exponential backoff
+  refactor(models): convert MarketSnapshot to frozen Pydantic v2
+  sec(hub): replace plain str with SecretStr for API keys
+```
+
+---
+
+## 6. Test Standards
+
+```python
+# Naming conventions:
+# tests/unit/     → no network, no DB, mocked
+# tests/integration/ → may use network/DB
+
+# Test naming:
+def test_market_snapshot_rejects_negative_price():
+    """Name = test_{what}_{condition}."""
+
+# AAA Pattern:
+def test_phase_a_discards_invalid_ticker():
+    # ARRANGE
+    invalid_raw = {"symbol": "", "price": -1}
+    # ACT
+    result = normalizer.normalize(invalid_raw, time.time_ns())
+    # ASSERT
+    assert result.is_failure
+
+# Mocks for external APIs — never real calls in unit tests
+@pytest.fixture
+def mock_fmp_client(mocker):
+    return mocker.patch("backend.hub.market_data_hub.httpx.AsyncClient")
+```
+
+---
+
+## 7. Universal Pre-Commit Checklist
+
+```
+BACKEND:
+[ ] black + isort + ruff → 0 errors
+[ ] mypy --strict → 0 type errors
+[ ] bandit → no HIGH/CRITICAL
+[ ] pytest --cov-fail-under=80 → passes
+[ ] 0 secrets in code (gitleaks)
+
+FRONTEND:
+[ ] prettier --check → 0 errors
+[ ] eslint --max-warnings=0 → 0 warnings
+[ ] tsc --noEmit → 0 errors
+[ ] npm audit --audit-level=moderate → clean
+[ ] next build → build succeeds
+
+UNIVERSAL:
+[ ] No print() in Python
+[ ] No console.log in TypeScript
+[ ] No any in TypeScript
+[ ] No magic numbers in code
+[ ] No hardcoded secrets
+```
+
+---
+
+# AGENTS.md — Reglas Universales para Agentes (Español)
 
 > Este archivo es el estándar universal para todos los agentes de IA.
 > CLAUDE.md tiene precedencia para Claude Code.
@@ -102,7 +292,7 @@ Declara explícitamente:
 
 ### 4.4 Cuando hay incertidumbre
 ```
-⚠️ INCERTIDUMBRE: No estoy seguro de [X].
+INCERTIDUMBRE: No estoy seguro de [X].
    Opción A: [descripción]
    Opción B: [descripción]
    Recomendación: A, porque [razón].
