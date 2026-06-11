@@ -82,7 +82,8 @@ export function LogSearchTab({ logStats, fetchLogs, fetchLogTrace }: Props) {
   );
 
   React.useEffect(() => {
-    void search();
+    const id = setTimeout(() => void search(), 0);
+    return () => clearTimeout(id);
   }, [search]);
 
   return (

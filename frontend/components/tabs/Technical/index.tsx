@@ -34,11 +34,11 @@ export function Technical() {
 
   const candles = useMemo(
     () => generateGBM(ticker.price, 120, 0.0001, ticker.iv * 0.05),
-    [selectedSymbol],
+    [ticker.price, ticker.iv],
   );
   const chain = useMemo(
     () => generateOptionsChain(ticker.price, ticker.iv),
-    [selectedSymbol],
+    [ticker.price, ticker.iv],
   );
 
   const spot = candles[candles.length - 1]?.close ?? ticker.price;

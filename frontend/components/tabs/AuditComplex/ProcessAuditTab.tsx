@@ -17,10 +17,9 @@ export function ProcessAuditTab({ dashboard, fetchModuleDetail }: Props) {
   const [detail, setDetail] = React.useState<ModuleDetail | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const modules = React.useMemo(() => {
-    if (!dashboard?.module_summary) return [];
-    return Object.keys(dashboard.module_summary).sort();
-  }, [dashboard?.module_summary]);
+  const modules: string[] = dashboard?.module_summary
+    ? Object.keys(dashboard.module_summary).sort()
+    : [];
 
   const loadDetail = React.useCallback(
     async (mod: string) => {

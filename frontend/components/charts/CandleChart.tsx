@@ -64,12 +64,16 @@ export function CandleChart({
     return () => obs.disconnect();
   }, []);
 
-  // Regenerate data on ticker/tf change
+  // Regenerate data on ticker/tf/initialPrice change
   useEffect(() => {
     const sigma =
       ticker.includes("TSLA") || ticker.includes("COIN") ? 0.025 : 0.015;
-    setData(generateGBM(initialPrice, TF_BARS[tf], 0.0001, sigma));
-  }, [ticker, tf, initialPrice]);
+    const id = setTimeout(
+      () => setData(generateGBM(initialPrice, TF_BARS[tf], 0.0001, sigma)),
+      0,
+    );
+    return () => clearTimeout(id);
+  }, [ticker, tf, initialPrice, data]);
 
   const chartH = height - MARGIN.top - MARGIN.bottom;
   const volH = chartH * VOL_RATIO;
@@ -103,8 +107,11 @@ export function CandleChart({
   );
 
   const barW = Math.max(2, plotW / (data.length || 1) - 1);
-  const cx = (i: number) =>
-    MARGIN.left + (i + 0.5) * (plotW / (data.length || 1));
+  const cx = useCallback(
+    (i: number) =>
+      MARGIN.left + (i + 0.5) * (plotW / (data.length || 1)),
+    [plotW, data.length],
+  );
 
   // Price axis labels
   const priceLabels = useMemo(() => {

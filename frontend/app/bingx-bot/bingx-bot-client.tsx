@@ -137,21 +137,18 @@ export default function BingxBotClient() {
   const availableMargin = liveAccount.available_margin;
   const usedMargin = liveAccount.used_margin;
 
-  const universe = React.useMemo(() => {
-    const allowlist = telemetry?.universe.allowlist?.length
-      ? telemetry.universe.allowlist
-      : (telemetry?.universe.symbols ?? []);
-    const openSymbols = livePositions.map((p) => p.symbol);
-    return [...new Set([...openSymbols, ...allowlist])];
-  }, [telemetry?.universe, livePositions]);
+  const allowlist = telemetry?.universe.allowlist?.length
+    ? telemetry.universe.allowlist
+    : (telemetry?.universe.symbols ?? []);
+  const openSymbols = livePositions.map((p) => p.symbol);
+  const universe = [...new Set([...openSymbols, ...allowlist])];
 
-  const totalNotional = React.useMemo(() => {
-    if (!risk?.open_positions) return 0;
-    return Object.values(risk.open_positions).reduce(
-      (sum, size) => sum + Math.abs(size),
-      0,
-    );
-  }, [risk?.open_positions]);
+  const totalNotional = risk?.open_positions
+    ? Object.values(risk.open_positions).reduce(
+        (sum, size) => sum + Math.abs(size),
+        0,
+      )
+    : 0;
 
   const firewallLimit = availableMargin * 0.15;
   const exposurePct =
@@ -159,12 +156,13 @@ export default function BingxBotClient() {
       ? Math.min(100, (totalNotional / firewallLimit) * 100)
       : 0;
 
-  const tapeLog = React.useMemo(() => {
-    const logs: Array<{
-      time: string;
-      msg: string;
-      type: "critical" | "warn" | "info";
-    }> = [];
+  const tapeLog: Array<{
+    time: string;
+    msg: string;
+    type: "critical" | "warn" | "info";
+  }> = [];
+  {
+    const logs = tapeLog;
     const now = new Date().toLocaleTimeString();
 
     if (gates) {
@@ -211,9 +209,7 @@ export default function BingxBotClient() {
         type: "info",
       });
     }
-
-    return logs;
-  }, [gates, risk, telemetry?.last_probe?.failures, telemetry?.scheduler]);
+  }
 
   return (
     <div className="min-h-screen bg-[#050506] text-[#f5f5f7] font-sans antialiased overflow-hidden flex flex-col selection:bg-white/20">

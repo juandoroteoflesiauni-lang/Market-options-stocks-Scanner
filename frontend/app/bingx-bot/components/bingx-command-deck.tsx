@@ -43,10 +43,12 @@ export function BingxCommandDeck({
   const [showKillModal, setShowKillModal] = React.useState(false);
   const [isLive, setIsLive] = React.useState(!dryRun);
   const [isKilling, setIsKilling] = React.useState(false);
+  const [prevDryRun, setPrevDryRun] = React.useState(dryRun);
 
-  React.useEffect(() => {
+  if (prevDryRun !== dryRun) {
+    setPrevDryRun(dryRun);
     setIsLive(!dryRun);
-  }, [dryRun]);
+  }
 
   const handleToggle = (live: boolean) => {
     setIsLive(live);

@@ -58,7 +58,8 @@ export function ErrorDashboard({
   }, [fetchErrors, filterModule, filterSeverity, filterResolved]);
 
   React.useEffect(() => {
-    void load();
+    const id = setTimeout(() => void load(), 0);
+    return () => clearTimeout(id);
   }, [load]);
 
   const handleResolve = async (errorId: string) => {

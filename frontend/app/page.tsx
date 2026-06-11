@@ -46,7 +46,10 @@ function AppContent() {
 
 export default function Home() {
   const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
+  React.useEffect(() => {
+    const id = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(id);
+  }, []);
 
   if (!mounted) return null;
 

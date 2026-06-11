@@ -31,7 +31,7 @@ export function Predictive() {
   const summary = useMemo(() => getEnsembleSummary(), []);
   const forecasts = useMemo(
     () => getEngineForecasts(horizon.bars, BASE_PRICE),
-    [horizonIdx],
+    [horizon.bars],
   );
 
   return (

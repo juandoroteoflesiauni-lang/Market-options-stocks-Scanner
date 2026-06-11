@@ -11,14 +11,17 @@ export function useBingxTicks(symbol: string | null) {
   const [bars, setBars] = React.useState<BingXMicroBar[]>([]);
   const [isConnected, setIsConnected] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [prevSymbol, setPrevSymbol] = React.useState(symbol);
+
+  if (prevSymbol !== symbol) {
+    setPrevSymbol(symbol);
+    setBars([]);
+    setIsConnected(false);
+    setError(null);
+  }
 
   React.useEffect(() => {
-    if (!symbol) {
-      setBars([]);
-      setIsConnected(false);
-      setError(null);
-      return;
-    }
+    if (!symbol) return;
     const apiBase = getApiBaseUrl().replace(/\/$/, "");
     const source = new EventSource(
       `${apiBase}/api/v1/bingx-bot/stream/ticks/${encodeURIComponent(symbol)}`,

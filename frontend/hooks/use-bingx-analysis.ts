@@ -16,49 +16,55 @@ export function useBingxAnalysis(
   );
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const requestIdRef = React.useRef(0);
+  const [requestId, setRequestId] = React.useState(0);
+  const [lastSymbol, setLastSymbol] = React.useState(symbol);
+  const [lastInterval, setLastInterval] = React.useState(interval);
+
+  if (lastSymbol !== symbol || lastInterval !== interval) {
+    setLastSymbol(symbol);
+    setLastInterval(interval);
+    setRequestId((id) => id + 1);
+    setAnalysis(null);
+    setIsLoading(false);
+    setError(null);
+  }
 
   const fetch = React.useCallback(
-    async (sym: string, ivl: string, requestId: number) => {
+    async (sym: string, ivl: string, currentId: number) => {
       setIsLoading(true);
       setError(null);
       try {
         const data = await fetchJson<BingXAnalysisResponse>(
           `/api/v1/bingx-bot/analysis/${encodeURIComponent(sym)}?interval=${encodeURIComponent(ivl)}`,
         );
-        if (requestIdRef.current === requestId) setAnalysis(data);
+        if (currentId === requestId) setAnalysis(data);
       } catch (cause) {
-        if (requestIdRef.current !== requestId) return;
+        if (currentId !== requestId) return;
         setError(
           cause instanceof Error ? cause.message : "Analysis unavailable",
         );
       } finally {
-        if (requestIdRef.current === requestId) setIsLoading(false);
+        if (currentId === requestId) setIsLoading(false);
       }
     },
-    [],
+    [requestId],
   );
 
   React.useEffect(() => {
-    if (!symbol) {
-      requestIdRef.current += 1;
-      setAnalysis(null);
-      setIsLoading(false);
-      return;
-    }
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-    setAnalysis(null);
-    void fetch(symbol, interval, requestId);
+    if (!symbol) return;
+    const initialId = setTimeout(
+      () => void fetch(symbol, interval, requestId),
+      0,
+    );
     const id = setInterval(
       () => void fetch(symbol, interval, requestId),
       POLL_INTERVAL_MS,
     );
     return () => {
-      requestIdRef.current += 1;
+      clearTimeout(initialId);
       clearInterval(id);
     };
-  }, [symbol, interval, fetch]);
+  }, [symbol, interval, fetch, requestId]);
 
   return { analysis, isLoading, error };
 }

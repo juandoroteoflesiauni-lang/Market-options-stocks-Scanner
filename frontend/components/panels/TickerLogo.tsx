@@ -1,5 +1,6 @@
 "use client";
 import { memo, useMemo, useState } from "react";
+import Image from "next/image";
 
 interface Props {
   symbol: string;
@@ -136,9 +137,11 @@ export const TickerLogo = memo(function TickerLogo({
   }
 
   return (
-    <img
+    <Image
       src={sources[idx]}
       alt={`${symbol} logo`}
+      width={size}
+      height={size}
       onError={() => setIdx((i) => i + 1)}
       style={{
         ...dim,

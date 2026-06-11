@@ -37,17 +37,14 @@ export function ApiConsumptionMonitor() {
     setShowResetConfirm(false);
   };
 
-  const providerNames = React.useMemo(() => {
-    if (!stats?.providers) return [];
-    return Object.keys(stats.providers).sort();
-  }, [stats?.providers]);
+  const providerNames: string[] = stats?.providers
+    ? Object.keys(stats.providers).sort()
+    : [];
 
   // Set default selected provider once loaded
-  React.useEffect(() => {
-    if (providerNames.length > 0 && !selectedProvider) {
-      setSelectedProvider(providerNames[0]);
-    }
-  }, [providerNames, selectedProvider]);
+  if (providerNames.length > 0 && !selectedProvider) {
+    setSelectedProvider(providerNames[0]);
+  }
 
   const selectedStats =
     selectedProvider && stats?.providers

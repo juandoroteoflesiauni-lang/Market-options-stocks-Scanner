@@ -78,7 +78,7 @@ export function LightweightChart({ data, width = 120, height = 36 }: Props) {
     return () => {
       chart.remove();
     };
-  }, [width, height]);
+  }, [width, height, data]);
 
   const lastFirstTimeRef = useRef<number | null>(null);
 

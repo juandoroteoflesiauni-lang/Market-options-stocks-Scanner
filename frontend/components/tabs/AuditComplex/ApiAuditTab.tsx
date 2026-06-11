@@ -34,16 +34,13 @@ export function ApiAuditTab({
     null,
   );
 
-  const modules = React.useMemo(() => {
-    if (!apiConsumption) return [];
-    return Object.keys(apiConsumption.modules).sort();
-  }, [apiConsumption]);
+  const modules: string[] = apiConsumption
+    ? Object.keys(apiConsumption.modules).sort()
+    : [];
 
-  React.useEffect(() => {
-    if (modules.length > 0 && !selectedModule) {
-      setSelectedModule(modules[0]);
-    }
-  }, [modules, selectedModule]);
+  if (modules.length > 0 && !selectedModule) {
+    setSelectedModule(modules[0]);
+  }
 
   const selectedStats =
     selectedModule && apiConsumption?.modules

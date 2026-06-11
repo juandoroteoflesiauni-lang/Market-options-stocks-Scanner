@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Settings } from "lucide-react";
 import { BreadthBar } from "./BreadthBar";
 import { TabBar } from "./TabBar";
@@ -59,9 +60,11 @@ export function Header() {
             mixBlendMode: "screen",
           }}
         >
-          <img
+          <Image
             src="/bull-logo.png"
             alt="Wall Street Bull"
+            width={24}
+            height={24}
             style={{
               width: "120%",
               height: "120%",
