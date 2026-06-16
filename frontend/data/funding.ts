@@ -47,7 +47,21 @@ export interface BestSetup {
   note: string;
 }
 
+export const MFFU_BUILDER_PRESET: ChallengePreset = {
+  id: "mffu-builder-50k",
+  name: "MFFU Builder $50K",
+  firm: "MyFundedFutures",
+  accountSize: 50_000,
+  profitTarget: 3_000,
+  dailyLossLimit: 1_000,
+  maxDrawdown: 2_000,
+  minTradingDays: 1,
+  maxTradingDays: 30,
+  phase: "EVALUATION",
+};
+
 export const CHALLENGE_PRESETS: ChallengePreset[] = [
+  MFFU_BUILDER_PRESET,
   {
     id: "ftmo-10k",
     name: "FTMO $10K Challenge",

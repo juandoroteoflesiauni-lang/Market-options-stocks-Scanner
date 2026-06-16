@@ -280,6 +280,10 @@ export function useScanner(): UseScannerReturn {
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") return;
         // Universes are non-critical — log and continue
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -318,19 +322,6 @@ export function useScanner(): UseScannerReturn {
       }
     }
   }, [tickers, setLivePrices]);
-
-  // ── Initial scan on mount (via microtask to avoid setState-in-effect) ──
-  const initialScanDone = useRef(false);
-  useEffect(() => {
-    if (!initialScanDone.current) {
-      initialScanDone.current = true;
-      // Defer scan to next microtask to satisfy react-hooks/set-state-in-effect
-      queueMicrotask(() => {
-        scan();
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ── Start/stop polling when tickers change ─────────────────────────────
   useEffect(() => {
@@ -380,14 +371,8 @@ export function useScanner(): UseScannerReturn {
   const updateParams = useCallback(
     (partial: Partial<ScanParams>) => {
       updateStoreParams(partial);
-
-      // Debounce re-scan on rapid parameter changes
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        scan();
-      }, SCANNER_DEBOUNCE_MS);
     },
-    [scan, updateStoreParams],
+    [updateStoreParams],
   );
 
   // ── Error clear ────────────────────────────────────────────────────────

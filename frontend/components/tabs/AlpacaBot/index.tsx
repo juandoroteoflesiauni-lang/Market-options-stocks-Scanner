@@ -1,200 +1,67 @@
 "use client";
-import { useState, useMemo } from "react";
-import { AlertTriangle, Clock } from "lucide-react";
-import { BotStatusStrip } from "../BingXBot/BotStatusStrip";
-import { TickerCard } from "../BingXBot/TickerCard";
-import { PerformancePanel } from "../BingXBot/PerformancePanel";
+
+import * as React from "react";
+import { AlertTriangle } from "lucide-react";
 import { CandleChart } from "@/components/charts/CandleChart";
-import { DataTable, type Column } from "@/components/panels/DataTable";
 import { TickerLogo } from "@/components/panels/TickerLogo";
-import {
-  getAlpacaTickers,
-  generatePerfStats,
-  generateTrades,
-  getPDTStatus,
-} from "@/services/mock/bots";
 import {
   StaggerContainer,
   StaggerCard,
   staggerContainerProps,
   staggerCardProps,
 } from "@/components/layout/TabTransition";
+import { useAlpacaBot } from "@/hooks/use-alpaca-bot";
+import { AlpacaStatusStrip } from "./AlpacaStatusStrip";
+import { FunnelPanel } from "./FunnelPanel";
+import { CandidateTable } from "./CandidateTable";
+import { IntentsPanel } from "./IntentsPanel";
+import { PositionsTable } from "./PositionsTable";
+import { ExecutionsLedger } from "./ExecutionsLedger";
+import { OptionsConfluencePanel } from "./OptionsConfluencePanel";
 
-interface OptionsRow {
-  strike: number;
-  expiry: string;
-  type: "CALL" | "PUT";
-  volume: number;
-  oi: number;
-  iv: string;
-  delta: string;
-  note: string;
-}
+const PANEL_STYLE: React.CSSProperties = {
+  background: "var(--bg-panel)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  borderRadius: "var(--radius-xl)",
+  padding: 16,
+};
 
-const MOCK_OPTIONS: OptionsRow[] = [
-  {
-    strike: 195,
-    expiry: "06/21",
-    type: "CALL",
-    volume: 4200,
-    oi: 1200,
-    iv: "28.4%",
-    delta: "+0.54",
-    note: "UNUSUAL ▲",
-  },
-  {
-    strike: 190,
-    expiry: "06/21",
-    type: "PUT",
-    volume: 890,
-    oi: 3100,
-    iv: "31.2%",
-    delta: "-0.38",
-    note: "",
-  },
-  {
-    strike: 420,
-    expiry: "07/19",
-    type: "CALL",
-    volume: 6800,
-    oi: 2400,
-    iv: "24.1%",
-    delta: "+0.61",
-    note: "UNUSUAL ▲",
-  },
-  {
-    strike: 415,
-    expiry: "07/19",
-    type: "PUT",
-    volume: 440,
-    oi: 980,
-    iv: "26.5%",
-    delta: "-0.42",
-    note: "",
-  },
-  {
-    strike: 250,
-    expiry: "06/21",
-    type: "CALL",
-    volume: 12000,
-    oi: 4200,
-    iv: "58.3%",
-    delta: "+0.48",
-    note: "UNUSUAL ▲",
-  },
-  {
-    strike: 240,
-    expiry: "06/21",
-    type: "PUT",
-    volume: 2200,
-    oi: 1800,
-    iv: "62.1%",
-    delta: "-0.55",
-    note: "",
-  },
-];
+const SECTION_LABEL: React.CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 10,
+  color: "#4A5568",
+  letterSpacing: "0.1em",
+  marginBottom: 8,
+};
 
-const OPT_COLS: Column<OptionsRow>[] = [
-  { key: "strike", header: "STRIKE", align: "right", width: 55 },
-  { key: "expiry", header: "EXPIRY", width: 55 },
-  {
-    key: "type",
-    header: "TYPE",
-    width: 50,
-    render: (r) => (
-      <span
-        style={{
-          color: r.type === "CALL" ? "#00E676" : "#FF3D5A",
-          fontFamily: "var(--font-mono)",
-          fontSize: 11,
-        }}
-      >
-        {r.type}
-      </span>
-    ),
-  },
-  { key: "volume", header: "VOL", align: "right", width: 55 },
-  { key: "oi", header: "OI", align: "right", width: 50 },
-  {
-    key: "iv",
-    header: "IV",
-    align: "right",
-    width: 55,
-    render: (r) => (
-      <span
-        style={{
-          color: "#FFB800",
-          fontFamily: "var(--font-mono)",
-          fontSize: 11,
-        }}
-      >
-        {r.iv}
-      </span>
-    ),
-  },
-  {
-    key: "delta",
-    header: "DELTA",
-    align: "right",
-    width: 55,
-    render: (r) => (
-      <span
-        style={{
-          color: "#00C3FF",
-          fontFamily: "var(--font-mono)",
-          fontSize: 11,
-        }}
-      >
-        {r.delta}
-      </span>
-    ),
-  },
-  {
-    key: "note",
-    header: "NOTE",
-    render: (r) => (
-      <span
-        style={{
-          color: "#FFB800",
-          fontFamily: "var(--font-mono)",
-          fontSize: 10,
-        }}
-      >
-        {r.note}
-      </span>
-    ),
-  },
-];
-
-function formatCountdown(secs: number): string {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
-function getSession(): { label: string; color: string } {
-  const h = new Date().getUTCHours();
-  if (h >= 9 && h < 13) return { label: "PRE", color: "#FFB800" };
-  if (h >= 13 && h < 20) return { label: "OPEN", color: "#00E676" };
-  return { label: "AFTER", color: "#FFB800" };
-}
-
-export function AlpacaBot() {
-  const tickers = useMemo(() => getAlpacaTickers(), []);
-  const stats = useMemo(() => generatePerfStats(52_000), []);
-  const trades = useMemo(
-    () =>
-      generateTrades(
-        tickers.map((t) => t.symbol),
-        20,
-      ),
-    [tickers],
+export function AlpacaBot(): React.JSX.Element {
+  const {
+    state,
+    isCycling,
+    error,
+    session,
+    equity,
+    buyingPower,
+    runCycle,
+    refresh,
+  } = useAlpacaBot();
+  const cycle = state.lastCycle;
+  const [selectedSymbol, setSelectedSymbol] = React.useState<string | null>(
+    null,
   );
-  const pdt = useMemo(() => getPDTStatus(), []);
-  const session = getSession();
 
-  const [selectedIdx, setSelectedIdx] = useState(0);
-  const selected = tickers[selectedIdx];
+  const analyses = cycle?.analyses ?? [];
+  const decisions = cycle?.decisions ?? [];
+  const riskDecisions = cycle?.risk_decisions ?? [];
+  const blockedReasons = cycle?.blocked_reasons ?? {};
+
+  const activeSymbol = selectedSymbol ?? analyses[0]?.symbol ?? null;
+  const activeAnalysis =
+    analyses.find((a) => a.symbol === activeSymbol) ?? null;
+  const activeDecision =
+    decisions.find((d) => d.symbol === activeSymbol) ?? undefined;
+  const activeIntent =
+    riskDecisions.find((r) => r.intent.symbol === activeSymbol)?.intent ?? null;
 
   return (
     <StaggerContainer
@@ -206,256 +73,165 @@ export function AlpacaBot() {
         height: "100%",
       }}
     >
-      {/* Status strip */}
       <StaggerCard {...staggerCardProps}>
-        <BotStatusStrip
-          name="ALPACA EQUITY BOT v2"
-          stats={stats}
-          extra={
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 16,
-                marginLeft: 8,
-              }}
-            >
-              {/* PDT counter */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "4px 10px",
-                  background:
-                    pdt.dayTradesRemaining <= 1
-                      ? "rgba(255,184,0,0.12)"
-                      : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${pdt.dayTradesRemaining <= 1 ? "rgba(255,184,0,0.4)" : "rgba(255,255,255,0.08)"}`,
-                  borderRadius: 6,
-                }}
-              >
-                {pdt.dayTradesRemaining <= 1 && (
-                  <AlertTriangle size={11} color="#FFB800" />
-                )}
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 9,
-                    color: "#4A5568",
-                  }}
-                >
-                  DAY TRADES
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: pdt.dayTradesRemaining <= 1 ? "#FFB800" : "#E8EDF5",
-                  }}
-                >
-                  {pdt.dayTradesUsed}/3
-                </span>
-              </div>
-
-              {/* Session */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 9,
-                    color: "#4A5568",
-                  }}
-                >
-                  SESSION
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: session.color,
-                  }}
-                >
-                  {session.label}
-                </span>
-              </div>
-
-              {/* Buying power */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 9,
-                    color: "#4A5568",
-                  }}
-                >
-                  BUYING PWR
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "#E8EDF5",
-                  }}
-                >
-                  $
-                  {pdt.buyingPower.toLocaleString("en-US", {
-                    maximumFractionDigits: 0,
-                  })}
-                </span>
-              </div>
-
-              {/* PDT badge */}
-              {pdt.isPatternDayTrader && (
-                <div
-                  style={{
-                    padding: "2px 8px",
-                    background: "rgba(255,61,90,0.15)",
-                    border: "1px solid rgba(255,61,90,0.4)",
-                    borderRadius: "var(--radius-pill)",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 9,
-                      color: "#FF3D5A",
-                      letterSpacing: "0.1em",
-                    }}
-                  >
-                    PDT
-                  </span>
-                </div>
-              )}
-            </div>
-          }
+        <AlpacaStatusStrip
+          state={state}
+          session={session}
+          equity={equity}
+          buyingPower={buyingPower}
+          isCycling={isCycling}
+          onRunCycle={(allowLive) => void runCycle(allowLive)}
+          onRefresh={() => void refresh()}
         />
       </StaggerCard>
 
-      {/* Ticker cards (8) */}
-      <StaggerCard {...staggerCardProps}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(8, 1fr)",
-            gap: 8,
-          }}
-        >
-          {tickers.map((t, i) => (
-            <TickerCard
-              key={t.symbol}
-              ticker={t}
-              selected={i === selectedIdx}
-              onClick={() => setSelectedIdx(i)}
-            />
-          ))}
-        </div>
-      </StaggerCard>
-
-      {/* Options Activity Monitor */}
-      <StaggerCard {...staggerCardProps}>
-        <div
-          style={{
-            background: "var(--bg-panel)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            borderRadius: "var(--radius-lg)",
-            padding: "12px 16px",
-          }}
-        >
+      {error && (
+        <StaggerCard {...staggerCardProps}>
           <div
             style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 14px",
+              background: "rgba(255,61,90,0.1)",
+              border: "1px solid rgba(255,61,90,0.4)",
+              borderRadius: "var(--radius-lg)",
               fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              color: "#4A5568",
-              letterSpacing: "0.1em",
-              marginBottom: 8,
+              fontSize: 11,
+              color: "#FF3D5A",
             }}
           >
-            OPTIONS ACTIVITY MONITOR — unusual flow highlighted
+            <AlertTriangle size={13} />
+            {error}
           </div>
-          <DataTable<OptionsRow>
-            columns={OPT_COLS}
-            data={MOCK_OPTIONS}
-            rowKey={(_, i) => i}
-            maxHeight={180}
-          />
-        </div>
+        </StaggerCard>
+      )}
+
+      <StaggerCard {...staggerCardProps}>
+        <FunnelPanel cycle={cycle} />
       </StaggerCard>
 
-      {/* Bottom: Chart + Performance */}
       <StaggerCard {...staggerCardProps} style={{ flex: 1, minHeight: 0 }}>
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "60% 40%",
+            gridTemplateColumns: "58% 42%",
             gap: 12,
             height: "100%",
           }}
         >
+          {/* Left: candidates + chart */}
           <div
             style={{
-              background: "var(--bg-panel)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: "var(--radius-xl)",
-              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              minHeight: 0,
             }}
           >
             <div
               style={{
+                ...PANEL_STYLE,
+                flex: 1,
+                minHeight: 0,
                 display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                color: "#4A5568",
-                letterSpacing: "0.1em",
-                marginBottom: 8,
+                flexDirection: "column",
               }}
             >
-              <TickerLogo symbol={selected.symbol} size={14} />
-              <span>
-                LIVE CHART — {selected.symbol} · {selected.orderType}
-              </span>
-              {selected.fractionalSize && (
-                <span style={{ color: "#8B9AAF" }}>
-                  ({selected.fractionalSize})
-                </span>
-              )}
+              <div style={SECTION_LABEL}>
+                CANDIDATOS DEL EMBUDO · ordenados por score
+              </div>
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <CandidateTable
+                  analyses={analyses}
+                  decisions={decisions}
+                  selected={activeSymbol}
+                  onSelect={setSelectedSymbol}
+                  route1Symbols={cycle?.route1_symbols ?? []}
+                />
+              </div>
             </div>
-            <CandleChart
-              ticker={selected.symbol}
-              initialPrice={selected.price}
-              entryPrice={selected.entryPrice}
-              takeProfit={selected.takeProfit}
-              stopLoss={selected.stopLoss}
-              height={260}
-            />
+
+            <div style={PANEL_STYLE}>
+              <div
+                style={{
+                  ...SECTION_LABEL,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {activeSymbol && <TickerLogo symbol={activeSymbol} size={14} />}
+                LIVE CHART — {activeSymbol ?? "—"}
+              </div>
+              <CandleChart
+                ticker={activeSymbol ?? "SPY"}
+                initialPrice={activeAnalysis?.latest_close ?? 0}
+                entryPrice={activeIntent?.reference_price ?? 0}
+                takeProfit={activeIntent?.take_profit ?? 0}
+                stopLoss={activeIntent?.stop_loss ?? 0}
+                height={220}
+              />
+            </div>
           </div>
 
+          {/* Right: intents + positions + executions */}
           <div
             style={{
-              background: "var(--bg-panel)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: "var(--radius-xl)",
-              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              minHeight: 0,
               overflowY: "auto",
             }}
           >
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                color: "#4A5568",
-                letterSpacing: "0.1em",
-                marginBottom: 12,
-              }}
-            >
-              PERFORMANCE
+            <div style={PANEL_STYLE}>
+              <OptionsConfluencePanel
+                analysis={activeAnalysis}
+                decision={activeDecision}
+                route1Symbols={cycle?.route1_symbols ?? []}
+              />
             </div>
-            <PerformancePanel stats={stats} trades={trades} />
+
+            <div style={PANEL_STYLE}>
+              <IntentsPanel riskDecisions={riskDecisions} />
+            </div>
+
+            <div style={PANEL_STYLE}>
+              <div style={SECTION_LABEL}>POSICIONES ABIERTAS</div>
+              <PositionsTable positions={state.positions} />
+            </div>
+
+            <div style={PANEL_STYLE}>
+              <ExecutionsLedger cycle={cycle} />
+            </div>
+
+            {Object.keys(blockedReasons).length > 0 && (
+              <div style={PANEL_STYLE}>
+                <div style={SECTION_LABEL}>MOTIVOS DE BLOQUEO</div>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                >
+                  {Object.entries(blockedReasons).map(([symbol, reasons]) => (
+                    <div
+                      key={symbol}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                      }}
+                    >
+                      <span style={{ color: "#E8EDF5" }}>{symbol}</span>
+                      <span style={{ color: "#8B9AAF", textAlign: "right" }}>
+                        {reasons.join(", ")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </StaggerCard>

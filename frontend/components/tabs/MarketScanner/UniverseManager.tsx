@@ -100,7 +100,7 @@ export function UniverseManager({
               fontSize: 10,
             }}
           >
-            <Plus size={12} /> {isScanning ? "SCANNING..." : "RESCAN"}
+            <Plus size={12} /> {isScanning ? "SCANNING..." : "SCAN MARKET"}
           </button>
         </div>
       </div>

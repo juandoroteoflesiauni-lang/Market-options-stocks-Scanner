@@ -455,16 +455,38 @@ export function MarketScanner() {
               {sortAsc ? "ASC" : "DESC"}
             </button>
 
-            <span
-              style={{
-                marginLeft: "auto",
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                color: "#4A5568",
-              }}
-            >
-              {isScanning ? "Scanning..." : `${filtered.length} tickers`}
-            </span>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  color: "#4A5568",
+                }}
+              >
+                {filtered.length} tickers
+              </span>
+              <button
+                onClick={scan}
+                disabled={isScanning}
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  fontWeight: "bold",
+                  padding: "5px 12px",
+                  background: isScanning
+                    ? "rgba(255,255,255,0.05)"
+                    : "rgba(0, 195, 255, 0.15)",
+                  border: `1px solid ${isScanning ? "rgba(255,255,255,0.08)" : "rgba(0, 195, 255, 0.4)"}`,
+                  borderRadius: 6,
+                  color: isScanning ? "#4A5568" : "#00C3FF",
+                  cursor: isScanning ? "default" : "pointer",
+                  transition: "all 0.15s",
+                  boxShadow: isScanning ? "none" : "0 0 10px rgba(0, 195, 255, 0.15)",
+                }}
+              >
+                {isScanning ? "SCANNING..." : "SCAN MARKET"}
+              </button>
+            </div>
           </div>
         </StaggerCard>
 
@@ -492,7 +514,9 @@ export function MarketScanner() {
               >
                 {isScanning
                   ? "Scanning universe..."
-                  : "No tickers match the active filters"}
+                  : tickers.length === 0
+                    ? "Click 'Scan Market' to start scanning."
+                    : "No tickers match the active filters"}
               </div>
             )}
             {filteredTickers.map((t) => (

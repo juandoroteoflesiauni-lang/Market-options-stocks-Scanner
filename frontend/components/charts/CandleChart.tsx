@@ -88,10 +88,17 @@ export function CandleChart({
     const extras = [entryPrice, takeProfit, stopLoss].filter(
       Boolean,
     ) as number[];
+    let pMin = Math.min(...lows, ...extras) * 0.999;
+    let pMax = Math.max(...highs, ...extras) * 1.001;
+    if (pMax <= pMin) {
+      pMin -= 1;
+      pMax += 1;
+    }
+    const vMax = Math.max(...data.map((d) => d.volume));
     return {
-      priceMin: Math.min(...lows, ...extras) * 0.999,
-      priceMax: Math.max(...highs, ...extras) * 1.001,
-      volMax: Math.max(...data.map((d) => d.volume)),
+      priceMin: pMin,
+      priceMax: pMax,
+      volMax: vMax > 0 ? vMax : 1,
     };
   }, [data, entryPrice, takeProfit, stopLoss]);
 

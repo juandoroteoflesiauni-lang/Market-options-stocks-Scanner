@@ -1,47 +1,73 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  CHALLENGE_PRESETS,
-  generateDailyPnL,
-  generateRules,
-  type ChallengePreset,
-} from "@/data/funding";
+import { CHALLENGE_PRESETS, MFFU_BUILDER_PRESET } from "@/data/funding";
+import { BuilderCockpit } from "./BuilderCockpit";
 import { MetricCard } from "@/components/panels/MetricCard";
 import { ChallengeParams } from "./ChallengeParams";
 import { RiskDashboard } from "./RiskDashboard";
 import { PositionSizer } from "./PositionSizer";
 import { BestOpportunities } from "./BestOpportunities";
-import { formatCurrency, formatPct } from "@/utils/format";
-
-const ACCENT = "#00E676";
+import { useFundingStore } from "@/store/fundingStore";
 
 export function FundingChallenge() {
-  const [preset, setPreset] = useState<ChallengePreset>(CHALLENGE_PRESETS[0]);
+  const {
+    globalContext,
+    riskMetrics,
+    builderMetrics,
+    isLoading,
+    error,
+    startPolling,
+    stopPolling,
+    insertMockTrade,
+  } = useFundingStore();
 
-  const series = useMemo(() => generateDailyPnL(preset, 14), [preset]);
-  const rules = useMemo(() => generateRules(preset, series), [preset, series]);
+  const [preset, setPreset] = useState(MFFU_BUILDER_PRESET);
 
-  const lastDay = series[series.length - 1];
-  const cumPnl = lastDay?.cumulativePnl ?? 0;
-  const dailyPnl = lastDay?.pnl ?? 0;
-  const currentDD = lastDay?.drawdown ?? 0;
+  useEffect(() => {
+    startPolling(5000);
+    return () => stopPolling();
+  }, [startPolling, stopPolling]);
+
+  // Dynamic colors based on market regime
+  const regime = globalContext?.market_regime || "NEUTRAL";
+  const ACCENT = useMemo(() => {
+    switch (regime) {
+      case "MELTDOWN":
+        return "#FF3D5A"; // Red
+      case "BEAR":
+        return "#FFB800"; // Orange
+      case "BULL":
+        return "#00E676"; // Green
+      case "NEUTRAL":
+      default:
+        return "#00C3FF"; // Blue
+    }
+  }, [regime]);
+
+  // Compute mock PnL values for the dashboard based on the trades (using sample_size and expectancy as a proxy)
+  const cumPnl = riskMetrics ? riskMetrics.sample_size * parseFloat(riskMetrics.expectancy_r) * 100 : 0;
   const balance = preset.accountSize + cumPnl;
   const pctToTarget = (cumPnl / preset.profitTarget) * 100;
-  const ddUsedPct = (currentDD / preset.maxDrawdown) * 100;
-  const dailyUsedPct =
-    (Math.abs(dailyPnl < 0 ? dailyPnl : 0) / preset.dailyLossLimit) * 100;
+  
+  const bufferZoneColor = useMemo(() => {
+    if (!riskMetrics) return ACCENT;
+    if (riskMetrics.buffer_zone === "RED") return "#FF3D5A";
+    if (riskMetrics.buffer_zone === "YELLOW") return "#FFB800";
+    return "#00E676";
+  }, [riskMetrics, ACCENT]);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       style={{
         display: "flex",
         flexDirection: "column",
         gap: 14,
         height: "100%",
+        padding: "8px",
       }}
     >
       {/* Header */}
@@ -50,55 +76,64 @@ export function FundingChallenge() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          background: "rgba(15, 23, 42, 0.4)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid rgba(255, 255, 255, 0.05)",
+          borderRadius: "var(--radius-lg)",
+          padding: "12px 16px",
+          boxShadow: "0 4px 24px -4px rgba(0,0,0,0.2)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 11,
+              fontSize: 12,
               color: ACCENT,
-              padding: "2px 8px",
-              border: `1px solid ${ACCENT}40`,
+              padding: "4px 10px",
+              border: `1px solid ${ACCENT}50`,
               borderRadius: "var(--radius-sm)",
-              background: `${ACCENT}10`,
+              background: `${ACCENT}15`,
               letterSpacing: "0.1em",
+              boxShadow: `0 0 12px ${ACCENT}20`,
             }}
           >
-            {preset.firm}
+            REGIME: {regime}
           </span>
           <span
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: 14,
+              fontSize: 15,
+              fontWeight: 500,
               color: "#E8EDF5",
             }}
           >
-            {preset.name}
+            {preset.name} - Phase {preset.phase}
           </span>
-          <span
+          <button
+            onClick={insertMockTrade}
+            disabled={isLoading}
             style={{
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "var(--radius-md)",
+              padding: "4px 12px",
+              color: "#E8EDF5",
               fontFamily: "var(--font-mono)",
-              fontSize: 9,
-              color: "#4A5568",
-              padding: "1px 6px",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: "var(--radius-sm)",
-              letterSpacing: "0.1em",
+              fontSize: 10,
+              cursor: isLoading ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
             }}
           >
-            {preset.phase}
-          </span>
+            {isLoading ? "Inserting..." : "+ Insert Mock Trade"}
+          </button>
         </div>
-        <span
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 10,
-            color: "#4A5568",
-          }}
-        >
-          Day {series.length} of {preset.maxTradingDays}
-        </span>
+        
+        {error && (
+          <span style={{ color: "#FF3D5A", fontSize: 11, fontFamily: "var(--font-mono)" }}>
+            Error: {error}
+          </span>
+        )}
       </div>
 
       {/* Macro metric cards */}
@@ -106,12 +141,12 @@ export function FundingChallenge() {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 10,
+          gap: 12,
         }}
       >
         <MetricCard
-          title="Balance"
-          value={formatCurrency(balance, true)}
+          title="Account Balance"
+          value={`$${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           delta={(cumPnl / preset.accountSize) * 100}
           deltaLabel="vs start"
           accentColor={ACCENT}
@@ -124,20 +159,18 @@ export function FundingChallenge() {
           accentColor={ACCENT}
         />
         <MetricCard
-          title="Daily P&L vs Limit"
-          value={formatCurrency(dailyPnl, true)}
-          delta={dailyUsedPct}
-          deltaLabel="limit used"
-          accentColor={dailyPnl < 0 ? "#FF3D5A" : ACCENT}
+          title="Kelly Applied"
+          value={riskMetrics ? `${(riskMetrics.kelly_applied * 100).toFixed(2)}%` : "0.00%"}
+          delta={riskMetrics?.sharpe ?? 0}
+          deltaLabel="Sharpe Ratio"
+          accentColor={ACCENT}
         />
         <MetricCard
-          title="Drawdown Used"
-          value={`${ddUsedPct.toFixed(1)}%`}
-          delta={-ddUsedPct}
-          deltaLabel={`of $${preset.maxDrawdown.toLocaleString()}`}
-          accentColor={
-            ddUsedPct > 75 ? "#FF3D5A" : ddUsedPct > 50 ? "#FFB800" : ACCENT
-          }
+          title="Burn Rate (BUR)"
+          value={riskMetrics ? riskMetrics.bur.toFixed(2) : "0.00"}
+          delta={riskMetrics?.risk_of_ruin_pct ?? 0}
+          deltaLabel="Risk of Ruin %"
+          accentColor={bufferZoneColor}
         />
       </div>
 
@@ -153,22 +186,21 @@ export function FundingChallenge() {
         }}
       >
         {/* Left column */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <BuilderCockpit metrics={builderMetrics} accentColor={ACCENT} />
           <ChallengeParams
             selected={preset}
             onSelect={setPreset}
-            rules={rules}
+            accentColor={ACCENT}
           />
           <RiskDashboard
-            series={series}
-            dailyLossLimit={preset.dailyLossLimit}
-            maxDrawdown={preset.maxDrawdown}
-            profitTarget={preset.profitTarget}
+            riskMetrics={riskMetrics}
+            accentColor={ACCENT}
           />
         </div>
 
         {/* Right column */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <PositionSizer
             accountSize={preset.accountSize}
             accentColor={ACCENT}

@@ -130,11 +130,17 @@ describe("useScanner", () => {
     expect(result.current.error).toBeNull();
   });
 
-  it("calls scan on mount and updates tickers", async () => {
+  it("does not call scan on mount but scan() updates tickers when called", async () => {
     const { result } = renderHook(() => useScanner());
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockPerformScan).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.scan();
     });
 
     expect(mockPerformScan).toHaveBeenCalled();
@@ -156,9 +162,14 @@ describe("useScanner", () => {
     const { result } = renderHook(() => useScanner());
 
     await waitFor(() => {
-      expect(result.current.error).not.toBeNull();
+      expect(result.current.isLoading).toBe(false);
     });
 
+    await act(async () => {
+      await result.current.scan();
+    });
+
+    expect(result.current.error).not.toBeNull();
     expect(result.current.error?.message).toBe("Network error");
     expect(result.current.isScanning).toBe(false);
   });
@@ -197,8 +208,14 @@ describe("useScanner", () => {
     const { result } = renderHook(() => useScanner());
 
     await waitFor(() => {
-      expect(result.current.error).not.toBeNull();
+      expect(result.current.isLoading).toBe(false);
     });
+
+    await act(async () => {
+      await result.current.scan();
+    });
+
+    expect(result.current.error).not.toBeNull();
 
     act(() => {
       result.current.clearError();
@@ -215,8 +232,14 @@ describe("useScanner", () => {
     const { result } = renderHook(() => useScanner());
 
     await waitFor(() => {
-      expect(result.current.error).not.toBeNull();
+      expect(result.current.isLoading).toBe(false);
     });
+
+    await act(async () => {
+      await result.current.scan();
+    });
+
+    expect(result.current.error).not.toBeNull();
 
     await act(async () => {
       result.current.retry();
@@ -236,7 +259,9 @@ describe("useScanner", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    useScannerStore.setState({ tickers: [makeTicker()] });
+    act(() => {
+      useScannerStore.setState({ tickers: [makeTicker()] });
+    });
 
     await act(async () => {
       await result.current.refreshPrices();
@@ -252,7 +277,9 @@ describe("useScanner", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    useScannerStore.setState({ tickers: [makeTicker()] });
+    act(() => {
+      useScannerStore.setState({ tickers: [makeTicker()] });
+    });
 
     await act(async () => {
       await result.current.loadContext();
