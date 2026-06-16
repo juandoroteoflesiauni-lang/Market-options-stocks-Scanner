@@ -16,6 +16,7 @@ repos:
     hooks:
       - id: gitleaks
         name: 🔒 gitleaks — scan for secrets
+        args: [--config, .gitleaks.toml]
 
   # ── Prioridad 2: Formato Python ──────────────────────────────────────────
   - repo: https://github.com/psf/black

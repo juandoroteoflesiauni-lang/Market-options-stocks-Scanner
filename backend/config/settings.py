@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MarketDataSettings(BaseSettings):
-    default_universe: list[str] = ["AAPL", "MSFT", "TSLA", "GOOGL", "META", "NVDA", "AMZN", "SPY", "NFLX", "AMD", "PLTR", "COIN"]
+    default_universe: list[str] = [
+        "AAPL",
+        "MSFT",
+        "TSLA",
+        "GOOGL",
+        "META",
+        "NVDA",
+        "AMZN",
+        "SPY",
+        "NFLX",
+        "AMD",
+        "PLTR",
+        "COIN",
+    ]
     """Configuration class for market data infrastructure and secrets.
 
     Automatically loads variables from the environment and the .env file.
@@ -46,6 +61,9 @@ class MarketDataSettings(BaseSettings):
     # "paper" (paper-api real, default) | "dry_run" (intercepted) | "live" (real money)
     alpaca_trading_mode: str = "paper"
     alpaca_paper_trading: bool = True
+
+    # LLM (Gemini) — optional; required only for AI audit / agent features
+    gemini_api_key: SecretStr | None = None
 
     # BingX API and Bot config
     bingx_api_key: SecretStr | None = None
@@ -93,9 +111,6 @@ class MarketDataSettings(BaseSettings):
         if not value.get_secret_value().strip():
             raise ValueError("Secret field cannot be empty or consist only of whitespace.")
         return value
-
-
-from functools import lru_cache
 
 
 @lru_cache(maxsize=1)
