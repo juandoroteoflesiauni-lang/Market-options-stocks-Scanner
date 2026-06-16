@@ -1,14 +1,14 @@
+from __future__ import annotations
+from typing import Any
 """Contratos de Dominio para el Motor de Dinámica LOB (Limit Order Book) — Sector Técnico.
 
 Define las enumeraciones, configuraciones, instantáneas, eventos y resultados
 para el análisis de microestructura y detección de spoofing en tiempo real.
 """
 
-from __future__ import annotations
 
 from enum import IntEnum
 from math import isfinite
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 

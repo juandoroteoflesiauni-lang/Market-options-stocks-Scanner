@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Diagnostico asincorno de salud para claves API de QuantumAnalyzer.
 
 Ejecuta pings HTTP ultraligeros sobre:
@@ -7,7 +8,6 @@ Ejecuta pings HTTP ultraligeros sobre:
 - Ollama local (resiliencia on-prem)
 """
 
-from __future__ import annotations
 
 import asyncio
 import os

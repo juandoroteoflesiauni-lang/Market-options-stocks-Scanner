@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Volatility-based TTL (Time-To-Live) strategy for fundamental data.
 
@@ -12,7 +13,6 @@ Classification by Volatility:
 - REALTIME: Price, volume (change every second)
 """
 
-from __future__ import annotations
 
 from datetime import timedelta
 from enum import Enum

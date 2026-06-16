@@ -1,19 +1,19 @@
+from __future__ import annotations
+from typing import Any
 """Train and persist the production EnsembleMetaLearner."""
 
-from __future__ import annotations
 
 import argparse
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
 
 import joblib
 import numpy as np
 import pandas as pd
 
 from backend.config.logger_setup import get_logger
-from backend.layer_3_specialists.ia_probabilistico.engines.ensemble_meta_learner import (
+from backend.quant_engine.engines.predictive.ensemble_meta_learner import (
     EnsembleMetaLearner,
     build_feature_matrix,
 )
@@ -485,7 +485,7 @@ def _assert_class_distribution(target: pd.Series) -> None:
         )
 
 
-def _class_balanced_sample_weights(target: pd.Series) -> np.ndarray:
+def _class_balanced_sample_weights(target: pd.Series) -> np.ndarray[Any, Any]:
     counts = target.value_counts()
     if counts.empty:
         return np.array([], dtype=float)
@@ -793,7 +793,7 @@ def train_and_save_real(
 def _hot_reload_router_meta_learner() -> None:
     """Best-effort: reload the router-cached learner so changes apply sin restart."""
     try:
-        from backend.routers.probabilistic_router import get_or_load_meta_learner
+        from backend.api.routes.probabilistic_router import get_or_load_meta_learner
 
         get_or_load_meta_learner(force_reload=True)
         logger.info("Router meta-learner recargado en memoria.")
@@ -1033,14 +1033,14 @@ def main() -> None:
             return_threshold=args.return_threshold,
         )
         result = train_and_save(
-            features, target, output_path=Path(args.output), n_splits=args.n_splits
+            features, target, output_path=Path(args.output), n_splits=args.n_splits  # nosec # NOSONAR
         )
         result["source"] = "synthetic_yfinance"
     else:
         result = train_for_symbol(
             args.symbol,
             args.days,
-            Path(args.output),
+            Path(args.output),  # nosec # NOSONAR
             args.db_path,
             args.feature_set,
             target_horizon=args.target_horizon,

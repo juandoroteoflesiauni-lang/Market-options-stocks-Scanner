@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """Thin wrapper para endpoints REST de Finnhub."""
 
-from __future__ import annotations
 
 import logging
 import os
 from datetime import date, timedelta
-from typing import Any
 
 logger = logging.getLogger("backend.layer_1_data.datos.finnhub")
 

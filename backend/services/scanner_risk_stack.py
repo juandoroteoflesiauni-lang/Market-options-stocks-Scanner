@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import Any
 """Institutional portfolio risk stack: score → factor constraints → production sizing (Point 6)."""
 
-from __future__ import annotations
 
 import math
 import os
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (
@@ -16,7 +16,7 @@ from backend.domain.market_scanner_models import (
     ScannerRiskStackConstraints,
     ScannerRiskStackResponse,
 )
-from backend.layer_5_risk.portfolio_risk.component import fractional_kelly
+from backend.services.portfolio_risk.component import fractional_kelly
 from backend.services.scanner_factor_constraints import (
     apply_correlation_penalty_to_weights,
     apply_factor_limits,

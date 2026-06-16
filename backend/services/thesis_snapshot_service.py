@@ -1,13 +1,13 @@
+from __future__ import annotations
+from typing import Any
 """Generate reproducible metadata snapshots for ThesisV2 outputs."""
 
-from __future__ import annotations
 
 import hashlib
 import json
 import re
 from collections.abc import Callable
 from datetime import UTC, date, datetime
-from typing import Any
 
 from pydantic import BaseModel
 

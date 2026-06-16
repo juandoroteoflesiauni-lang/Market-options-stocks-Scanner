@@ -1,10 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """Tamper-evident audit ledger for the FTMO playbook.
 
 The audit service is local and read-only toward brokers. It records the manual
 playbook evidence needed to reconstruct operational decisions.
 """
 
-from __future__ import annotations
 
 import hashlib
 import json
@@ -12,7 +13,6 @@ import sqlite3
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.services.funding_lab_service import DEFAULT_PREDICTIONS_DB

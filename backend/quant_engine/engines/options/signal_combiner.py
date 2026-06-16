@@ -1,3 +1,4 @@
+from typing import Any
 """
 Signal Combiner — Motor de Score Unificado
 ══════════════════════════════════════════
@@ -30,10 +31,12 @@ Compatibilidad: pandas >= 2.0 · numpy >= 1.24 · pandas-ta
 import warnings
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 import numpy as np
 import pandas as pd
+import logging
+logger = logging.getLogger(__name__)
+
 
 warnings.filterwarnings("ignore")
 
@@ -443,8 +446,7 @@ class CombinerOutput:
 
     # Pesos aplicados
     regime: GammaRegime
-    weights: dict
-
+    weights: dict[str, Any]
     # Contexto de confianza
     agreement_level: str  # "full" | "partial" | "split" | "contradiction"
     active_multipliers: list[str]
@@ -460,7 +462,7 @@ class CombinerOutput:
     risk_level: str  # "LOW" | "MEDIUM" | "HIGH" | "EXTREME"
     recommended_size_pct: float  # % del tamaño base recomendado (0.25-1.0)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
             "ticker": self.ticker,
@@ -1212,9 +1214,9 @@ def run_signal_combiner_pipeline(
     verbose: bool = True,
 ) -> pd.DataFrame:
 
-    print(f"\n{'═'*68}")
-    print(f"  SIGNAL COMBINER  |  {ticker}  |  {n} velas  |  umbral={entry_threshold}")
-    print(f"{'═'*68}")
+    logger.info(f"\n{'═'*68}")
+    logger.info(f"  SIGNAL COMBINER  |  {ticker}  |  {n} velas  |  umbral={entry_threshold}")
+    logger.info(f"{'═'*68}")
 
     combiner = SignalCombiner(
         ticker=ticker,
@@ -1239,37 +1241,37 @@ def run_signal_combiner_pipeline(
 def _print_report(df: pd.DataFrame, ticker: str, threshold: float):
     last = df.iloc[-1]
 
-    print(f"\n── Score actual {ticker} ────────────────────────────────")
-    print(f"  Dirección          : {last['direction']}")
-    print(f"  Score              : {last['score']:+.2f} / 100")
-    print(f"  Confianza          : {last['confidence']:.1%}")
-    print(f"  Régimen Gamma      : {last['regime']}")
-    print(f"  Acuerdo motores    : {last['agreement_level']}")
-    print(f"  Mult. confianza    : {last['confidence_mult']:.3f}")
-    print(f"  Multiplicadores    : {last.get('active_multipliers', [])}")
+    logger.info(f"\n── Score actual {ticker} ────────────────────────────────")
+    logger.info(f"  Dirección          : {last['direction']}")
+    logger.info(f"  Score              : {last['score']:+.2f} / 100")
+    logger.info(f"  Confianza          : {last['confidence']:.1%}")
+    logger.info(f"  Régimen Gamma      : {last['regime']}")
+    logger.info(f"  Acuerdo motores    : {last['agreement_level']}")
+    logger.info(f"  Mult. confianza    : {last['confidence_mult']:.3f}")
+    logger.info(f"  Multiplicadores    : {last.get('active_multipliers', [])}")
 
-    print("\n── Descomposición del score ──")
-    print(f"  GEX-VWAP          : {last['score_gex_vwap']:+.2f}")
-    print(f"  BB-GEX            : {last['score_bb_gex']:+.2f}")
-    print(f"  Delta-RSI         : {last['score_delta_rsi']:+.2f}")
-    print(f"  Shadow MACD       : {last['score_shadow_macd']:+.2f}")
-    print("  ─────────────────────────")
+    logger.info("\n── Descomposición del score ──")
+    logger.info(f"  GEX-VWAP          : {last['score_gex_vwap']:+.2f}")
+    logger.info(f"  BB-GEX            : {last['score_bb_gex']:+.2f}")
+    logger.info(f"  Delta-RSI         : {last['score_delta_rsi']:+.2f}")
+    logger.info(f"  Shadow MACD       : {last['score_shadow_macd']:+.2f}")
+    logger.info("  ─────────────────────────")
     total = (
         last["score_gex_vwap"]
         + last["score_bb_gex"]
         + last["score_delta_rsi"]
         + last["score_shadow_macd"]
     )
-    print(f"  Suma bruta        : {total:+.2f}")
-    print(f"  Score final       : {last['score']:+.2f}")
+    logger.info(f"  Suma bruta        : {total:+.2f}")
+    logger.info(f"  Score final       : {last['score']:+.2f}")
 
-    print("\n── Contexto de riesgo ──")
-    print(f"  Nivel de riesgo    : {last['risk_level']}")
-    print(f"  Tamaño recomendado : {last['size_pct']:.0%}")
-    print(f"  Entrada permitida  : {last['entry_allowed']}")
-    print(f"  Cerca Gamma Flip   : {last['near_gamma_flip']}")
-    print(f"  Divergencia activa : {last['divergence_present']}")
-    print(f"  Sweep confirmado   : {last['sweep_confirmed']}")
+    logger.info("\n── Contexto de riesgo ──")
+    logger.info(f"  Nivel de riesgo    : {last['risk_level']}")
+    logger.info(f"  Tamaño recomendado : {last['size_pct']:.0%}")
+    logger.info(f"  Entrada permitida  : {last['entry_allowed']}")
+    logger.info(f"  Cerca Gamma Flip   : {last['near_gamma_flip']}")
+    logger.info(f"  Divergencia activa : {last['divergence_present']}")
+    logger.info(f"  Sweep confirmado   : {last['sweep_confirmed']}")
 
     # Estadísticas de sesión
     longs = (df["direction"] == "LONG").sum()
@@ -1277,31 +1279,31 @@ def _print_report(df: pd.DataFrame, ticker: str, threshold: float):
     neutral = (df["direction"] == "NEUTRAL").sum()
     allowed = df["entry_allowed"].sum()
 
-    print("\n── Estadísticas de sesión ──")
-    print(f"  LONG               : {longs:3d} señales")
-    print(f"  SHORT              : {shorts:3d} señales")
-    print(f"  NEUTRAL            : {neutral:3d} señales")
-    print(f"  Entradas permitidas: {allowed:3d} / {len(df)}")
-    print(f"  Score promedio     : {df['score'].mean():+.2f}")
-    print(f"  Confianza promedio : {df['confidence'].mean():.1%}")
-    print(
+    logger.info("\n── Estadísticas de sesión ──")
+    logger.info(f"  LONG               : {longs:3d} señales")
+    logger.info(f"  SHORT              : {shorts:3d} señales")
+    logger.info(f"  NEUTRAL            : {neutral:3d} señales")
+    logger.info(f"  Entradas permitidas: {allowed:3d} / {len(df)}")
+    logger.info(f"  Score promedio     : {df['score'].mean():+.2f}")
+    logger.info(f"  Confianza promedio : {df['confidence'].mean():.1%}")
+    logger.info(
         f"  Max score LONG     : {df[df['direction']=='LONG']['score'].max() if longs > 0 else 0:+.2f}"
     )
-    print(
+    logger.info(
         f"  Max score SHORT    : {df[df['direction']=='SHORT']['score'].min() if shorts > 0 else 0:+.2f}"
     )
 
     # Distribución de acuerdos
-    print("\n── Acuerdo entre motores ──")
-    print(df["agreement_level"].value_counts().to_string())
+    logger.info("\n── Acuerdo entre motores ──")
+    logger.info(df["agreement_level"].value_counts().to_string())
 
     # Distribución de regímenes
-    print("\n── Regímenes detectados ──")
-    print(df["regime"].value_counts().to_string())
+    logger.info("\n── Regímenes detectados ──")
+    logger.info(df["regime"].value_counts().to_string())
 
     # Señales de alta confianza
     high_conf = df[(df["entry_allowed"] == True) & (df["confidence"] >= 0.65)]
-    print(f"\n── Señales alta confianza (≥65%): {len(high_conf)} ──")
+    logger.info(f"\n── Señales alta confianza (≥65%): {len(high_conf)} ──")
     if not high_conf.empty:
         cols = [
             "direction",
@@ -1312,9 +1314,9 @@ def _print_report(df: pd.DataFrame, ticker: str, threshold: float):
             "risk_level",
             "size_pct",
         ]
-        print(high_conf[cols].tail(8).to_string())
+        logger.info(high_conf[cols].tail(8).to_string())
 
-    print(f"\n{'═'*68}")
+    logger.info(f"\n{'═'*68}")
 
 
 # ─────────────────────────────────────────────
@@ -1442,4 +1444,4 @@ if __name__ == "__main__":
         )
         df.to_csv(f"/tmp/signal_combiner_{ticker.lower()}.csv")
 
-    print("\n✓ Signal Combiner completado para los 5 proxies BingX.")
+    logger.info("\n✓ Signal Combiner completado para los 5 proxies BingX.")

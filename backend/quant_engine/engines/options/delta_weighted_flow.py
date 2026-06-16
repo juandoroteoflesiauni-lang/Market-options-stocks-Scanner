@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/delta_weighted_flow.py
 Sector: IA / Probabilístico
@@ -7,7 +8,6 @@ Delta-Weighted Premium Flow Engine — Capitulation and Mechanical Floor detecto
 Stateless and vectorized implementation without pandas.
 """
 
-from __future__ import annotations
 
 import logging
 from enum import Enum

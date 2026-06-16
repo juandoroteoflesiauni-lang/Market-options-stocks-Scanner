@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """API Consumption Monitor — real-time tracking, cost estimation, and quota alerts."""
 
-from __future__ import annotations
 
 import asyncio
 import logging
@@ -11,7 +12,6 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

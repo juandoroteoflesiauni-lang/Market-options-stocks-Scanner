@@ -1,3 +1,4 @@
+from typing import Any
 """
 backend/layer_1_data/real_time_ws/primary_ws_client.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -8,7 +9,6 @@ Primary (Matba Rofex) WebSocket Client — Using official pyRofex SDK.
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 import pyRofex
 

@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Technical module backtester (signal vs forward returns)."""
 
-from __future__ import annotations
 
 from collections.abc import Sequence
 

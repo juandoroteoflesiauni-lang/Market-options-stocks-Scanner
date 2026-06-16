@@ -1,11 +1,11 @@
-from collections import deque
 from typing import Any
+from collections import deque
 
 import numpy as np
 import pandas as pd
 
 
-def _compute_cmo(close: np.ndarray, period: int = 9) -> np.ndarray:
+def _compute_cmo(close: np.ndarray[Any, Any], period: int = 9) -> np.ndarray[Any, Any]:
     diff = np.diff(close, prepend=close[0])
     ups = np.where(diff > 0, diff, 0.0)
     downs = np.where(diff < 0, -diff, 0.0)
@@ -19,7 +19,7 @@ def _compute_cmo(close: np.ndarray, period: int = 9) -> np.ndarray:
     return cmo
 
 
-def _run_vidya(close: np.ndarray, k_arr: np.ndarray) -> np.ndarray:
+def _run_vidya(close: np.ndarray[Any, Any], k_arr: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     vidya = np.zeros(len(close))
     vidya[0] = close[0]
     for i in range(1, len(close)):
@@ -28,7 +28,7 @@ def _run_vidya(close: np.ndarray, k_arr: np.ndarray) -> np.ndarray:
     return vidya
 
 
-def _crossover_signal(vidya: np.ndarray, close: np.ndarray) -> tuple[bool, bool]:
+def _crossover_signal(vidya: np.ndarray[Any, Any], close: np.ndarray[Any, Any]) -> tuple[bool, bool]:
     if len(vidya) < 2:
         return False, False
     bull_cross = close[-2] <= vidya[-2] and close[-1] > vidya[-1]

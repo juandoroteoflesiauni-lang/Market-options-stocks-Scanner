@@ -1,8 +1,8 @@
+from __future__ import annotations
+from typing import Any
 """Public read-only Binance Options market-data client."""
 
-from __future__ import annotations
 
-from typing import Any
 
 import requests
 

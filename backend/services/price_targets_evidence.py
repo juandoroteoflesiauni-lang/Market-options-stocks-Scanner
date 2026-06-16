@@ -1,6 +1,6 @@
+from __future__ import annotations
 """AI prompt helpers for probabilistic price targets."""
 
-from __future__ import annotations
 
 import os
 

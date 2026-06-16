@@ -1,17 +1,17 @@
+from __future__ import annotations
+from typing import Any
 """Factor history store for scanner conviction attribution.
 
 Persists factor snapshots to SQLite for historical percentile calculation.
 One snapshot per symbol per calendar day to avoid inflation.
 """
 
-from __future__ import annotations
 
 import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import MarketScannerRow
@@ -51,7 +51,8 @@ def _ensure_db() -> None:
 
 
 @contextmanager
-def _db_context():  # type: ignore[misc]
+def _db_context():
+
     """Managed SQLite connection."""
     conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row

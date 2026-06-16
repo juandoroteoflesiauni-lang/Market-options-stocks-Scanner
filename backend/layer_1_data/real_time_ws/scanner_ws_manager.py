@@ -1,3 +1,4 @@
+from typing import Any
 """
 Global WebSocket manager for Market Scanner live prices using Alpaca WS.
 """
@@ -6,7 +7,6 @@ import asyncio
 import contextlib
 import time
 from dataclasses import dataclass
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.config.settings import load_settings
@@ -43,13 +43,14 @@ class ScannerWSManager:
 
     async def start(self) -> None:
         settings = load_settings()
-        if not settings.alpaca_api_key or not settings.alpaca_secret_key:
+        secret = settings.alpaca_secret_key or settings.alpaca_api_secret
+        if not settings.alpaca_api_key or not secret:
             logger.warning("scanner_ws_manager: Missing Alpaca keys. WebSockets disabled.")
             return
 
         self._client = AlpacaWSClient(
-            api_key=settings.alpaca_api_key,
-            secret_key=settings.alpaca_secret_key,
+            api_key=settings.alpaca_api_key.get_secret_value(),
+            secret_key=secret.get_secret_value(),
             bars_feed=settings.alpaca_bars_feed,
             data_rest_base=settings.alpaca_data_base_url,
         )

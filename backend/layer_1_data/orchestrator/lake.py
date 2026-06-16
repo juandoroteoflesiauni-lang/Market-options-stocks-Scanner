@@ -1,3 +1,4 @@
+from typing import Any
 """
 backend/layer_1_data/orchestrator/lake.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -14,7 +15,6 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
 
 # Config
 from backend.config.settings import load_settings
@@ -59,7 +59,8 @@ try:
 
     _YF_AVAILABLE = True
 except ImportError:
-    yf = None  # type: ignore
+    yf = None
+
     _YF_AVAILABLE = False
 
 

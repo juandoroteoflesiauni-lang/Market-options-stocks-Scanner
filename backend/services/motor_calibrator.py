@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """motor_calibrator.py
 =====================
 Isotonic / Platt calibration for probabilistic scanner engines.
@@ -12,10 +14,9 @@ Public API
 - evaluate_calibration(motor_name, y_scores, y_true) -> dict
 """
 
-from __future__ import annotations
 
 import math
-from typing import Any
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -33,8 +34,8 @@ logger = get_logger(__name__)
 
 
 def _expected_calibration_error(
-    y_prob: np.ndarray,
-    y_true: np.ndarray,
+    y_prob: np.ndarray[Any, Any],
+    y_true: np.ndarray[Any, Any],
     n_bins: int = 10,
 ) -> tuple[float, list[dict]]:
     """Compute ECE and per-bin reliability diagram data.
@@ -87,8 +88,8 @@ class MotorCalibrator:
     def fit(
         self,
         motor_name: str,
-        y_scores: list[float] | np.ndarray,
-        y_true: list[float] | np.ndarray,
+        y_scores: list[float] | np.ndarray[Any, Any],
+        y_true: list[float] | np.ndarray[Any, Any],
     ) -> None:
         """Fit isotonic regression calibrator for *motor_name*.
 
@@ -111,8 +112,8 @@ class MotorCalibrator:
     def fit_platt(
         self,
         motor_name: str,
-        y_scores: list[float] | np.ndarray,
-        y_true: list[float] | np.ndarray,
+        y_scores: list[float] | np.ndarray[Any, Any],
+        y_true: list[float] | np.ndarray[Any, Any],
     ) -> None:
         """Fit Platt scaling (logistic regression) calibrator for *motor_name*."""
         xs = np.asarray(y_scores, dtype=float).reshape(-1, 1)
@@ -164,13 +165,15 @@ class MotorCalibrator:
     # ------------------------------------------------------------------
 
     def save(self, path: str) -> None:
-        """Serialize registry to *path* using joblib."""
-        joblib.dump(self._registry, path)
+        """Serialize registry to *path* using joblib (escritura atómica)."""
+        from backend.infrastructure.sqlite_health import atomic_joblib_dump
+
+        atomic_joblib_dump(self._registry, Path(path))
         logger.info("calibrator.save path=%s motors=%d", path, len(self._registry))
 
     def load(self, path: str) -> None:
         """Load registry from *path*.  Merges into existing registry."""
-        loaded: dict = joblib.load(path)
+        loaded: dict[str, Any] = joblib.load(path)
         self._registry.update(loaded)
         logger.info("calibrator.load path=%s motors=%d", path, len(loaded))
 
@@ -181,9 +184,9 @@ class MotorCalibrator:
     def evaluate_calibration(
         self,
         motor_name: str,
-        y_scores: list[float] | np.ndarray,
-        y_true: list[float] | np.ndarray,
-    ) -> dict:
+        y_scores: list[float] | np.ndarray[Any, Any],
+        y_true: list[float] | np.ndarray[Any, Any],
+    ) -> dict[str, Any]:
         """Return Brier score, ECE, and reliability diagram data.
 
         Compares raw scores vs calibrated probabilities so callers can
@@ -240,8 +243,8 @@ def calibrate_to_direction_prob(motor_name: str, raw_score: float) -> float:
 
 def evaluate_calibration(
     motor_name: str,
-    y_scores: list[float] | np.ndarray,
-    y_true: list[float] | np.ndarray,
-) -> dict:
+    y_scores: list[float] | np.ndarray[Any, Any],
+    y_true: list[float] | np.ndarray[Any, Any],
+) -> dict[str, Any]:
     """Module-level shortcut for evaluate_calibration on default singleton."""
     return _default_calibrator.evaluate_calibration(motor_name, y_scores, y_true)

@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Contratos de Dominio para el Motor HMM (Hidden Markov Model) — Sector Técnico.
 
 Define observaciones de mercado, parámetros del modelo, estimaciones online de régimen
 y la salida de análisis para clasificación estadística de regímenes de mercado.
 """
 
-from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 

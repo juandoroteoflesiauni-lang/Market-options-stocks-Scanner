@@ -1,10 +1,10 @@
+from typing import Any
 """
 Gestor de Caché Simple con Métricas
 """
 
 import threading
 from datetime import datetime
-from typing import Any
 
 
 class CacheMetrics:
@@ -92,7 +92,7 @@ class HierarchicalCache:
             return key.startswith(pattern[:-1])
         return key == pattern
 
-    def _get_config_for_key(self, key: str) -> dict:
+    def _get_config_for_key(self, key: str) -> dict[str, Any]:
         for pattern, config in self._patterns.items():
             if self._match_pattern(key, pattern):
                 return config
@@ -172,14 +172,16 @@ import time  # noqa: E402
 from collections.abc import Callable  # noqa: E402
 
 try:
-    import redis  # type: ignore
+    import redis
+
 
     _REDIS_AVAILABLE = True
 except ImportError:
     _REDIS_AVAILABLE = False
 
 try:
-    import msgpack  # type: ignore
+    import msgpack
+
 
     _MSGPACK_AVAILABLE = True
 except ImportError:
@@ -234,7 +236,7 @@ def _hash_params(params: dict | tuple | list | None) -> str:
     if not params:
         return ""
     payload = json.dumps(params, default=str, sort_keys=True)
-    return hashlib.sha1(payload.encode()).hexdigest()[:10]
+    return hashlib.sha256(payload.encode()).hexdigest()[:10]
 
 
 def _serialize(value):

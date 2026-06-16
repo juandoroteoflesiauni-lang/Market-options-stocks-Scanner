@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Read-only FTMO funding playbook service.
 
 The playbook is an operational layer above Funding Lab. It records manual
@@ -5,14 +7,12 @@ account state and trade intentions, but it never talks to a broker and never
 imports the BingX Bot.
 """
 
-from __future__ import annotations
 
 import inspect
 import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 from zoneinfo import ZoneInfo
 
 from backend.config.logger_setup import get_logger

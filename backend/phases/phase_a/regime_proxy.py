@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Regime Proxy — indicador macro global ligero para Phase A.
 
 Proxy de los Modelos Ocultos de Markov (HMM) que corren en capas
@@ -14,7 +15,6 @@ Buckets VIX:
   EXTREME  > 40   →  Crisis: máxima restricción
 """
 
-from __future__ import annotations
 
 import logging
 from dataclasses import dataclass

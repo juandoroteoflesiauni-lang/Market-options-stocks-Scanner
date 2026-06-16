@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Standalone BingX paper-trading daemon.
 
 Runs the full Scan → Filter → Risk → Execute pipeline on a configurable
@@ -16,7 +17,6 @@ Exit codes:
     1  — startup error
 """
 
-from __future__ import annotations
 
 import argparse
 import asyncio

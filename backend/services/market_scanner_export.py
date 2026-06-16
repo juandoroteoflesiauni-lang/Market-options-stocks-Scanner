@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Markdown export for Market Scanner runs (audit / desk handoff)."""
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 

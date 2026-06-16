@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/domain/primary_models.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,9 +7,7 @@ Domain contracts for Primary (Matba Rofex) API (Sector: DATA).
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 

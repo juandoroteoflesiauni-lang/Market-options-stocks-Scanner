@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Motor de Dinámica LOB (Limit Order Book) — Sector Técnico.
 
 Implementa la detección en tiempo real de imbalance de book, ratios
 cancel-to-trade y clasificación de spoofing a partir de snapshots y eventos L2.
 """
 
-from __future__ import annotations
 
 import logging
 from collections import deque

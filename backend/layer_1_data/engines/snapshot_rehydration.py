@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/layer_1_data/engines/snapshot_rehydration.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -6,7 +7,6 @@ Stateless and fail-graceful adaptation for high-fidelity visualization.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import hashlib
 import json

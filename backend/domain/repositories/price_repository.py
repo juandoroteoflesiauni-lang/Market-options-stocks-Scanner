@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Repositorio abstracto para acceso a precios históricos.
 
 Este módulo define el contrato de dominio para obtener datos OHLCV,
 aislando la lógica de negocio de los detalles de implementación de fetchers.
 """
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING

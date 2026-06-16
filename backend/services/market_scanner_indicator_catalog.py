@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Static Market Scanner indicator catalog."""
 
-from __future__ import annotations
 
 from backend.domain.market_scanner_models import (
     ScannerCostTier,

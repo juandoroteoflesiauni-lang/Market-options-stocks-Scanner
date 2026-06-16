@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import Any
 """Orchestrate real BingX tape/L2 and options routing for Market Scanner (Point 1)."""
 
-from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import MarketScannerRow
@@ -45,6 +45,15 @@ async def fetch_bingx_microstructure(
     trade_limit: int = _DEFAULT_TRADE_LIMIT,
 ) -> dict[str, Any]:
     """Fetch trade tape + L2 for one symbol root."""
+    from backend.layer_1_data.datos.equity_l2_watchlist_hub import is_watchlist_symbol
+    from backend.services.equity_l2_feed_service import equity_l2_feed_enabled, get_equity_l2_feed
+
+    normalized = normalize_scanner_symbol(root)
+    if equity_l2_feed_enabled() and is_watchlist_symbol(normalized):
+        cached = get_equity_l2_feed().get_microstructure(normalized)
+        if cached and cached.get("ok"):
+            return {"ok": True, "bundle": cached, "reason": "ok", "source": "equity_l2_feed_cache"}
+
     venue = bingx_venue_symbol(root)
     if not venue:
         return {"ok": False, "reason": "missing_venue_symbol"}
@@ -89,6 +98,11 @@ def apply_microstructure_to_row(row: MarketScannerRow, bundle_dict: dict[str, An
     row.source_attribution["vpin"] = {"tier": "real", "source": "bingx_trade"}
     row.source_attribution["order_flow_delta"] = {"tier": "real", "source": "bingx_trade"}
     row.source_attribution["volume_profile"] = {"tier": "partial", "source": "bingx_l2"}
+    if bundle_dict.get("order_book"):
+        row.source_attribution["lob_dynamics"] = {
+            "tier": "real",
+            "source": "bingx_l2_watchlist",
+        }
 
     register_microstructure_tiers(
         vpin_ok=True,
@@ -213,10 +227,10 @@ async def fetch_options_snapshot_routed(symbol: str) -> object | None:
 async def _fetch_massive_options_snapshot(symbol: str) -> object | None:
     """Massive/Polygon options chain for equity underlyings (original ticker)."""
     try:
-        from backend.layer_3_specialists.opciones_gex.chain_analytics_history import (
+        from backend.quant_engine.engines.options.chain_analytics_history import (
             OptionsChainAnalyticsHistoryStore,
         )
-        from backend.routers.options_router import (
+        from backend.api.routes.options_router import (
             options_chain_analytics_service,
             options_snapshot_service,
         )

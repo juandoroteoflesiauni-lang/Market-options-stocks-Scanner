@@ -1,9 +1,10 @@
-"""BingX bot scheduler — recurring paper/dry-run cycle manager.
+from __future__ import annotations
+from typing import Any
+"""BingX bot scheduler — recurring cycle manager.
 
 Executes the full Scan → Filter → Risk → Execute pipeline on a configurable
-interval. Always runs in dry-run (paper-trading) mode. Live scheduling is not
-supported — use the API ``/trade`` endpoint with an explicit ``allow_live``
-gate for live execution.
+interval. Supports both dry-run (paper-trading) and LIVE execution modes.
+WARNING: Running this scheduler in LIVE mode will place real orders on BingX.
 
 Key design decisions
 --------------------
@@ -17,7 +18,6 @@ Key design decisions
   loop stays single-threaded with no locking.
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextlib
@@ -25,7 +25,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta, timezone
 from enum import Enum
-from typing import Any
 
 try:
     import pytz as _pytz
@@ -35,6 +34,7 @@ except ImportError:  # pragma: no cover
     _ET = None
 
 from backend.config.logger_setup import get_logger
+from backend.tasks.dual_loop_policy import DualLoopConfig, DualLoopGate
 
 logger = get_logger(__name__)
 
@@ -72,15 +72,29 @@ class SchedulerConfig:
         When True, periodically rebuild the service universe from the venue.
         Disable this for bounded VST/demo experiments with an explicit symbol list.
     dry_run:
-        Informational flag — always True; the underlying client enforces this.
+        Global flag to enforce paper-trading. False means LIVE.
     """
 
     cycle_interval_s: int = 300
+    fast_interval_s: int = 75
+    slow_interval_s: int = 240
+    dual_loop_enabled: bool = True
     universe_refresh_interval_s: int = 1800
     respect_market_hours: bool = True
     require_healthcheck: bool = True
     refresh_universe: bool = True
     dry_run: bool = True
+
+    @classmethod
+    def from_dual_loop(cls, dual: DualLoopConfig, **kwargs: object) -> SchedulerConfig:
+        """Build config from shared dual-loop policy."""
+        return cls(
+            cycle_interval_s=dual.slow_interval_s,
+            fast_interval_s=dual.fast_interval_s,
+            slow_interval_s=dual.slow_interval_s,
+            dual_loop_enabled=dual.enabled,
+            **kwargs,  # type: ignore[arg-type]
+        )
 
 
 def _et_now(utc_now: datetime) -> datetime:
@@ -126,6 +140,10 @@ class BingXBotScheduler:
     ) -> None:
         self._service = service
         self._config = config or SchedulerConfig()
+        # Override config.dry_run to match the authoritative service flag
+        if hasattr(service, "dry_run"):
+            self._config.dry_run = service.dry_run
+            
         self._audit_store = audit_store
         self._hc_ok: Callable[[], bool] = hc_ok_fn or (lambda: True)
         self._now: Callable[[], datetime] = now_fn or (lambda: datetime.now(UTC))
@@ -142,6 +160,15 @@ class BingXBotScheduler:
         self._last_skip_reason: str | None = None
         self._started_at: str | None = None
         self._stopped_at: str | None = None
+        self._dual_gate = DualLoopGate(
+            DualLoopConfig(
+                enabled=self._config.dual_loop_enabled,
+                fast_interval_s=self._config.fast_interval_s,
+                slow_interval_s=self._config.slow_interval_s,
+            )
+        )
+        self._fast_cycles_completed = 0
+        self._slow_cycles_completed = 0
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -156,7 +183,7 @@ class BingXBotScheduler:
             return
         if not self._service.dry_run:
             logger.warning(
-                "bingx_scheduler.service_not_dry_run — scheduler is designed for paper trading only"
+                "bingx_scheduler.service_not_dry_run — DANGER: SCHEDULER IS RUNNING IN LIVE TRADING MODE"
             )
         self._state = SchedulerState.RUNNING
         self._started_at = self._now().isoformat()
@@ -164,9 +191,11 @@ class BingXBotScheduler:
         loop = asyncio.get_running_loop()
         self._task = loop.create_task(self._run_loop(), name="bingx_bot_scheduler")
         logger.info(
-            "bingx_scheduler.started cycle_interval_s=%d universe_interval_s=%d "
+            "bingx_scheduler.started dual_loop=%s fast_s=%d slow_s=%d universe_interval_s=%d "
             "market_hours=%s healthcheck_gate=%s",
-            self._config.cycle_interval_s,
+            self._config.dual_loop_enabled,
+            self._config.fast_interval_s,
+            self._config.slow_interval_s,
             self._config.universe_refresh_interval_s,
             self._config.respect_market_hours,
             self._config.require_healthcheck,
@@ -198,6 +227,12 @@ class BingXBotScheduler:
             "state": self._state.value,
             "dry_run": self._config.dry_run,
             "cycle_interval_s": self._config.cycle_interval_s,
+            "fast_interval_s": self._config.fast_interval_s,
+            "slow_interval_s": self._config.slow_interval_s,
+            "dual_loop_enabled": self._config.dual_loop_enabled,
+            "fast_cycles_completed": self._fast_cycles_completed,
+            "slow_cycles_completed": self._slow_cycles_completed,
+            "cycle_in_flight": self._dual_gate.in_flight,
             "universe_refresh_interval_s": self._config.universe_refresh_interval_s,
             "respect_market_hours": self._config.respect_market_hours,
             "require_healthcheck": self._config.require_healthcheck,
@@ -221,10 +256,15 @@ class BingXBotScheduler:
 
     async def _run_loop(self) -> None:
         """Main scheduler loop — runs until cancelled or state changes."""
+        sleep_s = (
+            self._config.fast_interval_s
+            if self._config.dual_loop_enabled
+            else self._config.cycle_interval_s
+        )
         try:
             while self._state == SchedulerState.RUNNING:
                 await self._tick()
-                await self._sleep(self._config.cycle_interval_s)
+                await self._sleep(sleep_s)
         except asyncio.CancelledError:
             pass
         except Exception as exc:
@@ -232,7 +272,25 @@ class BingXBotScheduler:
 
     async def _tick(self) -> None:
         """One scheduler tick: conditionally refresh universe, then run cycle."""
-        await self._maybe_refresh_universe()
+        if not self._dual_gate.try_acquire():
+            self._cycles_skipped += 1
+            self._last_skip_reason = "previous_cycle_in_flight"
+            logger.info("bingx_scheduler.cycle_skipped reason=previous_cycle_in_flight")
+            return
+        try:
+            await self._tick_inner()
+        finally:
+            self._dual_gate.release()
+
+    async def _tick_inner(self) -> None:
+        """Inner tick after mutex acquired."""
+        mode = (
+            self._dual_gate.resolve_mode(self._now())
+            if self._config.dual_loop_enabled
+            else "slow"
+        )
+        if mode == "slow":
+            await self._maybe_refresh_universe()
 
         ok, reason = self._should_trade_now()
         if not ok:
@@ -248,13 +306,19 @@ class BingXBotScheduler:
             return
 
         try:
-            result = await self._service.run_cycle()
+            result = await self._service.run_cycle(cycle_mode=mode)
             now = self._now()
             self._last_cycle_at = now
             self._cycles_completed += 1
+            if mode == "slow":
+                self._slow_cycles_completed += 1
+                self._dual_gate.mark_slow_completed(now)
+            else:
+                self._fast_cycles_completed += 1
             self._last_skip_reason = None
             logger.info(
-                "bingx_scheduler.cycle_completed count=%d",
+                "bingx_scheduler.cycle_completed mode=%s count=%d",
+                mode,
                 self._cycles_completed,
             )
         except Exception as exc:

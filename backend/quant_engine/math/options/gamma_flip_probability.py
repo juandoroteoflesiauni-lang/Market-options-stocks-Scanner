@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Cálculo analítico de la probabilidad de Gamma Flip bajo Movimiento Browniano Geométrico."""
 
-from __future__ import annotations
 
 import math
 

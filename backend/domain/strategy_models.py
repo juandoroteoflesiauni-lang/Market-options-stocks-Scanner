@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Domain contracts for executable strategy candidates and options payoff inputs."""
 
-from __future__ import annotations
 
 import re
 from collections.abc import Iterator
 from datetime import date
-from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 

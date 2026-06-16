@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Standalone BingX bot live-execution script.
 
 Executes a full Scan -> Filter -> Risk -> Execute cycle against the BingX
@@ -17,7 +19,6 @@ Exit codes:
     3  — blocked by safety checks (missing --confirm-live flag).
 """
 
-from __future__ import annotations
 
 import argparse
 import asyncio
@@ -27,7 +28,6 @@ import sys
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from backend.services.trade_journal_service import init_table, record_bot_cycle
 
@@ -49,7 +49,7 @@ from backend.layer_1_data.datos.bingx_client import (
 )
 from backend.layer_1_data.fetchers.fmp_client import FMPClient
 from backend.layer_1_data.fetchers.massive_client import MassiveClient
-from backend.routers.options_router import options_snapshot_service
+from backend.api.routes.options_router import options_snapshot_service
 from backend.services.bingx_audit_store import BingXAuditEntry, BingXAuditStore
 from backend.services.bingx_bot_service import (
     DEFAULT_KLINES_PER_SYMBOL,

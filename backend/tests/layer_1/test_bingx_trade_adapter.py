@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for BingX trade tape adapter."""
 
-from __future__ import annotations
 
 from backend.layer_1_data.datos.bingx_trade_adapter import (
     build_microstructure_bundle,

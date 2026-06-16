@@ -1,13 +1,13 @@
+from __future__ import annotations
+from typing import Any
 """Conector de series económicas argentinas desde datos.gob.ar/INDEC."""
 
-from __future__ import annotations
 
 import datetime as _dt
 import json
 import logging
 import urllib.parse
 import urllib.request
-from typing import Final
 
 import pandas as pd
 
@@ -305,7 +305,7 @@ class INDECSeriesFetcher:
                     continue
                 try:
                     fecha = _dt.date.fromisoformat(str(row[0])[:10])
-                    record: dict = {"fecha": fecha}
+                    record: dict[str, Any] = {"fecha": fecha}
                     for i, val in enumerate(row[1:], start=1):
                         if i < len(col_names):
                             record[col_names[i]] = float(val) if val is not None else None

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Equity TA snapshot for the BingX analysis drawer.
 
 This module is intentionally minimal. It exists so the cockpit can show
@@ -24,10 +26,8 @@ inputs the Risk Desk consumes — the funding-rule gate remains the final
 authorizer.
 """
 
-from __future__ import annotations
 
 import math
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.layer_1_data.fetchers.fmp_client import FMPClient

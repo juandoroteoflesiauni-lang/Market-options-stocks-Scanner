@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Narrativas institucionales por dominio + síntesis multimodal (orquestador).
 
 Requiere THESIS_ENABLE_AGENTS=1 y claves LLM según AgentManager.
@@ -5,14 +6,13 @@ Mapeo agente → dominio: options_gex (opciones), technical (técnico), forensic
 microstructure (probabilístico), orchestrator (tesis multimodal final).
 """
 
-from __future__ import annotations
 
 import json
 import os
 from dataclasses import dataclass
 
 from backend.domain.thesis_v2 import ThesisBlock
-from backend.layer_4_orchestration.ai_core.agent_manager import AgentManager
+from backend.services.ai_core.agent_manager import AgentManager
 
 
 def _risk_free_rate() -> float:

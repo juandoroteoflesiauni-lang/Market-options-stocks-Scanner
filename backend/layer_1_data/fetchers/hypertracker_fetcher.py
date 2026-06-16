@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/layer_1_data/fetchers/hypertracker_fetcher.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -6,11 +8,9 @@ Provides institutional sentiment, perp volume metrics, and leaderboard analytics
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Any, Final
 
 try:
     import httpx as _httpx

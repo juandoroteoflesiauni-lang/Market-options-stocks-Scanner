@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Public derivatives market-data client for crypto cross-venue enrichment.
 
 The client is read-only and uses unauthenticated public endpoints from
@@ -7,12 +9,10 @@ funding, open interest, and options volatility/greeks without coupling to a
 single venue schema.
 """
 
-from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
 
 import httpx
 

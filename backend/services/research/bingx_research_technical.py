@@ -1,5 +1,5 @@
-# ruff: noqa: F403, F405
 from __future__ import annotations
+# ruff: noqa: F403, F405
 
 import logging
 
@@ -52,7 +52,8 @@ def _project_technical_desk(
     # Defensive accessor: works for plain dict OR any object with attributes.
     def _g(obj: object, key: str, default: object = None) -> object:
         if isinstance(obj, dict):
-            return obj.get(key, default)  # type: ignore[union-attr]
+            return obj.get(key, default)
+
         return getattr(obj, key, default)
 
     status = str(_g(technical_payload, "status") or "").lower()

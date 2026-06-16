@@ -1,6 +1,6 @@
+from __future__ import annotations
 """CFD spread, slippage and overnight-financing friction simulator."""
 
-from __future__ import annotations
 
 import math
 

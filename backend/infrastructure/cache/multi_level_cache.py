@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 Multi-level cache implementation with L1 (in-memory) + L2 (Redis) tiers.
 
@@ -24,12 +26,10 @@ Performance:
     - Cache hit rate target: 85%+
 """
 
-from __future__ import annotations
 
 import json
 import logging
 import time
-from typing import Any
 
 from cachetools import TTLCache
 
@@ -114,7 +114,8 @@ class MultiLevelCache:
         self._redis_url = redis_url
         self._redis_db = redis_db
         self._key_prefix = key_prefix
-        self._redis: redis.Redis | None = None  # type: ignore
+        self._redis: redis.Redis | None = None
+
         self._metrics = CacheMetrics()
         self._connected: bool = False
 

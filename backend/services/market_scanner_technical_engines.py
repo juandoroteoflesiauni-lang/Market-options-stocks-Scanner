@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 """Market Scanner Technical Engines Adapter — Phase B.
 
 Puente limpio entre las barras OHLCV ya descargadas por el scanner y los
@@ -13,11 +17,9 @@ Contrato público:
   run_technical_engines(symbol, timeframe, bars) -> dict[str, EngineFeatures]
 """
 
-from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -59,6 +61,10 @@ _MIN_BARS: dict[str, int] = {
     "order_flow_delta": 8,
     "volume_profile": 5,
     "hmm_regime": 25,
+    "lob_dynamics": 10,
+    "tpo": 150,
+    "squeeze": 60,
+    "footprint": 30,
 }
 
 _ALL_ENGINE_KEYS: tuple[str, ...] = (
@@ -69,6 +75,10 @@ _ALL_ENGINE_KEYS: tuple[str, ...] = (
     "order_flow_delta",
     "volume_profile",
     "hmm_regime",
+    "lob_dynamics",
+    "tpo",
+    "squeeze",
+    "footprint",
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -145,6 +155,14 @@ def _run_engine(
             return _run_volume_profile(df, real_microstructure=real_microstructure)
         if key == "hmm_regime":
             return _run_hmm(df)
+        if key == "lob_dynamics":
+            return _run_lob_dynamics(df, real_microstructure=real_microstructure)
+        if key == "tpo":
+            return _run_tpo(symbol, df)
+        if key == "squeeze":
+            return _run_squeeze(df)
+        if key == "footprint":
+            return _run_footprint(symbol, df)
     except Exception as exc:
         latency_ms = (time.perf_counter() - t0) * 1000.0
         logger.warning(
@@ -164,7 +182,7 @@ def _run_engine(
 
 
 def _run_smc(df: pd.DataFrame, symbol: str, timeframe: str) -> EngineFeatures:
-    from backend.layer_3_specialists.tecnico.smc import DirectionalBias, SMCEngine
+    from backend.quant_engine.engines.technical.smc import DirectionalBias, SMCEngine
 
     result = SMCEngine().analyze(df, ticker=symbol, timeframe=timeframe)
     if not result.ok:
@@ -206,7 +224,7 @@ def _run_smc(df: pd.DataFrame, symbol: str, timeframe: str) -> EngineFeatures:
 
 
 def _run_fvg(df: pd.DataFrame) -> EngineFeatures:
-    from backend.layer_3_specialists.tecnico.fvg_engine import analyze_fvg_from_ohlcv
+    from backend.quant_engine.engines.technical.fvg_engine import analyze_fvg_from_ohlcv
 
     result = analyze_fvg_from_ohlcv(df)
     if not result.ok:
@@ -251,8 +269,8 @@ def _run_fvg(df: pd.DataFrame) -> EngineFeatures:
 def _run_vsa(df: pd.DataFrame, symbol: str, timeframe: str) -> EngineFeatures:
     # Importar con fallback silencioso si VSAForecastEngine no está disponible
     try:
-        from backend.layer_3_specialists.tecnico.vsa import DirectionalBias as VSABias
-        from backend.layer_3_specialists.tecnico.vsa import VSAEngine
+        from backend.quant_engine.engines.technical.vsa import DirectionalBias as VSABias
+        from backend.quant_engine.engines.technical.vsa import VSAEngine
 
         result = VSAEngine().analyze(df, ticker=symbol, timeframe=timeframe)
     except ImportError:
@@ -337,7 +355,7 @@ def _run_vsa_basic(df: pd.DataFrame, symbol: str, timeframe: str) -> EngineFeatu
 
 
 def _run_market_structure(df: pd.DataFrame) -> EngineFeatures:
-    from backend.layer_3_specialists.tecnico.market_structure_engine import (
+    from backend.quant_engine.engines.technical.market_structure_engine import (
         MarketRegime,
         analyze_market_structure_from_ohlcv,
     )
@@ -408,7 +426,7 @@ def _run_order_flow_delta(
                 engine_status="real",
             )
 
-    from backend.layer_3_specialists.tecnico.order_flow_delta_engine import (
+    from backend.quant_engine.engines.technical.order_flow_delta_engine import (
         DeltaDirection,
         analyze_order_flow_delta_from_ohlcv,
     )
@@ -484,7 +502,7 @@ def _run_volume_profile(
                 engine_status="partial",
             )
 
-    from backend.layer_3_specialists.tecnico.volume_node_engine import (
+    from backend.quant_engine.engines.technical.volume_node_engine import (
         analyze_volume_nodes_from_ohlcv,
     )
 
@@ -543,7 +561,7 @@ def _run_volume_profile(
 
 
 def _run_hmm(df: pd.DataFrame) -> EngineFeatures:
-    from backend.layer_3_specialists.tecnico.hmm_engine import analyze_hmm_regime_from_ohlcv
+    from backend.quant_engine.engines.technical.hmm_engine import analyze_hmm_regime_from_ohlcv
 
     result = analyze_hmm_regime_from_ohlcv(df)
     if not result.ok:
@@ -592,6 +610,150 @@ def _run_hmm(df: pd.DataFrame) -> EngineFeatures:
         reasons=reasons[:4],
         engine_status="real",
     )
+
+
+def _run_lob_dynamics(
+    df: pd.DataFrame, *, real_microstructure: dict[str, Any] | None = None
+) -> EngineFeatures:
+    """Ejecuta el motor de LOB Dynamics. Si no hay datos L2, devuelve partial/fallback."""
+    if (
+        not real_microstructure
+        or not real_microstructure.get("ok")
+        or not real_microstructure.get("order_book")
+    ):
+        return _fallback("No L2 Order Book data provided by data layer")
+
+    try:
+        from backend.quant_engine.engines.technical.lob_dynamics_engine import SpoofingState
+        from backend.services.bingx_l2_integration import order_book_dict_to_lob_analysis
+
+        analysis = order_book_dict_to_lob_analysis(
+            real_microstructure["order_book"],
+            symbol=str(real_microstructure.get("venue_symbol") or ""),
+            market_type="stock_perp",
+        )
+        if not analysis.ok or analysis.result is None:
+            return _fallback(analysis.error or "LOB Dynamics unavailable")
+
+        rho = float(analysis.result.imbalance_rho)
+        score = 50.0
+        bias: EngineBias = "neutral"
+        if rho > 0.3:
+            bias = "bullish"
+            score = 65.0 + (rho * 30.0)
+        elif rho < -0.3:
+            bias = "bearish"
+            score = 35.0 + (rho * 30.0)
+
+        score = float(np.clip(score, 0.0, 100.0))
+        reasons = [f"LOB: Imbalance de {rho:.2f} (Bid/Ask pressure)"]
+        if analysis.result.spoofing_state is not SpoofingState.NORMAL:
+            reasons.append("LOB: Posible spoofing detectado")
+
+        return EngineFeatures(
+            score=score, bias=bias, confidence=0.8, reasons=reasons, engine_status="real"
+        )
+    except Exception as exc:
+        return _fallback(f"LOB Dynamics error: {exc}")
+
+
+def _run_tpo(symbol: str, df: pd.DataFrame) -> EngineFeatures:
+    try:
+        from backend.quant_engine.engines.technical.tpo_skewness import (
+            TPOSkewnessConfig,
+            TPOSkewnessEngine,
+        )
+
+        engine = TPOSkewnessEngine(symbol, TPOSkewnessConfig(compact_level_limit=2500))
+        engine.ingest_frame(df)
+        result = engine.evaluate()
+        if not result.ok:
+            return _fallback(result.error or "TPO error")
+
+        score = 50.0
+        bias: EngineBias = "neutral"
+
+        if result.skewness_value > 0.5:
+            bias = "bullish"
+            score = 70.0
+        elif result.skewness_value < -0.5:
+            bias = "bearish"
+            score = 30.0
+
+        reasons = [f"TPO: Sesgo {result.skewness_value:.2f} ({result.profile_shape.value})"]
+
+        return EngineFeatures(
+            score=score, bias=bias, confidence=0.7, reasons=reasons, engine_status="real"
+        )
+    except Exception as exc:
+        return _fallback(f"TPO error: {exc}")
+
+
+def _run_squeeze(df: pd.DataFrame) -> EngineFeatures:
+    try:
+        from backend.quant_engine.engines.technical.squeeze_ignition import SqueezeIgnitionEngine
+
+        engine = SqueezeIgnitionEngine()
+        result = engine.analyze(df)
+        if not result.ok:
+            return _fallback(result.error or "Squeeze error")
+
+        score = 50.0
+        bias: EngineBias = "neutral"
+        if result.momentum > 0:
+            bias = "bullish"
+            score = 60.0 + (result.momentum * 10.0)
+        elif result.momentum < 0:
+            bias = "bearish"
+            score = 40.0 + (result.momentum * 10.0)
+
+        score = float(np.clip(score, 0.0, 100.0))
+        reasons = [f"Squeeze: Momentum {result.momentum:.2f}"]
+        if result.is_squeezing:
+            reasons.append("Squeeze: Compresión activa detectada")
+
+        return EngineFeatures(
+            score=score,
+            bias=bias,
+            confidence=0.75 if result.is_squeezing else 0.4,
+            reasons=reasons,
+            engine_status="real",
+        )
+    except Exception as exc:
+        return _fallback(f"Squeeze error: {exc}")
+
+
+def _run_footprint(symbol: str, df: pd.DataFrame) -> EngineFeatures:
+    try:
+        from backend.quant_engine.engines.technical.vsa_footprint_engine import VSAFootprintEngine
+
+        result = VSAFootprintEngine().analyze_footprints(df, ticker=symbol)
+        if not result.ok:
+            return _fallback(result.error or "Footprint error")
+
+        score = 50.0
+        bias: EngineBias = "neutral"
+        reasons = []
+
+        last_close = float(df["close"].iloc[-1])
+        if result.nearest_support and result.nearest_resistance:
+            dist_supp = last_close - result.nearest_support
+            dist_res = result.nearest_resistance - last_close
+            if dist_supp < dist_res:
+                bias = "bullish"
+                score = 65.0
+            else:
+                bias = "bearish"
+                score = 35.0
+
+        if result.active_levels:
+            reasons.append(f"Footprint: {len(result.active_levels)} niveles activos")
+
+        return EngineFeatures(
+            score=score, bias=bias, confidence=0.6, reasons=reasons, engine_status="real"
+        )
+    except Exception as exc:
+        return _fallback(f"Footprint error: {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -710,7 +872,7 @@ def aggregate_engine_features(
             continue
 
         final_score = weighted_score / total_weight
-        dominant_bias: EngineBias = max(bias_votes, key=lambda k: bias_votes[k])  # type: ignore[arg-type]
+        dominant_bias: EngineBias = max(bias_votes, key=lambda k: bias_votes[k])
 
         aggregated[engine_key] = EngineFeatures(
             score=final_score,
@@ -728,9 +890,9 @@ def aggregate_engine_features(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _run_smc_updated(df, ticker, timeframe, weight: float) -> dict:
+def _run_smc_updated(df, ticker, timeframe, weight: float) -> dict[str, Any]:
     """Reemplaza _run_smc para output simétrico [-weight, +weight]."""
-    from backend.layer_3_specialists.tecnico.smc import SMCEngine
+    from backend.quant_engine.engines.technical.smc import SMCEngine
 
     engine = SMCEngine()
     result = engine.analyze(df, ticker=ticker, timeframe=timeframe)
@@ -747,9 +909,9 @@ def _run_smc_updated(df, ticker, timeframe, weight: float) -> dict:
     }
 
 
-def _run_vsa_updated(df, ticker, timeframe, weight: float) -> dict:
+def _run_vsa_updated(df, ticker, timeframe, weight: float) -> dict[str, Any]:
     """Reemplaza _run_vsa. Score simétrico [-weight, +weight]."""
-    from backend.layer_3_specialists.tecnico.vsa import VSAEngine
+    from backend.quant_engine.engines.technical.vsa import VSAEngine
 
     engine = VSAEngine()
     result = engine.analyze(df, ticker=ticker, timeframe=timeframe)
@@ -763,7 +925,7 @@ def _run_vsa_updated(df, ticker, timeframe, weight: float) -> dict:
     }
 
 
-def aggregate_engine_features_symmetric(engine_results: dict) -> dict:
+def aggregate_engine_features_symmetric(engine_results: dict) -> dict[str, Any]:
     """
     Agrega scores de todos los engines simétricamente [-1, +1].
     Negativo → señal SHORT, positivo → señal LONG.
@@ -778,6 +940,10 @@ def aggregate_engine_features_symmetric(engine_results: dict) -> dict:
         "ofd": 1.5,
         "volume": 1.0,
         "hmm": 1.8,
+        "lob_dynamics": 1.5,
+        "tpo": 1.8,
+        "squeeze": 1.4,
+        "footprint": 1.5,
     }
 
     total_weight = sum(_ENGINE_WEIGHTS_SYM.values())

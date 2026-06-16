@@ -1,3 +1,4 @@
+from typing import Any
 import numpy as np
 
 from backend.models.result import Result
@@ -10,7 +11,7 @@ from backend.quant_engine.math.predictive.parametric_optimizer import (
 )
 
 
-def dummy_backtest(data: np.ndarray, parameters: dict[str, float]) -> BacktestResult:
+def dummy_backtest(data: np.ndarray[Any, Any], parameters: dict[str, float]) -> BacktestResult:
     # A simple backtest that returns metrics based on parameter values
     param1 = parameters.get("param1", 0.0)
     param2 = parameters.get("param2", 0.0)

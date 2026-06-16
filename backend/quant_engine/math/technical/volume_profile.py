@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Núcleo matemático de Volume Profile — Sector Técnico.
 
 Histograma de alta fidelidad sobre pares (precio, volumen) para detección de
@@ -9,7 +11,6 @@ Restricciones:
 - API orientada a arrays: recibe ndarray, devuelve dataclasses ligeros.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 
@@ -23,14 +24,14 @@ class VolumeProfileMath:
 
     @staticmethod
     def compute_profile(
-        price: np.ndarray, volume: np.ndarray, bins: int = 50, value_area_pct: float = 0.70
-    ) -> tuple[float, float, float, np.ndarray, np.ndarray]:
+        price: np.ndarray[Any, Any], volume: np.ndarray[Any, Any], bins: int = 50, value_area_pct: float = 0.70
+    ) -> tuple[float, float, float, np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """
         Calcula el Punto de Control (POC) y el Área de Valor (VAH/VAL).
 
         Args:
-            price: np.ndarray con la serie de precios (típicamente (H+L+C)/3).
-            volume: np.ndarray con los volúmenes correspondientes.
+            price: np.ndarray[Any, Any] con la serie de precios (típicamente (H+L+C)/3).
+            volume: np.ndarray[Any, Any] con los volúmenes correspondientes.
             bins: Número de particiones para el histograma de precios.
             value_area_pct: Porcentaje del volumen total para el área de valor.
 
@@ -89,8 +90,8 @@ class VolumeProfileMath:
 
     @staticmethod
     def identify_volume_nodes(
-        bin_centers: np.ndarray, hist: np.ndarray, prominence_factor: float = 1.5
-    ) -> tuple[np.ndarray, np.ndarray]:
+        bin_centers: np.ndarray[Any, Any], hist: np.ndarray[Any, Any], prominence_factor: float = 1.5
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """
         Identifica High Volume Nodes (HVN) y Low Volume Nodes (LVN).
         """
@@ -195,13 +196,13 @@ class VolumeProfileEngine:
     Método principal
     ----------------
     analyze(symbol, price_volume_data, bins) -> AnalysisResult
-        price_volume_data : ndarray de shape (n, 2) — columnas [price, volume].
+        price_volume_data : np.ndarray[Any, Any] de shape (n, 2) — columnas [price, volume].
     """
 
     def analyze(
         self,
         symbol: str,
-        price_volume_data: np.ndarray,
+        price_volume_data: np.ndarray[Any, Any],
         bins: int = _DEFAULT_BINS,
         value_area_pct: float = _VALUE_AREA_PCT,
     ) -> AnalysisResult:
@@ -246,7 +247,7 @@ class VolumeProfileEngine:
         return AnalysisResult.ok(report)
 
     @staticmethod
-    def _validate(data: np.ndarray) -> str | None:
+    def _validate(data: np.ndarray[Any, Any]) -> str | None:
         """Retorna mensaje de error o None si los datos son válidos."""
         if not isinstance(data, np.ndarray) or data.size == 0:
             return "price_volume_data is empty"
@@ -265,11 +266,11 @@ class VolumeProfileEngine:
 
 
 def _compute_profile(
-    prices: np.ndarray,
-    volumes: np.ndarray,
+    prices: np.ndarray[Any, Any],
+    volumes: np.ndarray[Any, Any],
     bins: int,
     value_area_pct: float,
-) -> tuple[float, float, float, np.ndarray, np.ndarray]:
+) -> tuple[float, float, float, np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Histograma de volumen → POC, VAH, VAL, centros, volúmenes.
 
     Caso especial: precio constante → bin único con todo el volumen.
@@ -326,8 +327,8 @@ def _compute_profile(
 
 
 def _classify_nodes(
-    centers: np.ndarray,
-    hist: np.ndarray,
+    centers: np.ndarray[Any, Any],
+    hist: np.ndarray[Any, Any],
     poc: float,
 ) -> tuple[tuple[VolumeNode, ...], tuple[float, ...], tuple[float, ...]]:
     """Clasifica cada bin como POC, HVN o LVN según percentiles."""
@@ -371,19 +372,19 @@ def _classify_nodes(
 
 
 def compute_anchored_vwap(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    volume: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    close: np.ndarray[Any, Any],
+    volume: np.ndarray[Any, Any],
     anchor_index: int = 0,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Calcula el Anchored VWAP desde un índice de anclaje hasta el final.
 
     AVWAP_t = Σ(TP_i × V_i) / Σ(V_i)   para i in [anchor_index, t]
 
     Returns
     -------
-    avwap : ndarray de shape (n,) con np.nan para posiciones anteriores al anclaje.
+    avwap : np.ndarray[Any, Any] de shape (n,) con np.nan para posiciones anteriores al anclaje.
     """
     high = np.asarray(high, dtype=np.float64)
     low = np.asarray(low, dtype=np.float64)

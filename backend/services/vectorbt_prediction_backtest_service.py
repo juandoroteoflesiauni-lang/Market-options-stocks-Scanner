@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """Optional vectorbt engine over the institutional prediction SQLite dataset."""
 
-from __future__ import annotations
 
 import importlib
 import math
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 

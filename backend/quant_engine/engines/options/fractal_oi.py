@@ -1,3 +1,4 @@
+from typing import Any
 """
 Fractales Williams + OI Walls Engine
 ====================================
@@ -5,7 +6,6 @@ Williams fractals validated by crossing with Open Interest (OI) walls.
 Issues signals only when a structural fractal coincides with a major OI level.
 """
 
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -78,7 +78,7 @@ class FractalOIEngine:
         close: float,
         chain: list[dict[str, Any]],
         timestamp: pd.Timestamp,
-    ) -> dict:
+    ) -> dict[str, Any]:
         self._high_buf.append(high)
         self._low_buf.append(low)
         self._close_buf.append(close)

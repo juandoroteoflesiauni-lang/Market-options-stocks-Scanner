@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import Any
 """Optional EnsembleMetaLearner adjustment for Market Scanner scores."""
 
-from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -94,7 +94,7 @@ def try_meta_learner_score_delta(
     if model is None:
         return 0.0, None
 
-    from backend.layer_3_specialists.ia_probabilistico.engines.ensemble_meta_learner import (
+    from backend.quant_engine.engines.predictive.ensemble_meta_learner import (
         build_feature_matrix,
     )
 

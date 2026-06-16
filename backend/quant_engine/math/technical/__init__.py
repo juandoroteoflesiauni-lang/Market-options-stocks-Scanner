@@ -1,7 +1,7 @@
 from __future__ import annotations
+from typing import Any
 
 import importlib
-from typing import Any
 
 _SUBMODULES = {
     "hmm_math",

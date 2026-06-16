@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/domain/probabilistic_models.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -6,9 +8,7 @@ Canonical location — layer_3_specialists re-exports from here for compat.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -774,6 +774,23 @@ class PredictiveOptions2Bundle(BaseModel):
     volatility_skew: VolatilitySkewResponse
     tail_risk_smile: TailRiskSmileResponse
     zero_day_gamma_wall: ZeroDayGammaWallResponse
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class PredictiveOptionsBundleReport:
+    """Simple summary report for the decision engine merging the 7 options dimensions."""
+
+    gamma_flip_level: float
+    is_gamma_negative_regime: bool
+    shadow_delta_imbalance: float
+    zero_day_pinning_strike: float
+    speed_instability_warning: bool
+    tail_risk_severity: str
+    zomma_risk_score: float
+    pinning_probability: float = 0.0
 
 
 class ProbabilisticResult(BaseModel):

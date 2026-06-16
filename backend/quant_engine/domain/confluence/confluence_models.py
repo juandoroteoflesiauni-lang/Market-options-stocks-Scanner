@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Contratos de Confluencia de Microestructura — Sector Técnico.
 
 Define las acciones, niveles de convicción y modelos de orquestación para el
 motor de confluencia triple (VSA x SMC x GEX).
 """
 
-from __future__ import annotations
 
 from enum import Enum
 

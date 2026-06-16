@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 Fundamental Analysis Service - Business logic for fundamental data processing.
 
@@ -13,12 +15,10 @@ Performance optimizations:
 - Batched concurrent requests with semaphore limiting
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any
 
 from backend.infrastructure.cache.multi_level_cache import MultiLevelCache, get_cache
 from backend.infrastructure.cache.volatility_ttl import get_ttl_for_endpoint

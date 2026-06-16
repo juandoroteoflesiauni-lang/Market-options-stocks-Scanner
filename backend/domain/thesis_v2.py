@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Contratos Pydantic v2 para thesis institucional multi-bloque (ThesisV2).
 
 Campo → fuente (documentación de trazabilidad):
@@ -9,9 +11,7 @@ Campo → fuente (documentación de trazabilidad):
 - ejecutivo: síntesis del orquestador LLM o resumen heurístico cuando agentes no corren.
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 

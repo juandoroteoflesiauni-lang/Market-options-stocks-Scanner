@@ -1,13 +1,13 @@
+from __future__ import annotations
+from typing import Any
 """Pure FTMO survival scoring for Funding Lab.
 
 This module is intentionally read-only and deterministic. It does not fetch
 market data, inspect broker state, or depend on the BingX Bot.
 """
 
-from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any
 
 FTMO_PROFILE_ID = "ftmo_2_step"
 FTMO_INITIAL_CAPITAL = 100_000.0

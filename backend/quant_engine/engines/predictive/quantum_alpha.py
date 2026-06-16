@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/engine/metrics/quantum_alpha.py
 Sector: IA / Probabilístico
@@ -6,12 +8,10 @@ Sector: IA / Probabilístico
 Quantum Alpha Engine — Multimodal Predictive ML Facade distilled strictly for inference.
 """
 
-from __future__ import annotations
 
 import logging
 import time
 from functools import lru_cache
-from typing import Any, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -46,8 +46,8 @@ class MultimodalPredictionResult(BaseModel):
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
-    logits: np.ndarray
-    probabilities: np.ndarray
+    logits: np.ndarray[Any, Any]
+    probabilities: np.ndarray[Any, Any]
     n_samples: int
     n_classes: int
     direction_prob: float

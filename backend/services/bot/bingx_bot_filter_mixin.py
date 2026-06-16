@@ -1,13 +1,14 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING, Any
 
 from backend.services.bot.bingx_bot_types import *
 
 """Mixin class for BingX Bot Filter."""
 
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import ScannerCustomization
+from backend.services.scanner_funding_gate import REASON_SCANNER_UNAVAILABLE
 
 logger = get_logger(__name__)
 
@@ -32,6 +33,12 @@ class BingXBotFilterMixin:
         ]
         if not candidates:
             return {}
+
+        from backend.services.bingx_bot_service import (
+            _build_scanner_confirmation_request,
+            _row_to_dict,
+            _normalize_bingx_symbol_for_scanner,
+        )
 
         request = _build_scanner_confirmation_request(
             (signal.symbol for signal in candidates), customization
@@ -170,6 +177,13 @@ class BingXBotFilterMixin:
     ) -> FilterDecision:
         if decision.suitability in ("BLOCK", "INSUFFICIENT_DATA"):
             return decision
+
+        from backend.services.bingx_bot_service import (
+            _funding_gate_decision,
+            _reason_tuple,
+            _dedupe_reason_codes,
+        )
+        from backend.services.scanner_funding_gate import evaluate_scanner_confirmation
 
         provider = f"{decision.provider}+market_scanner"
         row = scanner_rows.get(signal.symbol)

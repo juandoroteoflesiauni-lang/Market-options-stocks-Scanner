@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/engine/metrics/sentiment.py
 Sector: Options / Sentiment Analysis Engine
@@ -8,14 +10,13 @@ Theoretical basis:
     to produce unified sentiment scores, consensus signals, and reputation flags.
 """
 
-from __future__ import annotations
 
 import logging
 import re
-from typing import Any, ClassVar, Final
 
 from pydantic import BaseModel, ConfigDict, Field
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore[import-untyped]
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
 
 from backend.models.result import Result
 

@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Modelo de datos inmutable para contratos de opciones.
 
 Define el esquema Pydantic v2 frozen para OptionContract, utilizado como
 contrato de datos entre Phase C (Derivatives Engine) y el resto del pipeline.
 """
 
-from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal

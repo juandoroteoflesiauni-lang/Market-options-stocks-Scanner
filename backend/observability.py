@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Observability primitives for API metrics, tracing, and periodic profiling."""
 
-from __future__ import annotations
 
 import os
 import re
@@ -10,7 +11,6 @@ from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, Response
@@ -40,7 +40,8 @@ except Exception:  # pragma: no cover - optional dependency fallback.
         def observe(self, value: float) -> None:
             return None
 
-    Counter = Gauge = Histogram = lambda *args, **kwargs: _NoopMetric()  # type: ignore
+    Counter = Gauge = Histogram = lambda *args, **kwargs: _NoopMetric()
+
 
     def generate_latest() -> bytes:
         return b"# prometheus_client is not installed\n"
@@ -55,12 +56,18 @@ try:  # pragma: no cover - depends on optional OpenTelemetry packages.
 
     _OTEL_AVAILABLE = True
 except Exception:  # pragma: no cover - optional dependency fallback.
-    trace = None  # type: ignore[assignment]
-    FastAPIInstrumentor = None  # type: ignore[assignment]
-    HTTPXClientInstrumentor = None  # type: ignore[assignment]
-    TracerProvider = None  # type: ignore[assignment]
-    BatchSpanProcessor = None  # type: ignore[assignment]
-    ConsoleSpanExporter = None  # type: ignore[assignment]
+    trace = None
+
+    FastAPIInstrumentor = None
+
+    HTTPXClientInstrumentor = None
+
+    TracerProvider = None
+
+    BatchSpanProcessor = None
+
+    ConsoleSpanExporter = None
+
     _OTEL_AVAILABLE = False
 
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """BingX Audit Store — cycle-level persistence for audit, debug and analytics.
 
 Persists every bot cycle to DuckDB so that:
@@ -18,7 +20,6 @@ Design notes
   raw credential values in the data passed to ``persist()``.
 """
 
-from __future__ import annotations
 
 import json
 import uuid
@@ -26,7 +27,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import duckdb
 

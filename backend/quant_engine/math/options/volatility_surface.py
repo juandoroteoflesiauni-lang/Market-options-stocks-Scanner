@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/volatility_surface.py
 Sector: IA / Probabilístico
@@ -7,7 +8,6 @@ Volatility Surface Engine — analyzes IV Skew and Smile dynamics.
 Stateless and vectorized implementation without pandas.
 """
 
-from __future__ import annotations
 
 import logging
 

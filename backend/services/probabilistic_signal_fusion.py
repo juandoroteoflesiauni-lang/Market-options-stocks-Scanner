@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 probabilistic_signal_fusion.py
 ================================
@@ -15,12 +17,10 @@ Public API
 - FusionResult dataclass
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any
 
 import numpy as np
 
@@ -88,7 +88,7 @@ class FusionResult:
     suppression_reason: str | None = None
     latency_ms: float = 0.0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -225,7 +225,7 @@ def synthesize_fusion_signal(
     symbol: str,
     engine_outputs: dict[str, Any],
     regime_result: dict[str, Any] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Fuse multi-engine probabilistic signals into a single auditable result.
 
     Parameters

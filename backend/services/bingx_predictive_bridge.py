@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Bridge BingX symbols → institutional predictive signals.
 
 Routes a BingX venue symbol to the *real* predictive stack — meta-signal
@@ -8,9 +10,9 @@ JSON-safe :class:`BingXPredictiveBridgeResult`.
 
 Priority cascade (highest authority first):
 
-1. ``meta_signal_fn``         — :func:`backend.routers.probabilistic_router.get_meta_signal_endpoint`.
-2. ``predictive_options_2_fn`` — :func:`backend.routers.probabilistic_router.get_predictive_options_2`.
-3. ``thesis_fn``               — :func:`backend.routers.probabilistic_router.get_ai_thesis`.
+1. ``meta_signal_fn``         — :func:`backend.api.routes.probabilistic_router.get_meta_signal_endpoint`.
+2. ``predictive_options_2_fn`` — :func:`backend.api.routes.probabilistic_router.get_predictive_options_2`.
+3. ``thesis_fn``               — :func:`backend.api.routes.probabilistic_router.get_ai_thesis`.
 4. ``equity_summary_fn``       — :func:`backend.services.equity_ta_snapshot_service.equity_probabilistic_summary`.
 
 The bridge invokes the higher-priority fetchers first and only falls
@@ -28,12 +30,10 @@ Routing rules:
 - anything else        → unavailable with ``predictive_market_type_excluded``.
 """
 
-from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Literal
 
 from backend.config.logger_setup import get_logger
 from backend.services.bingx_options_bridge import INDEX_OPTIONS_PROXIES
@@ -452,7 +452,8 @@ def _payload_to_dict(raw: object | None) -> dict[str, Any] | None:
         return dict(raw)
     if hasattr(raw, "model_dump"):
         try:
-            return raw.model_dump(mode="python")  # type: ignore[attr-defined]
+            return raw.model_dump(mode="python")
+
         except Exception:
             return None
     return None

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """FTMO Funding Lab service.
 
 This module keeps the funding-test universe deliberately small and treats
@@ -5,7 +7,6 @@ This module keeps the funding-test universe deliberately small and treats
 trade authorization.
 """
 
-from __future__ import annotations
 
 import copy
 import json
@@ -14,13 +15,13 @@ import sqlite3
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
-from typing import Any
 from zoneinfo import ZoneInfo
 
 import duckdb
 import pandas as pd
 
 from backend.config.logger_setup import get_logger
+from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB, PREDICTIONS_DB
 from backend.services.ftmo_crypto_options_service import crypto_options_status_for_symbol
 from backend.services.ftmo_data_provider_policy import (
     PRIMARY,
@@ -78,7 +79,7 @@ FTMO_CORE_SYMBOLS = (
 STRICT_INTRADAY_HORIZONS = ("1h", "4h", "eod")
 STRICT_HORIZONS = STRICT_INTRADAY_HORIZONS
 MIN_TRADE_SURVIVAL_SCORE = 70.0
-DEFAULT_PREDICTIONS_DB = Path("backend/data/predictions.db")
+DEFAULT_PREDICTIONS_DB = PREDICTIONS_DB
 DEFAULT_PRICE_DB = Path("data/quantum_analyzer.duckdb")
 DEFAULT_MONITOR_REPORT_DIR = Path("backend/reports/funding-lab")
 REQUIRED_SQLITE_TABLES = ("predictions", "feature_snapshots")
@@ -1846,7 +1847,7 @@ class FundingLabService:
         return readiness
 
     def _gex_validation_for_profile(self, profile: FundingAssetProfile) -> dict[str, Any]:
-        return load_ftmo_gex_validation(self.predictions_db, profile.symbol)
+        return load_ftmo_gex_validation(OPTIONS_GEX_SNAPSHOTS_DB, profile.symbol)
 
     def _crypto_options_readiness_for_profile(self, profile: FundingAssetProfile) -> dict[str, Any]:
         return crypto_options_status_for_symbol(self.predictions_db, profile.symbol)

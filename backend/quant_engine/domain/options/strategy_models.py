@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Domain contracts for executable strategy candidates and options payoff inputs."""
 
-from __future__ import annotations
 
 from datetime import date
-from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 

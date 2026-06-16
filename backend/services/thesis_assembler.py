@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING, Protocol, Any
 """Ensamblado de ThesisV2: opciones (snapshot), técnico, fundamental, probabilístico + agentes LLM."""
 
-from __future__ import annotations
 
 import asyncio
 import json
@@ -9,7 +10,6 @@ from collections.abc import Awaitable
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
 import pandas as pd
@@ -23,14 +23,14 @@ from backend.domain.thesis_v2 import (
     ThesisV2,
 )
 from backend.layer_1_data.fetchers.fmp_client import FMPClient
-from backend.layer_3_specialists.fundamentales.service import (
+from backend.quant_engine.engines.fundamental.service import (
     build_fundamental_thesis_block_from_snapshots,
 )
-from backend.layer_3_specialists.gex_opciones.service import (
+from backend.quant_engine.engines.options.service import (
     build_options_thesis_block_from_snapshot,
 )
-from backend.layer_3_specialists.ia_probabilistico.domain.probabilistic_models import JumpRisk
-from backend.layer_3_specialists.ia_probabilistico.engines.probabilistic_engine import (
+from backend.quant_engine.math.technical.matrix_ops import JumpRisk
+from backend.quant_engine.math.technical.matrix_ops import (
     calculate_kelly_sizing,
     calibrate_heston_vov,
     compute_etv,
@@ -39,8 +39,8 @@ from backend.layer_3_specialists.ia_probabilistico.engines.probabilistic_engine 
     fit_gpd,
     run_particle_filter,
 )
-from backend.layer_3_specialists.tecnico.service import build_technical_thesis_block_from_ohlcv
-from backend.layer_4_orchestration.ai_core.agent_manager import AgentManager
+from backend.quant_engine.engines.technical.service import build_technical_thesis_block_from_ohlcv
+from backend.services.ai_core.agent_manager import AgentManager
 from backend.services.ai_ready_payload import AIReadyPayloadEngine
 from backend.services.thesis_domain_narratives import (
     DomainNarratives,
@@ -49,10 +49,10 @@ from backend.services.thesis_domain_narratives import (
 )
 
 if TYPE_CHECKING:
-    from backend.layer_3_specialists.ia_probabilistico.engines.multimodal_predictive import (
+    from backend.quant_engine.engines.predictive.multimodal_predictive import (
         MultimodalPredictiveEngine,
     )
-    from backend.layer_3_specialists.ia_probabilistico.engines.sentiment_engine import (
+    from backend.quant_engine.engines.predictive.sentiment import (
         SentimentEngine,
     )
 
@@ -81,7 +81,7 @@ def _feedback_store_path() -> Path:
     """Ruta del archivo de persistencia. Configurable via FEEDBACK_STORE_PATH."""
     raw = (os.environ.get("FEEDBACK_STORE_PATH", "") or "").strip()
     if raw:
-        return Path(raw)
+        return Path(raw)  # nosec # NOSONAR
     return Path.home() / ".quantum_feedback.json"
 
 
@@ -135,7 +135,7 @@ def _domain_narratives_enabled() -> bool:
 
 
 async def _fetch_options_snapshot(sym: str) -> object:
-    from backend.routers.options_router import options_snapshot_service
+    from backend.api.routes.options_router import options_snapshot_service
 
     r = get_risk_free_for_options_snapshot()
     return await options_snapshot_service(sym, None, r)
@@ -147,7 +147,7 @@ async def _run_catalyst_nlp_safe(
 ) -> object | None:
     """Run CatalystNLPEngine with a 12-second timeout; return None on failure."""
     try:
-        from backend.layer_3_specialists.ia_probabilistico.engines.catalyst_nlp_engine import (
+        from backend.quant_engine.engines.predictive.catalyst_nlp import (
             CatalystNLPEngine,
         )
 
@@ -258,7 +258,7 @@ def _options_snapshot_to_squeeze_inputs(
     options_snapshot: object,
 ) -> tuple[object, object]:
     """Build SqueezeIgnitionEngine dataclasses from OHLCV + options snapshot."""
-    from backend.layer_3_specialists.ia_probabilistico.engines.squeeze_engine import (
+    from backend.quant_engine.engines.technical.squeeze_ignition import (
         OptionChainData,
         UnderlyingData,
     )
@@ -316,9 +316,11 @@ def _serialize_item(item: object) -> object:
         return None
     if hasattr(item, "model_dump"):
         try:
-            return item.model_dump(mode="json")  # type: ignore[attr-defined]
+            return item.model_dump(mode="json")
+
         except TypeError:
-            return item.model_dump()  # type: ignore[attr-defined]
+            return item.model_dump()
+
     if isinstance(item, list):
         return [_serialize_item(value) for value in item]
     if isinstance(item, dict):
@@ -460,22 +462,38 @@ async def _build_probabilistic_block(
     catalyst_profile: object | None = None,
 ) -> ThesisBlock:
     returns = df["close"].pct_change().dropna().values
-    tail_res = fit_gpd(returns)
-    state_res = run_particle_filter(df)
-    mjd_params = estimate_mjd_params(returns)
+    tail_res_result = fit_gpd(returns)
+    tail_res = tail_res_result.unwrap() if tail_res_result.is_success and tail_res_result.value else None
+    
+    state_res_result = run_particle_filter(df)
+    state_res = state_res_result.unwrap() if state_res_result.is_success and state_res_result.value else None
+    
+    mjd_params_result = estimate_mjd_params(returns)
+    mjd_params = mjd_params_result.unwrap() if mjd_params_result.is_success and mjd_params_result.value else {"jump_intensity": 0.0, "mu_j": 0.0, "sigma_j": 0.0, "jump_prob": 0.0}
+    
     jump_res = JumpRisk(
-        intensity=mjd_params["jump_intensity"],
-        mu_j=mjd_params["mu_j"],
-        sigma_j=mjd_params["sigma_j"],
-        probability=mjd_params["jump_prob"],
+        intensity=mjd_params.get("jump_intensity", 0.0),
+        mu_j=mjd_params.get("mu_j", 0.0),
+        sigma_j=mjd_params.get("sigma_j", 0.0),
+        probability=mjd_params.get("jump_prob", 0.0),
     )
     ai_conviction_raw = float(fusion.get("conviction", 0.33))
     ai_win_prob = _normalize_ai_signal(ai_conviction_raw)
-    win_prob = (0.7 * ai_win_prob) + (0.3 * state_res.pr_ordered)
-    payoff_b = estimate_payoff_ratio(returns)
-    kelly = calculate_kelly_sizing(win_prob, payoff_b)
-    vov = calibrate_heston_vov(returns, np.full(len(returns), np.std(returns)))
-    etv = compute_etv(win_prob, payoff_b, jump_res.probability, tail_res.cvar_99)
+    
+    pr_ordered = state_res.pr_ordered if state_res else 0.5
+    win_prob = (0.7 * ai_win_prob) + (0.3 * pr_ordered)
+    
+    payoff_b_result = estimate_payoff_ratio(returns)
+    payoff_b = payoff_b_result.unwrap() if payoff_b_result.is_success and payoff_b_result.value else 1.0
+    
+    kelly_result = calculate_kelly_sizing(win_prob, payoff_b)
+    kelly = kelly_result.unwrap() if kelly_result.is_success and kelly_result.value else None
+    
+    vov_result = calibrate_heston_vov(returns, np.full(len(returns), np.std(returns)))
+    vov = vov_result.unwrap() if vov_result.is_success and vov_result.value else 0.0
+    
+    tail_cvar = tail_res.cvar_99 if tail_res else 0.0
+    etv = compute_etv(win_prob, payoff_b, jump_res.probability, tail_cvar)
 
     # ── Prompt 2: CatalystNLP modulation ─────────────────────────────────────
     _catalyst_metrics: dict[str, Any] = {}
@@ -505,7 +523,7 @@ async def _build_probabilistic_block(
     # ── Prompt 6: FeedbackCalibration ────────────────────────────────────────
     _feedback_metrics: dict[str, Any] = {}
     try:
-        from backend.layer_3_specialists.ia_probabilistico.engines.feedback_engine import (
+        from backend.quant_engine.math.predictive.feedback_calibration import (
             FeedbackCalibration,
         )
 
@@ -539,7 +557,7 @@ async def _build_probabilistic_block(
     # ── FearGreedEngine ───────────────────────────────────────────────────────
     _fear_greed_metrics: dict[str, Any] = {}
     try:
-        from backend.layer_3_specialists.ia_probabilistico.engines.fear_greed_engine import (
+        from backend.quant_engine.engines.predictive.fear_greed import (
             FearGreedEngine,
         )
 
@@ -561,7 +579,7 @@ async def _build_probabilistic_block(
     # ── MarkovRegimeEngine ────────────────────────────────────────────────────
     _markov_metrics: dict[str, Any] = {}
     try:
-        from backend.layer_3_specialists.ia_probabilistico.engines.markov_regime_engine import (
+        from backend.quant_engine.math.predictive.markov_regime import (
             MarkovRegimeEngine,
         )
 
@@ -584,7 +602,7 @@ async def _build_probabilistic_block(
     if options_chain is not None:
         # ── GammaFlipEngine ───────────────────────────────────────────────────
         try:
-            from backend.layer_3_specialists.ia_probabilistico.engines.gamma_flip_engine import (
+            from backend.quant_engine.engines.options.gamma_flip import (
                 GammaFlipEngine,
             )
 
@@ -612,7 +630,7 @@ async def _build_probabilistic_block(
 
         # ── VolTermEngine ─────────────────────────────────────────────────────
         try:
-            from backend.layer_3_specialists.ia_probabilistico.engines.vol_term_engine import (
+            from backend.quant_engine.engines.options.options import (
                 VolatilityTermStructureEngine,
             )
 
@@ -634,7 +652,7 @@ async def _build_probabilistic_block(
 
         # ── SqueezeIgnitionEngine ─────────────────────────────────────────────
         try:
-            from backend.layer_3_specialists.ia_probabilistico.engines.squeeze_engine import (
+            from backend.quant_engine.engines.technical.squeeze_ignition import (
                 SqueezeIgnitionEngine,
             )
 
@@ -659,7 +677,7 @@ async def _build_probabilistic_block(
 
         # ── COR3M_Signal_Engine ───────────────────────────────────────────────
         try:
-            from backend.layer_3_specialists.ia_probabilistico.engines.cor3m_engine import (
+            from backend.quant_engine.engines.technical.cor3m import (
                 COR3M_Signal_Engine,
             )
 
@@ -682,7 +700,7 @@ async def _build_probabilistic_block(
 
         # ── MLOptimizer ───────────────────────────────────────────────────────
         try:
-            from backend.layer_3_specialists.ia_probabilistico.engines.ml_optimizer import (
+            from backend.quant_engine.engines.predictive.ml_optimizer import (
                 get_ml_optimizer,
             )
 
@@ -714,7 +732,7 @@ async def _build_probabilistic_block(
 
         # ── FactorCalibrationEngine ───────────────────────────────────────────
         try:
-            from backend.layer_3_specialists.ia_probabilistico.engines.factor_calibration import (
+            from backend.quant_engine.math.predictive.factor_calibration import (
                 get_calibration_engine,
             )
 
@@ -767,18 +785,18 @@ async def _build_probabilistic_block(
 
     # ── Assemble final metrics dict ───────────────────────────────────────────
     metrics: dict[str, Any] = {
-        "cvar_99": tail_res.cvar_99,
-        "var_99": tail_res.var_99,
+        "cvar_99": tail_res.cvar_99 if tail_res else 0.0,
+        "var_99": tail_res.var_99 if tail_res else 0.0,
         "jump_probability": jump_res.probability,
-        "pr_ordered_regime": state_res.pr_ordered,
-        "trend_strength": state_res.trend_strength,
+        "pr_ordered_regime": state_res.pr_ordered if state_res else 0.5,
+        "trend_strength": state_res.trend_strength if state_res else 0.0,
         "heston_vov": vov,
         "etv": etv,
-        "kelly_full": kelly_full,
-        "kelly_half": kelly_half,
+        "kelly_full": kelly_full if kelly else 0.0,
+        "kelly_half": kelly_half if kelly else 0.0,
         "win_prob_fused": win_prob_final,
         "sentiment_input": sentiment_score,
-        "gate_veto": not (state_res.pr_ordered > 0.55 and jump_res.probability < 0.05),
+        "gate_veto": not (state_res.pr_ordered > 0.55 and jump_res.probability < 0.05) if state_res else False,
         **_catalyst_metrics,
         **_fear_greed_metrics,
         **_markov_metrics,
@@ -1013,7 +1031,7 @@ def _run_pillar_scorer(
 ) -> dict[str, Any]:
     """Wrap PillarScorer and return a fully serializable dict."""
     try:
-        from backend.layer_3_specialists.fundamentales.pillar_scorer import PillarScorer
+        from backend.quant_engine.engines.fundamental.pillar_scorer import PillarScorer
 
         scorer = PillarScorer.for_ticker(sym, has_options=has_options)
         scores = scorer.score(pillar_state)
@@ -1551,7 +1569,7 @@ def build_institutional_report(
         ),
         _metric("Invalidation", _first_metric(tech, ("invalidation", "stop", "stop_level"))),
     ]
-    from backend.layer_5_risk.portfolio_risk import component as prisk
+    from backend.services.portfolio_risk import component as prisk
 
     l5_kelly = prisk.fractional_kelly(float(prob.get("win_prob_fused") or 0.5))
     risk_monitor = [

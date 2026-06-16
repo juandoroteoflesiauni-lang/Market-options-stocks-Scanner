@@ -1,3 +1,4 @@
+from typing import Any
 """
 Shadow MACD — MACD sobre Net Dealer Delta Exposure (NDDE)
 ══════════════════════════════════════════════════════════
@@ -30,6 +31,9 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 import pandas_ta as ta
+import logging
+logger = logging.getLogger(__name__)
+
 
 warnings.filterwarnings("ignore")
 
@@ -189,7 +193,7 @@ class DistributionDetector:
     def analyze(
         self,
         df: pd.DataFrame,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Análisis completo de distribución/acumulación sobre el DataFrame
         del Shadow MACD.
@@ -555,7 +559,7 @@ class ShadowMACDEngine:
         self,
         candle: CandleBar,
         chain: OptionsChainSnapshot | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
 
         # ── NDDE crudo o fallback ──────────────────────────────
         if chain is not None:
@@ -650,7 +654,7 @@ class ShadowMACDEngine:
 
         return df
 
-    def get_distribution_analysis(self) -> dict:
+    def get_distribution_analysis(self) -> dict[str, Any]:
         df = self.to_dataframe()
         if df.empty:
             return {}
@@ -788,9 +792,9 @@ def run_shadow_macd_pipeline(
     verbose: bool = True,
 ) -> pd.DataFrame:
 
-    print(f"\n{'═'*66}")
-    print(f"  SHADOW MACD ENGINE  |  {ticker}  |  {n} velas 1m")
-    print(f"{'═'*66}")
+    logger.info(f"\n{'═'*66}")
+    logger.info(f"  SHADOW MACD ENGINE  |  {ticker}  |  {n} velas 1m")
+    logger.info(f"{'═'*66}")
 
     candles, chains = generate_demo_data(ticker, n)
     engine = ShadowMACDEngine(ticker=ticker)
@@ -810,62 +814,62 @@ def run_shadow_macd_pipeline(
 def _print_report(df: pd.DataFrame, analysis: dict, ticker: str):
     last = df.iloc[-1]
 
-    print(f"\n── Shadow MACD {ticker} — estado actual ──────────────────")
-    print(f"  Precio final       : ${last['close']:.2f}")
-    print(f"  NDDE actual        : {last['ndde']:+,.0f}")
-    print(f"  NDDE calls         : {last['ndde_calls']:+,.0f}")
-    print(f"  NDDE puts          : {last['ndde_puts']:+,.0f}")
-    print(f"  EMA rápida (12)    : {last['ema_fast']:+,.0f}")
-    print(f"  EMA lenta (26)     : {last['ema_slow']:+,.0f}")
-    print(f"  MACD Shadow        : {last['macd']:+,.2f}")
-    print(f"  Línea señal        : {last['signal']:+,.2f}")
-    print(f"  Histograma         : {last['histogram']:+,.2f}")
-    print(f"  GEX actual         : {last['gex']:+,.0f}")
-    print(f"  Charm flow         : {last['charm_flow']:+,.2f}")
-    print(f"  Put/Call ratio     : {last['put_call_ratio']:.3f}")
+    logger.info(f"\n── Shadow MACD {ticker} — estado actual ──────────────────")
+    logger.info(f"  Precio final       : ${last['close']:.2f}")
+    logger.info(f"  NDDE actual        : {last['ndde']:+,.0f}")
+    logger.info(f"  NDDE calls         : {last['ndde_calls']:+,.0f}")
+    logger.info(f"  NDDE puts          : {last['ndde_puts']:+,.0f}")
+    logger.info(f"  EMA rápida (12)    : {last['ema_fast']:+,.0f}")
+    logger.info(f"  EMA lenta (26)     : {last['ema_slow']:+,.0f}")
+    logger.info(f"  MACD Shadow        : {last['macd']:+,.2f}")
+    logger.info(f"  Línea señal        : {last['signal']:+,.2f}")
+    logger.info(f"  Histograma         : {last['histogram']:+,.2f}")
+    logger.info(f"  GEX actual         : {last['gex']:+,.0f}")
+    logger.info(f"  Charm flow         : {last['charm_flow']:+,.2f}")
+    logger.info(f"  Put/Call ratio     : {last['put_call_ratio']:.3f}")
 
     if "classic_macd" in df.columns:
-        print(f"  Classic MACD       : {last['classic_macd']:+.4f}")
+        logger.info(f"  Classic MACD       : {last['classic_macd']:+.4f}")
         corr = df["macd"].corr(df["classic_macd"].dropna())
-        print(f"  Correlación NDDE/precio MACD: {corr:.4f}")
+        logger.info(f"  Correlación NDDE/precio MACD: {corr:.4f}")
 
-    print("\n── Análisis de distribución/acumulación ──")
-    print(f"  Fase actual        : {analysis.get('current_phase', 'N/A')}")
-    print(f"  Duración fase      : {analysis.get('phase_duration', 0)} velas")
-    print(f"  Tendencia hist.    : {analysis.get('histogram_trend', 0):+.2f}")
-    print(f"  Dirección          : {analysis.get('histogram_slope_label', 'N/A')}")
+    logger.info("\n── Análisis de distribución/acumulación ──")
+    logger.info(f"  Fase actual        : {analysis.get('current_phase', 'N/A')}")
+    logger.info(f"  Duración fase      : {analysis.get('phase_duration', 0)} velas")
+    logger.info(f"  Tendencia hist.    : {analysis.get('histogram_trend', 0):+.2f}")
+    logger.info(f"  Dirección          : {analysis.get('histogram_slope_label', 'N/A')}")
 
     dist_z = analysis.get("distribution_zones", [])
     acc_z = analysis.get("accumulation_zones", [])
     divs = analysis.get("divergences", [])
 
-    print("\n── Zonas detectadas ──")
-    print(f"  Distribución       : {len(dist_z)} zonas")
+    logger.info("\n── Zonas detectadas ──")
+    logger.info(f"  Distribución       : {len(dist_z)} zonas")
     for z in dist_z[-3:]:
-        print(f"    → ${z['price']:.2f} | NDDE {z['ndde']:+,.0f} | Hist {z['histogram']:+.2f}")
-    print(f"  Acumulación        : {len(acc_z)} zonas")
+        logger.info(f"    → ${z['price']:.2f} | NDDE {z['ndde']:+,.0f} | Hist {z['histogram']:+.2f}")
+    logger.info(f"  Acumulación        : {len(acc_z)} zonas")
     for z in acc_z[-3:]:
-        print(f"    → ${z['price']:.2f} | NDDE {z['ndde']:+,.0f} | Hist {z['histogram']:+.2f}")
+        logger.info(f"    → ${z['price']:.2f} | NDDE {z['ndde']:+,.0f} | Hist {z['histogram']:+.2f}")
 
-    print(f"\n── Divergencias MACD-precio: {len(divs)} ──")
+    logger.info(f"\n── Divergencias MACD-precio: {len(divs)} ──")
     for d in divs[-5:]:
-        print(
+        logger.info(
             f"  {d['type']:14s} | "
             f"P: ${d['price_curr']:.2f}→${d['price_prev']:.2f} | "
             f"MACD: {d['macd_curr']:+.0f}→{d['macd_prev']:+.0f} | "
             f"{d['interpretation']}"
         )
 
-    print("\n── Señales de mayor fuerza ──")
+    logger.info("\n── Señales de mayor fuerza ──")
     strong = df[df["strength"] >= 2]
     if not strong.empty:
         cols = ["close", "ndde", "macd", "histogram", "signal_name", "strength"]
-        print(strong[cols].tail(10).to_string())
+        logger.info(strong[cols].tail(10).to_string())
 
-    print("\n── Distribución de señales ──")
-    print(df["signal_name"].value_counts().to_string())
+    logger.info("\n── Distribución de señales ──")
+    logger.info(df["signal_name"].value_counts().to_string())
 
-    print(f"\n{'═'*66}")
+    logger.info(f"\n{'═'*66}")
 
 
 # ─────────────────────────────────────────────
@@ -959,7 +963,7 @@ class ShadowMACDLive:
     def on_signal(self, result: dict):
         p = self.PRIORITY.get(result["signal_name"], 0)
         if p >= 3:
-            print(
+            logger.info(
                 f"[{result['timestamp']}] {self.ticker:5s} | "
                 f"P{p} {result['signal_name']:22s} | "
                 f"${result['close']:.2f} | "
@@ -980,4 +984,4 @@ if __name__ == "__main__":
         df = run_shadow_macd_pipeline(ticker=ticker, n=390, verbose=True)
         df.to_csv(f"/tmp/shadow_macd_{ticker.lower()}.csv")
 
-    print("\n✓ Shadow MACD completado para los 5 proxies BingX.")
+    logger.info("\n✓ Shadow MACD completado para los 5 proxies BingX.")

@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Contratos de Dominio para el Motor VSA (Volume Spread Analysis) — Sector Técnico.
 
 Define las etiquetas de Tom Williams, sesgos direccionales, constantes de señalización
 y estructuras de datos por barra y consolidado de anomalías de volumen/precio.
 """
 
-from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum

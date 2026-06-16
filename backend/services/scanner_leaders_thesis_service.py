@@ -1,12 +1,12 @@
+from __future__ import annotations
+from typing import Any
 """Selective Layer-4 thesis for scanner leaders: concise LLM brief + deterministic fallback."""
 
-from __future__ import annotations
 
 import asyncio
 import inspect
 import json
 import os
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import ScannerLeadersThesisResponse
@@ -136,7 +136,7 @@ def _build_focused_user_prompt(
 
 async def _try_focused_llm_brief(user_prompt: str) -> tuple[str, str] | None:
     """Single-agent call: orchestrator (GitHub) → macro_micro (Azure) → technical (Gemini)."""
-    from backend.layer_4_orchestration.ai_core.agent_manager import AgentManager
+    from backend.services.ai_core.agent_manager import AgentManager
 
     manager = AgentManager()
     order = ("orchestrator", "macro_micro", "technical")
@@ -299,7 +299,7 @@ async def run_leaders_thesis(
 
     if engine == "full_agents":
         try:
-            from backend.layer_4_orchestration.ai_core.agent_manager import AgentManager
+            from backend.services.ai_core.agent_manager import AgentManager
 
             context_lines = [digest_full, "", "SYMBOLS:", ", ".join(symbols)]
             for s in row_summaries:

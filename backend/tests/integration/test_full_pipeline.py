@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Tests de integración del pipeline completo A → B → C → D.
 
 Verifica que los módulos se conectan correctamente en el flujo:
@@ -8,7 +9,6 @@ Usa datos sintéticos; las dependencias externas (FMP, Alpaca, Massive)
 son mockeadas o no se invocan.
 """
 
-from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal

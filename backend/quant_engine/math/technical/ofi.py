@@ -1,3 +1,4 @@
+from typing import Any
 """
 Sector 2: Lógica de Order Flow Imbalance.
 """

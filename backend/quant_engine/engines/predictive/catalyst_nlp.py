@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/catalyst_nlp.py
 Sector: Options / Catalyst NLP Engine
@@ -9,7 +10,6 @@ Theoretical basis:
     Purely stateless, synchronous, and offline.
 """
 
-from __future__ import annotations
 
 import logging
 import re

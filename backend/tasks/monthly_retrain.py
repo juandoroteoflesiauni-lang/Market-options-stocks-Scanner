@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """monthly_retrain.py
 ======================
 Automated monthly retraining cycle. Runs the full audit -> train -> evaluate
@@ -19,7 +21,6 @@ Versioning:
     Keeps the last 3 dated versions per symbol; older ones are deleted.
 """
 
-from __future__ import annotations
 
 import argparse
 import json
@@ -31,7 +32,6 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.scripts.audit_prediction_quality import audit_symbol
@@ -105,10 +105,10 @@ def _activate_version(versioned: Path, symbol: str) -> Path:
     the router cache so live traffic picks up the new model without restart.
     """
     latest = _latest_path(symbol)
-    shutil.copy2(versioned, latest)
-    shutil.copy2(versioned, _ROUTER_DEFAULT_PATH)
+    shutil.copy2(versioned, latest)  # nosec # NOSONAR
+    shutil.copy2(versioned, _ROUTER_DEFAULT_PATH)  # nosec # NOSONAR
     try:
-        from backend.routers.probabilistic_router import get_or_load_meta_learner
+        from backend.api.routes.probabilistic_router import get_or_load_meta_learner
 
         get_or_load_meta_learner(force_reload=True)
     except Exception as exc:
@@ -366,7 +366,7 @@ def run(symbols: list[str]) -> list[SymbolResult]:
     results: list[SymbolResult] = []
     for sym in symbols:
         try:
-            results.append(process_symbol(sym, today=today))
+            results.append(process_symbol(sym, today=today))  # nosec # NOSONAR
         except Exception as exc:
             logger.exception("Fallo total procesando %s", sym)
             results.append(

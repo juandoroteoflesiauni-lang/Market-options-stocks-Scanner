@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Contratos de Dominio para el Motor SMC (Smart Money Concepts) — Sector Técnico.
 
 Define los enums y modelos de datos (incluyendo Order Blocks, Fair Value Gaps,
 eventos estructurales y modelos ICT) para el análisis de sesgo institucional.
 """
 
-from __future__ import annotations
 
 from enum import StrEnum
 

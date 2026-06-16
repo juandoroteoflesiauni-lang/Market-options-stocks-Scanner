@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Contratos de Dominio para el Análisis de Opciones — Sector Opciones/GEX.
 
 Define las entidades y estructuras de datos para el análisis de Griegas,
 exposiciones institucionales (GEX, VEX, CEX) y analítica probabilística.
 """
 
-from __future__ import annotations
 
 from enum import Enum
 

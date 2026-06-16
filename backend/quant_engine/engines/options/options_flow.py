@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Options flow signal engine without scraping or paid external dependencies."""
 
-from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Callable

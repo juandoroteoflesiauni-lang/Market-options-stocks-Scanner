@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Tests for the BingX L2 → LOB adapter (Layer 1).
 
 Covers the pure adapter (``build_l2_snapshot_from_bingx_depth``) and the async
@@ -5,9 +7,7 @@ wrapper (``fetch_bingx_l2_snapshot``). Network access is mocked via a
 minimal stub object exposing ``fetch_order_book_perp``.
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 import pytest
 
@@ -125,7 +125,8 @@ def test_adapter_unsupported_market_type_returns_l2_unavailable() -> None:
 def test_adapter_invalid_payload_shape_is_handled() -> None:
     result = build_l2_snapshot_from_bingx_depth(
         "GOOGL-USDT",
-        None,  # type: ignore[arg-type]
+        None,
+
         market_type="stock_perp",
     )
 

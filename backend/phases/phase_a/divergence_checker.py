@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Divergence Checker — detección de divergencia multi-timeframe para Phase A.
 
 Evalúa si la dirección del precio en 15m contradice la tendencia primaria
@@ -9,10 +11,8 @@ Resoluciones usadas:
   - 1D:  daily_change_pct desde el quote FMP (sin costo extra)
 """
 
-from __future__ import annotations
 
 import logging
-from typing import Any
 
 from backend.hub.market_data_hub import MarketDataHub
 from backend.models.hard_veto import HardVetoResult, VetoType

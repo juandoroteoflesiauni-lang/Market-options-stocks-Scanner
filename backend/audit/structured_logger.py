@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Structured Logger — correlation-ID-aware logging with DuckDB persistence.
 
 Wraps the standard ``logging`` module with:
@@ -17,14 +19,12 @@ Usage
     log.info("Cycle started", extra={"tags": ["cycle", "start"], "context_data": {"symbols": 3}})
 """
 
-from __future__ import annotations
 
 import contextlib
 import contextvars
 import logging
 import threading
 import traceback
-from typing import Any
 
 from backend.audit.audit_complex_store import AuditComplexStore, LogAuditEntry
 from backend.config.logger_setup import get_logger, sanitize_log_message

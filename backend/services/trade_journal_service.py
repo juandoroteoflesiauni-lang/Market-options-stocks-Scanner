@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Trade Journal Service — Exhaustive Audit Trail for Executed Trades.
 
 Implements the 'Caja Negra' (Black Box) for Forward Testing:
@@ -14,13 +16,11 @@ PHASE 1 Constraints:
 - DuckDB as primary, JSONL as fallback/audit trail
 """
 
-from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import duckdb
 

@@ -1,15 +1,15 @@
+from __future__ import annotations
+from typing import Any
 """Experimental optional Kronos-style OHLCV forecast provider for Scanner Phase B.
 
 The module is intentionally dependency-light at import time. Any external Kronos
 runtime must be installed separately and is imported lazily inside forecast_ohlcv.
 """
 
-from __future__ import annotations
 
 import importlib
 import math
 import os
-from typing import Any, cast
 
 from backend.config.logger_setup import get_logger
 from backend.services.scanner_external_contracts import (

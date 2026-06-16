@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/layer_1_data/fetchers/polygon_client.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,12 +7,10 @@ Polygon.io Async Client — Market Data & Status.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging
 import random
-from typing import Any
 
 try:
     import httpx as _httpx

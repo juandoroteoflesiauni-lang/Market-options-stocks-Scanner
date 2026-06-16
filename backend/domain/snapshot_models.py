@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/domain/snapshot_models.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,7 +6,6 @@ Domain contracts for deterministic trade snapshot rehydration (Sector: DATA).
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -322,7 +322,8 @@ class ChartViewModel(BaseModel):
     )
     trade_marker: TradeExecutionMarker
 
-    @computed_field  # type: ignore[misc]
+    @computed_field
+
     @property
     def viewport_suggestion(self) -> dict[str, float]:
         prices: list[float] = [bar.high for bar in self.historical_bars]

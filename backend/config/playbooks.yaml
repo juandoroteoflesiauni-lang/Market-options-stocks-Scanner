@@ -1,0 +1,41 @@
+playbooks:
+  trend_continuation:
+    enabled: true
+    min_trend_quality: 0.45
+    min_predictive_bias: 0.30
+    min_options_bias: 0.30
+    allowed_structures:
+      - long_call
+      - long_put
+      - call_debit_spread
+      - put_debit_spread
+      - bull_call_spread
+  bull_call_momentum:
+    enabled: true
+    min_trend_quality: 0.42
+    min_predictive_bias: 0.28
+    min_options_bias: 0.28
+    allowed_structures:
+      - bull_call_spread
+      - call_debit_spread
+  pinning_butterfly:
+    enabled: true
+    min_trend_quality: 0.50
+    max_dte: 14
+    allowed_structures:
+      - call_butterfly
+  gamma_wall_rejection:
+    enabled: true
+    require_gamma_level: true
+    max_dte: 14
+    allowed_structures:
+      - long_call
+      - long_put
+  compression_breakout:
+    enabled: false
+    require_breakout_state: confirmed
+    allowed_structures:
+      - long_call
+      - long_put
+      - call_debit_spread
+      - put_debit_spread

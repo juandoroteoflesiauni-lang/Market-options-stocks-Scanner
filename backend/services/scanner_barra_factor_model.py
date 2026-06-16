@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """Institutional Barra-style multi-factor risk model for Market Scanner (Point 2)."""
 
-from __future__ import annotations
 
 import math
 import os
 from datetime import UTC, datetime
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (

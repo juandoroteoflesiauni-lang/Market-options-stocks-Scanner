@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Funding-suitability evaluation for scanner rows.
 
 This module separates the directional thesis from the funding-risk gate. The
@@ -10,10 +12,8 @@ Do not rename without coordinating with ``portfolio_risk_service`` and the
 ``/management`` cockpit.
 """
 
-from __future__ import annotations
 
 import math
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 

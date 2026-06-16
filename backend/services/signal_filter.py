@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """signal_filter.py
 ====================
 Selectivity layer that decides when a probabilistic signal is high-enough
@@ -18,11 +20,9 @@ Public API
 - get_filter_statistics(filter_history) -> dict
 """
 
-from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.services.signal_quality import ConvictionLevel, SignalQuality

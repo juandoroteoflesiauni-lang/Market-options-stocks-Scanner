@@ -1,13 +1,13 @@
+from __future__ import annotations
+from typing import Any
 """Shared async ingestion primitives for market-data fetchers."""
 
-from __future__ import annotations
 
 import asyncio
 import logging
 import random
 import time
 from dataclasses import dataclass
-from typing import Any
 
 import httpx
 

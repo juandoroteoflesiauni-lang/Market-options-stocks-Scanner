@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Phase A — Global Data Filter con indicadores clásicos.
 
 Implementa 6 filtros técnicos ligeros sobre los MarketSnapshot para descartar
@@ -20,7 +21,6 @@ calculo se aborta inmediatamente sin evaluar los filtros restantes.
 Los pesos son modulables desde StrategyWeights.PhaseAWeights.
 """
 
-from __future__ import annotations
 
 import logging
 from collections.abc import Callable

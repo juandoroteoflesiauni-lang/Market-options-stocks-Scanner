@@ -1,3 +1,4 @@
+from typing import Any
 """
 Hull IV Suite Engine
 ====================
@@ -48,7 +49,7 @@ class HullIVEngine:
 
     def update(
         self, high: float, low: float, close: float, iv_atm: float, timestamp: pd.Timestamp
-    ) -> dict:
+    ) -> dict[str, Any]:
         self._high_buf.append(high)
         self._low_buf.append(low)
         self._close_buf.append(close)

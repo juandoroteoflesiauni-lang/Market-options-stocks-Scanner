@@ -1,8 +1,8 @@
 from __future__ import annotations
+from typing import Any
 
 import hashlib
 import hmac
-from typing import Any
 
 import httpx
 import pytest
@@ -19,8 +19,8 @@ def _expected_signature(secret: str, query_string: str) -> str:
 @pytest.fixture
 def signed_client() -> BingXClient:
     return BingXClient(
-        api_key="test-api-key",
-        secret_key="test-secret-key",
+        api_key="test-api-key",  # nosec # NOSONAR
+        secret_key="test-secret-key",  # nosec # NOSONAR
         base_url=BINGX_REST_VST_BASE,
         dry_run=False,
         allow_env_dry_run_override=False,
@@ -76,7 +76,8 @@ async def test_signed_get_uses_query_string_and_required_headers(
         )
 
     transport = httpx.MockTransport(handler)
-    signed_client._client = httpx.AsyncClient(  # type: ignore[assignment]
+    signed_client._client = httpx.AsyncClient(
+
         base_url=BINGX_REST_VST_BASE,
         transport=transport,
     )
@@ -108,7 +109,8 @@ async def test_signed_post_uses_form_body_without_query_string(
         return httpx.Response(200, json={"code": 0, "data": {"orderId": "1"}})
 
     transport = httpx.MockTransport(handler)
-    signed_client._client = httpx.AsyncClient(  # type: ignore[assignment]
+    signed_client._client = httpx.AsyncClient(
+
         base_url=BINGX_REST_VST_BASE,
         transport=transport,
     )

@@ -10,16 +10,18 @@ from backend.config.logger_setup import get_logger
 
 logger = get_logger(__name__)
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from backend.services.bingx_bot_service import *
+    pass
 
 
 class BingXBotScannerMixin:
     pass
 
     async def _snapshot_symbols(self, symbols: tuple[str, ...]) -> list[BingXMarketSnapshot]:
+        from backend.services.bingx_bot_service import _empty_snapshot
+
         tasks = [self._snapshot_symbol(sym) for sym in symbols]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         out: list[BingXMarketSnapshot] = []
@@ -32,6 +34,8 @@ class BingXBotScannerMixin:
         return out
 
     async def _snapshot_symbol(self, symbol: str) -> BingXMarketSnapshot:
+        from backend.services.bingx_bot_service import _features_from_klines
+
         klines = await self._fetch_klines_prefer_perp(
             symbol,
             interval=self._scan_interval,
@@ -72,6 +76,8 @@ class BingXBotScannerMixin:
         score = round(
             min(1.0, (snap.volume_z_score or 0.0) / max(self._volume_z_threshold, 1e-9)), 4
         )
+
+        from backend.services.bingx_bot_service import _utc_iso_now
 
         return BingXSignal(
             symbol=snap.symbol,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 Massive / Polygon stocks WebSocket bridge for live chart updates.
 
@@ -8,7 +10,6 @@ Keys: ``MASSIVE_KEY_OPTIONS_PRIMARY``, ``MASSIVE_KEY_OPTIONS_SECONDARY``, then
 ``MASSIVE_KEY_OPTIONS``, ``MASSIVE_KEY_WS_TRADES`` — first successful auth wins.
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextlib
@@ -16,7 +17,6 @@ import json
 import logging
 import math
 from collections.abc import Callable
-from typing import Any
 
 import websockets
 from fastapi import WebSocket, WebSocketDisconnect

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Shared confluence enums — bidirectional (LONG/SHORT) signal contracts.
 
 Single source of truth for ConfluenceAction, ConfluenceConviction, WyckoffFase,
@@ -7,7 +8,6 @@ trading by adding SELL/SELL_WATCH/CONFLICT actions and HIGH_BULL/HIGH_BEAR
 conviction levels.
 """
 
-from __future__ import annotations
 
 from enum import Enum
 

@@ -1,8 +1,8 @@
+from __future__ import annotations
+from typing import Any
 """Macro / micro context module for Market Scanner (lightweight, no cross-specialist coupling)."""
 
-from __future__ import annotations
 
-from typing import Any
 
 from backend.domain.market_scanner_models import (
     MarketScannerRow,
@@ -10,7 +10,7 @@ from backend.domain.market_scanner_models import (
     ScannerIndicatorDefinition,
     ScannerModuleSignal,
 )
-from backend.layer_3_specialists.macro_micro.summary import macro_desk_summary_from_context
+from backend.quant_engine.engines.macro.summary import macro_desk_summary_from_context
 from backend.services.market_scanner_module_signals import (
     build_module_signal,
     neutral_module_signal,

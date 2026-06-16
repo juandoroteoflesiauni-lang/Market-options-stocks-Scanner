@@ -1,12 +1,12 @@
+from __future__ import annotations
+from typing import Any
 """Shared models for Phase C engines.
 
 This module exists to break the circular import between
 derivatives_engine.py and scoring.py.
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 
 class QuantEngineResults:

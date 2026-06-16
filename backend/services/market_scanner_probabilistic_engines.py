@@ -1,13 +1,13 @@
+from __future__ import annotations
+from typing import Any
 """Market Scanner Probabilistic Engines Adapter — Phase B.
 
 Bridge between scanner OHLCV/Options data and real Layer 3 engines.
 Follows the pattern established in market_scanner_technical_engines.py.
 """
 
-from __future__ import annotations
 
 import math
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -71,7 +71,7 @@ def _run_markov_regime(df: pd.DataFrame, symbol: str) -> EngineFeatures:
     if len(df) < 20:
         return _fallback("Insufficient bars for Markov")
 
-    from backend.layer_3_specialists.ia_probabilistico.engines.markov_regime_engine import (
+    from backend.quant_engine.engines.predictive.markov_regime_engine import (
         MarkovRegimeEngine,
     )
 
@@ -105,7 +105,7 @@ def _run_markov_regime(df: pd.DataFrame, symbol: str) -> EngineFeatures:
 
 
 def _run_squeeze(df: pd.DataFrame, symbol: str, snapshot: Any | None) -> EngineFeatures:
-    from backend.layer_3_specialists.ia_probabilistico.engines.squeeze_engine import (
+    from backend.quant_engine.engines.predictive.squeeze_engine import (
         OptionChainData,
         SqueezeIgnitionEngine,
         SqueezeState,
@@ -220,7 +220,7 @@ def _run_tail_risk(df: pd.DataFrame, symbol: str, snapshot: Any | None) -> Engin
 
 
 def _run_expected_move(df: pd.DataFrame, symbol: str, snapshot: Any | None) -> EngineFeatures:
-    from backend.layer_3_specialists.ia_probabilistico.engines.expected_move_engine import (
+    from backend.quant_engine.engines.predictive.expected_move_engine import (
         ExpectedMoveEngine,
     )
 

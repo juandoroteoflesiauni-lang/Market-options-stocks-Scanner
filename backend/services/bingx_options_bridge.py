@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Bridge BingX stock-perp symbols → institutional options metrics.
 
 Resolves the right options snapshot for each BingX market type and extracts a
@@ -12,16 +14,14 @@ zero gamma, net DEX). Each market type has explicit handling:
 
 The fetch function is injected so this module is independently testable; the
 production caller wires it to
-:func:`backend.routers.options_router.options_snapshot_service`.
+:func:`backend.api.routes.options_router.options_snapshot_service`.
 """
 
-from __future__ import annotations
 
 import math
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Literal, cast
 
 from backend.config.logger_setup import get_logger
 from backend.services.bingx_symbol_linker import classify_underlying, underlying_from_bingx_symbol
@@ -392,7 +392,7 @@ async def build_options_bridge(
     The fetch function is injected so the bridge stays decoupled from FastAPI
     routers and can be unit-tested without the full options pipeline. The
     production caller passes
-    :func:`backend.routers.options_router.options_snapshot_service`.
+    :func:`backend.api.routes.options_router.options_snapshot_service`.
 
     Each unavailable path returns a stable ``reason`` code (one of the
     ``REASON_*`` constants in this module). Exceptions raised by the fetcher

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/domain/polygon_models.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -6,9 +8,7 @@ Compatible with Pydantic V2.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 from pydantic import BaseModel, Field
 

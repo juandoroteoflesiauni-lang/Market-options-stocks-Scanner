@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Modelo de pesos estratégicos para el Asymmetric Data Funnel de 4 fases.
 
 Cada fase del funnel (A → B → C → D) tiene un peso de contribución al score
@@ -16,7 +17,6 @@ Los pesos son inyectados vía API y persistidos en memoria. El engine de régime
 régimen de mercado detectado (VIX + SPY MA50/MA200).
 """
 
-from __future__ import annotations
 
 from typing import ClassVar
 

@@ -1,15 +1,15 @@
+from __future__ import annotations
+from typing import Any
 """Fase 3: factor crowding indices and conviction penalty (cross-section, no IO).
 
 Computes universe-level crowding per factor family from loadings in the current scan,
 then penalizes ``conviction_score`` when a row's top drivers sit in crowded factors.
 """
 
-from __future__ import annotations
 
 import json
 import math
 import os
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (
@@ -179,7 +179,8 @@ def compute_universe_factor_crowding(
                 concentration_score=comp["concentration_score"],
                 loading_dispersion=comp["loading_dispersion"],
                 pairwise_corr_mean=comp["pairwise_corr_mean"],
-                data_tier=tier,  # type: ignore[arg-type]
+                data_tier=tier,
+
             )
         )
     indices.sort(

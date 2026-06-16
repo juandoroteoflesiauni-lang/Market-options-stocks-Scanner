@@ -1,13 +1,13 @@
+from __future__ import annotations
+from typing import Any
 """Auditable metric lake for Funding Lab quantitative evidence."""
 
-from __future__ import annotations
 
 import json
 import math
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 

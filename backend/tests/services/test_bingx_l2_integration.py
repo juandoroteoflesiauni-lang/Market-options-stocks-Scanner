@@ -1,8 +1,8 @@
+from __future__ import annotations
+from typing import Any
 """Tests for the BingX L2 → Layer 3 LOB bridge."""
 
-from __future__ import annotations
 
-from typing import Any
 
 import pytest
 
@@ -12,7 +12,7 @@ from backend.layer_1_data.datos.bingx_l2_adapter import (
     BingXL2Metrics,
     build_l2_snapshot_from_bingx_depth,
 )
-from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBSnapshot
+from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBSnapshot
 from backend.services.bingx_l2_integration import (
     DATA_QUALITY_DEFAULT_DEPTH_TARGET,
     _compute_data_quality_score,

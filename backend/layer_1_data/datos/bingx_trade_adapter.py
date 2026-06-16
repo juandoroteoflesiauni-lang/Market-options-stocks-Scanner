@@ -1,16 +1,16 @@
+from __future__ import annotations
+from typing import Literal, Any
 """BingX trade tape + L2 → institutional microstructure bundle (Layer 1)."""
 
-from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
 
 from backend.config.logger_setup import get_logger
 from backend.layer_1_data.datos.bingx_l2_adapter import (
     BingXL2AdapterResult,
     build_l2_snapshot_from_bingx_depth,
 )
-from backend.layer_2_quant_engine.math_core.vpin_from_trades import (
+from backend.quant_engine.math.technical.vpin_from_trades import (
     compute_cvd_from_trades,
     compute_vpin_from_signed_volume,
 )
@@ -48,6 +48,7 @@ class BingXMicrostructureBundle:
     l2_imbalance: float | None = None
     trade_count: int = 0
     method_vpin: str = "vpin_trade_tape_v1"
+    order_book: dict[str, Any] | None = None
     fallback_used: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -218,6 +219,7 @@ def build_microstructure_bundle(
         l2_imbalance=l2.metrics.imbalance if l2 and l2.ok else None,
         trade_count=len(ticks),
         method_vpin=str(vpin_out.get("method") or "vpin_trade_tape_v1"),
+        order_book=depth_payload if depth_payload else None,
         extra={
             "l2_ok": l2.ok if l2 else False,
             "l2_reason": l2.reason if l2 else "no_depth",

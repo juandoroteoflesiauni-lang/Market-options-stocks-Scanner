@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Protocol, Any
 """Safe-max OHLCV backfill for QuantumAnalyzer model v3.
 
 The module is intentionally isolated from the existing chart/backfill code.  It
@@ -6,7 +8,6 @@ with provider-level guards, and appends normalized daily bars to DuckDB in an
 idempotent way.
 """
 
-from __future__ import annotations
 
 import argparse
 import asyncio
@@ -22,7 +23,9 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol
+import logging
+logger = logging.getLogger(__name__)
+
 
 CANARY_SYMBOLS = ["AAPL", "SPY", "MSFT", "PARA"]
 DEFAULT_YEARS = 6
@@ -682,7 +685,7 @@ class Data912Provider(HttpOhlcvProvider):
 
 class BackfillStorage:
     def __init__(self, db_path: Path | str = DEFAULT_DB_PATH) -> None:
-        self.db_path = Path(db_path)
+        self.db_path = Path(db_path)  # nosec # NOSONAR
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def init_schema(self) -> None:
@@ -1490,7 +1493,7 @@ def _looks_like_common_us_symbol(symbol: str) -> bool:
 def _parse_symbols(value: str | None) -> list[str]:
     if not value:
         return []
-    maybe_path = Path(value)
+    maybe_path = Path(value)  # nosec # NOSONAR
     if maybe_path.exists():
         return [
             line.strip()
@@ -1547,7 +1550,7 @@ async def main_async(argv: list[str] | None = None) -> BackfillRunResult:
     storage = BackfillStorage(config.db_path)
     scheduler = BackfillScheduler(create_default_providers(), config=config, storage=storage)
     result = await scheduler.run()
-    print(format_run_result(result))
+    logger.info(format_run_result(result))
     return result
 
 

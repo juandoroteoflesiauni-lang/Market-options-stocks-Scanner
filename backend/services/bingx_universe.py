@@ -1,16 +1,16 @@
+from __future__ import annotations
+from typing import Protocol, Literal, Any
 """Dynamic BingX universe discovery and liquidity filtering.
 
 This service sits outside Layer 1 because it combines exchange metadata with
 application-level filters and optional equity enrichment availability checks.
 """
 
-from __future__ import annotations
 
 import asyncio
 import os
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
-from typing import Any, Literal, Protocol
 
 from backend.config.logger_setup import get_logger
 from backend.layer_1_data.datos.bingx_client import BingXClient, is_perp_symbol

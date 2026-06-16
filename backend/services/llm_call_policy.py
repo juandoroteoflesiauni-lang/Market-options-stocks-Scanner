@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Small policy helpers for optional LLM narratives."""
 
-from __future__ import annotations
 
 import os
 from dataclasses import dataclass

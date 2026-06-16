@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Market-data routing contract for BingX bot symbols.
 
 This module is intentionally pure: it chooses providers and symbols, but does
@@ -6,7 +7,6 @@ execution L2 and options/derivatives without spreading market-type conditionals
 across routers and services.
 """
 
-from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 

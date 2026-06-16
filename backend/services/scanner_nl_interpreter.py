@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Keyword-based scanner query interpreter (no LLM — deterministic hints)."""
 
-from __future__ import annotations
 
 import re
 

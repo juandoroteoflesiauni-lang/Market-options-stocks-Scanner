@@ -1,14 +1,14 @@
+from __future__ import annotations
+from typing import Any
 """Optional FinGPT-style NLP context provider for the Market Scanner.
 
 The module is dependency-light at import time. Heavy NLP runtimes are imported
 only when SCANNER_NLP_ENGINE enables FinGPT and FINGPT_MODEL_NAME is configured.
 """
 
-from __future__ import annotations
 
 import os
 from functools import lru_cache
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.services.scanner_external_contracts import clamp_score
@@ -148,7 +148,8 @@ def _device() -> str:
 
 @lru_cache(maxsize=4)
 def _load_text_classifier(model_name: str, device: str) -> Any:
-    from transformers import pipeline  # type: ignore[import-untyped]
+    from transformers import pipeline
+
 
     device_id = 0 if device == "cuda" else -1
     return pipeline(

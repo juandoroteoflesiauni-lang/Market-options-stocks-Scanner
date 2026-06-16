@@ -59,7 +59,7 @@ Ejecuta una función CPU-bound en thread pool.
 **Ejemplo:**
 ```python
 from backend.utils.async_executor import run_cpu_bound
-from backend.layer_3_specialists.tecnico.technical import TechnicalMath
+from backend.quant_engine.engines.technical.technical import TechnicalMath
 
 async def calculate_vwap(h, lo, c, v):
     return await run_cpu_bound(

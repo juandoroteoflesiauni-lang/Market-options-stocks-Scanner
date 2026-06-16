@@ -1,16 +1,28 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING, Any
+
+import os
 
 from backend.services.bot.bingx_bot_types import *
+from backend.layer_1_data.datos.bingx_client import BingXPerpOrderRequest, BingXOrderRequest
+from backend.services.bingx_symbol_linker import display_name_from_bingx_symbol
 
 """Mixin class for BingX Bot Execution."""
 
 import asyncio
+from datetime import UTC, datetime
 from collections.abc import Iterable
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 
 logger = get_logger(__name__)
+
+
+def _float_or_none(value: object) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 from typing import TYPE_CHECKING
 
@@ -74,6 +86,8 @@ class BingXBotExecutionMixin:
     ) -> None:
         if not analysis or not quantity:
             return
+
+        from backend.services.bingx_bot_service import _reference_price_from_analysis
 
         entry = entry_price or _reference_price_from_analysis(analysis)
         if not entry:
@@ -200,6 +214,12 @@ class BingXBotExecutionMixin:
             )
 
             if lob_analysis and isinstance(lob_analysis, dict) and lob_analysis.get("ok"):
+                twap_enabled = os.getenv("BINGX_TWAP_SLIVERING_ENABLED", "true").lower() not in {
+                    "0",
+                    "false",
+                    "no",
+                    "off",
+                }
                 spread = _float_or_none(lob_analysis.get("spread"))
                 mid = _float_or_none(lob_analysis.get("mid_price"))
                 bid_depth = _float_or_none(lob_analysis.get("bid_depth")) or 0.0
@@ -210,7 +230,9 @@ class BingXBotExecutionMixin:
                 total_depth = bid_depth + ask_depth
 
                 # Slivering triggers: slightly wide spread, moderate/thin depth, or high HHI concentration
-                if spread_pct > 0.03 or total_depth < 30000.0 or (hhi is not None and hhi > 0.20):
+                if twap_enabled and (
+                    spread_pct > 0.03 or total_depth < 30000.0 or (hhi is not None and hhi > 0.20)
+                ):
                     is_slivering_needed = True
                     logger.info(
                         "bingx_bot.execution_slivering_triggered symbol=%s reason=lob_dynamics "
@@ -233,9 +255,12 @@ class BingXBotExecutionMixin:
                 response = await self._client.place_order_perp(
                     BingXPerpOrderRequest(
                         symbol=intent.venue_symbol,
-                        side=intent.side,  # type: ignore[arg-type]
-                        position_side=intent.position_side,  # type: ignore[arg-type]
-                        order_type=intent.entry_type,  # type: ignore[arg-type]
+                        side=intent.side,
+
+                        position_side=intent.position_side,
+
+                        order_type=intent.entry_type,
+
                         quantity=sliver_qty,
                         price=decision.adjusted_entry_price,
                         client_order_id=intent.client_order_id,
@@ -272,9 +297,12 @@ class BingXBotExecutionMixin:
                 response = await self._client.place_order_perp(
                     BingXPerpOrderRequest(
                         symbol=intent.venue_symbol,
-                        side=intent.side,  # type: ignore[arg-type]
-                        position_side=intent.position_side,  # type: ignore[arg-type]
-                        order_type=intent.entry_type,  # type: ignore[arg-type]
+                        side=intent.side,
+
+                        position_side=intent.position_side,
+
+                        order_type=intent.entry_type,
+
                         quantity=quantity,
                         price=decision.adjusted_entry_price,
                         client_order_id=intent.client_order_id,
@@ -291,7 +319,7 @@ class BingXBotExecutionMixin:
                         contract_metadata,
                     )
 
-            if response.ok:
+            if response.ok and (response.venue_order_id or response.dry_run):
                 realized_pnl = 0.0
                 if response.venue_order_id:
                     realized_pnl = await self._fetch_realized_pnl(
@@ -301,8 +329,6 @@ class BingXBotExecutionMixin:
                 # Update cooldown cache for execution-spam protection
                 self._last_execution[intent.venue_symbol] = datetime.now(UTC)
 
-                # ⭐ AUDIT INJECTION: Log to Trade Journal (Caja Negra)
-                # This is the exact point where institutional research state is captured
                 await self._log_trade_execution_to_journal(
                     response=response,
                     decision=decision,
@@ -310,6 +336,12 @@ class BingXBotExecutionMixin:
                     analysis=analysis_map.get(intent.venue_symbol),
                     engine_decision=decision_map.get(intent.venue_symbol),
                     cycle_id=cycle_id,
+                )
+            elif response.ok and not response.venue_order_id:
+                logger.warning(
+                    "bingx_bot.fill_skipped_no_order_id symbol=%s dry_run=%s",
+                    intent.venue_symbol,
+                    response.dry_run,
                 )
             out.append(response)
         return out
@@ -367,9 +399,12 @@ class BingXBotExecutionMixin:
                 sub_resp = await self._client.place_order_perp(
                     BingXPerpOrderRequest(
                         symbol=symbol,
-                        side=side,  # type: ignore
-                        position_side=position_side,  # type: ignore
-                        order_type=order_type,  # type: ignore
+                        side=side,
+
+                        position_side=position_side,
+
+                        order_type=order_type,
+
                         quantity=sliver_qty,
                         price=price,
                         client_order_id=f"{intent.client_order_id}_s{i+2}",
@@ -404,18 +439,48 @@ class BingXBotExecutionMixin:
         if fetcher is None:
             return out
         for intent in intents:
+            lookup = display_name_from_bingx_symbol(intent.venue_symbol)
             try:
-                raw = fetcher(intent.venue_symbol)
+                raw = fetcher(lookup)
                 meta = await raw if asyncio.iscoroutine(raw) else raw
             except Exception as exc:
                 logger.warning(
-                    "bingx_bot.contract_metadata_unavailable symbol=%s error=%s",
+                    "bingx_bot.contract_metadata_unavailable symbol=%s lookup=%s error=%s",
                     intent.venue_symbol,
+                    lookup,
                     exc,
                 )
                 continue
             out[intent.venue_symbol] = meta
+            out[lookup] = meta
         return out
+
+    def _bingx_notional_scalars(
+        self,
+        analysis: BingXCandidateAnalysis,
+        decision: BingXDecision,
+        reference_price: float,
+    ) -> float:
+        """Confidence + volatility regime multiplier for BingX notional."""
+        from backend.services.options_strategy.sizing_engine import (
+            atr_pct_to_vix_proxy,
+            equity_confidence_multiplier,
+            volatility_regime_scalar,
+        )
+
+        conf_mult = equity_confidence_multiplier(
+            score=decision.score_total,
+            probability=decision.confidence,
+        )
+        metrics = analysis.technical.metrics or {}
+        atr_raw = metrics.get("atr") or metrics.get("ATR")
+        atr = _float_or_none(atr_raw)
+        if atr is not None and reference_price > 0:
+            vix_proxy = atr_pct_to_vix_proxy(atr, reference_price)
+        else:
+            vix_proxy = float(os.getenv("BINGX_VIX_PROXY", "20.0"))
+        regime_mult = volatility_regime_scalar(vix_proxy)
+        return conf_mult * regime_mult
 
     async def _get_dynamic_notional(self) -> float:
         """Fetch real available balance and assign 1% per trade.
@@ -427,6 +492,8 @@ class BingXBotExecutionMixin:
         If balance fetch fails, falls back to static risk policy notional.
         """
         dynamic_floor_usdt = 1.0
+        if os.getenv("BINGX_USE_STATIC_NOTIONAL", "").lower() in {"1", "true", "yes"}:
+            return self._risk_policy.effective_notional()
         try:
             balance_data = await self._client.fetch_perp_balance()
             if not balance_data:
@@ -434,11 +501,14 @@ class BingXBotExecutionMixin:
                 return self._risk_policy.effective_notional()
 
             # Extract USDT balance — handle nested and flat response shapes
+            balance_nested = balance_data.get("balance") or {}
             available_usdt = (
                 balance_data.get("availableBalance")
                 or balance_data.get("available_balance")
-                or (balance_data.get("balance") or {}).get("availableBalance")
-                or (balance_data.get("balance") or {}).get("available_balance")
+                or balance_data.get("availableMargin")
+                or balance_nested.get("availableBalance")
+                or balance_nested.get("available_balance")
+                or balance_nested.get("availableMargin")
             )
             if available_usdt is None or float(available_usdt) <= 0:
                 logger.warning(
@@ -447,15 +517,16 @@ class BingXBotExecutionMixin:
                 )
                 return self._risk_policy.effective_notional()
 
-            # Assign 1% of available balance per trade
-            dynamic_notional = float(available_usdt) * 0.01  # 1% per trade
+            # Assign configurable % of available balance per trade
+            trade_pct = float(os.getenv("BINGX_TRADE_SIZE_PCT", "0.01"))
+            dynamic_notional = float(available_usdt) * trade_pct
             # Floor to prevent orders below exchange minimum notional
             floored_notional = max(dynamic_notional, dynamic_floor_usdt)
 
             logger.info(
-                "bingx_bot.dynamic_notional available=%s, 1percent=%s, notional=%s",
+                "bingx_bot.dynamic_notional available=%s, pct=%s, notional=%s",
                 available_usdt,
-                dynamic_notional,
+                trade_pct,
                 floored_notional,
             )
             return floored_notional
@@ -478,6 +549,14 @@ class BingXBotExecutionMixin:
         if analysis.market_type not in {"stock_perp", "stock_index_perp"}:
             return None
 
+        from backend.services.bingx_bot_service import (
+            _reference_price_from_analysis,
+            _bracket_prices,
+            _client_order_id,
+            _spread_fraction_from_analysis,
+            _provider_health_for_execution,
+        )
+
         reference_price = _reference_price_from_analysis(analysis)
         if reference_price is None or reference_price <= 0:
             return None
@@ -487,7 +566,12 @@ class BingXBotExecutionMixin:
         existing_exposure = self._risk_desk.state.symbol_exposure(analysis.venue_symbol)
         is_new_position = existing_exposure == 0.0
 
-        if price_zone != "UNKNOWN":
+        if price_zone != "UNKNOWN" and os.getenv("BINGX_ZONE_VETO_ENABLED", "true").lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }:
             # Neutral zone opening veto
             if is_new_position and price_zone == "NEUTRAL":
                 logger.info(
@@ -609,7 +693,9 @@ class BingXBotExecutionMixin:
                 else:
                     size_pct = 0.02
 
-                notional = size_pct * capital
+                notional = size_pct * capital * self._bingx_notional_scalars(
+                    analysis, decision, reference_price
+                )
             else:
                 # Use dynamic notional if provided, otherwise fall back to static
                 if dynamic_notional_override is not None:
@@ -618,7 +704,8 @@ class BingXBotExecutionMixin:
                     base_notional = self._risk_policy.effective_notional()
 
                 size_multiplier = 0.5 if decision.decision == "SIZE_DOWN" else 1.0
-                notional = base_notional * size_multiplier
+                sizing_scalar = self._bingx_notional_scalars(analysis, decision, reference_price)
+                notional = base_notional * size_multiplier * sizing_scalar
         else:
             # UNKNOWN price zone - fall back to standard behavior
             if dynamic_notional_override is not None:
@@ -627,7 +714,8 @@ class BingXBotExecutionMixin:
                 base_notional = self._risk_policy.effective_notional()
 
             size_multiplier = 0.5 if decision.decision == "SIZE_DOWN" else 1.0
-            notional = base_notional * size_multiplier
+            sizing_scalar = self._bingx_notional_scalars(analysis, decision, reference_price)
+            notional = base_notional * size_multiplier * sizing_scalar
 
         if notional <= 0:
             return None
@@ -663,6 +751,10 @@ class BingXBotExecutionMixin:
             l2_quality_score=analysis.l2.quality_score,
             provider_health=_provider_health_for_execution(analysis),
             market_type=analysis.market_type,
-            requires_l2=analysis.market_type in {"stock_perp", "stock_index_perp"},
+            requires_l2=(
+                analysis.market_type in {"stock_perp", "stock_index_perp"}
+                and os.getenv("BINGX_RISK_REQUIRES_L2", "true").lower()
+                not in {"0", "false", "no", "off"}
+            ),
             price_zone=price_zone,
         )

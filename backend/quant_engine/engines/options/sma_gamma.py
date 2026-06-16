@@ -1,3 +1,4 @@
+from typing import Any
 """
 SMA Gamma-Adjusted Engine
 =========================
@@ -31,7 +32,7 @@ class SMAGammaEngine:
         self._gex_buf: list[float] = []
         self._history: list[dict] = []
 
-    def update(self, close: float, net_gex: float, timestamp: pd.Timestamp) -> dict:
+    def update(self, close: float, net_gex: float, timestamp: pd.Timestamp) -> dict[str, Any]:
         self._close_buf.append(close)
         self._gex_buf.append(net_gex)
 

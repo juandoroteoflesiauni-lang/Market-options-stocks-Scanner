@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/factor_calibration.py
 Sector: IA / Probabilístico
@@ -7,7 +8,6 @@ Factor Calibration Engine — PCA and statistical analysis for optimal weights.
 Stateless and vectorized implementations.
 """
 
-from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Bridge BingX symbols → full technical-terminal analysis (SMC/VSA/FVG/VP/OF).
 
 Wraps :func:`backend.services.technical_terminal_payload.build_technical_terminal_payload_from_candles`
@@ -31,13 +33,11 @@ Survival contract:
 - ``technical_quality_score`` collapses to ``0.0`` when no engine produced ok=True.
 """
 
-from __future__ import annotations
 
 import contextlib as _ctx
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
 
 from backend.config.logger_setup import get_logger
 
@@ -167,7 +167,8 @@ def _l2_to_dict(l2_snapshot: object | None) -> dict[str, Any] | None:
         return dict(l2_snapshot)
     if hasattr(l2_snapshot, "model_dump"):
         try:
-            return l2_snapshot.model_dump(mode="python")  # type: ignore[attr-defined]
+            return l2_snapshot.model_dump(mode="python")
+
         except Exception:
             return None
     return None

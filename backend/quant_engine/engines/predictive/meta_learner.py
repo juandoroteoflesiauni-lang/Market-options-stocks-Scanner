@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/engine/metrics/meta_learner.py
 Sector: Options / Meta Learner (Inference Only)
@@ -8,10 +10,8 @@ Consumes engine outputs to predict forward direction.
 Optimised for asynchronous inference without pandas/shap overhead.
 """
 
-from __future__ import annotations
 
 import logging
-from typing import Any, cast
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict

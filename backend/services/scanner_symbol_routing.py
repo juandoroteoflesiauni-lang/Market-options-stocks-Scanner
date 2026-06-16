@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Symbol routing: equity synthetics (BingX) vs crypto (BingX + Deribit) vs options tickers."""
 
-from __future__ import annotations
 
 import re
 

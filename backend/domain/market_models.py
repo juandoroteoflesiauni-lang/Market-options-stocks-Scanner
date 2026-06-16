@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/domain/market_models.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,7 +6,6 @@ General domain models for Market Data.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal

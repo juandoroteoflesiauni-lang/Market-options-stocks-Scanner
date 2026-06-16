@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/engine/metrics/cor3m.py
 Sector: IA / Probabilístico
@@ -7,7 +9,6 @@ COR3M Signal Engine — Implied Correlation panic and re-entry detector.
 Stateless and vectorized implementation without pandas.
 """
 
-from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
@@ -78,7 +79,7 @@ class EngineConfig(BaseModel):
         return self
 
 
-def _compute_single_percentile(window: np.ndarray, val: float) -> float:
+def _compute_single_percentile(window: np.ndarray[Any, Any], val: float) -> float:
     """Compute the fractional rank (percentile) of a value within a window."""
     n = len(window)
     if n == 0:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/engine/metrics/multimodal_predictive.py
 Sector: IA / Probabilístico
@@ -7,12 +9,10 @@ Multimodal Event-Driven Predictive Engine distilled strictly for async inference
 Fuses Fundamentals and Sentiment via Outer-Product Tensors.
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging
 from functools import lru_cache
-from typing import Any, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -39,8 +39,8 @@ class MultimodalBatch(BaseModel):
     ticker: str
     sequence_length: int
     prediction_horizon: int
-    tensor_sequence: np.ndarray
-    event_sequence: np.ndarray
+    tensor_sequence: np.ndarray[Any, Any]
+    event_sequence: np.ndarray[Any, Any]
     is_valid_sequence: bool
 
 

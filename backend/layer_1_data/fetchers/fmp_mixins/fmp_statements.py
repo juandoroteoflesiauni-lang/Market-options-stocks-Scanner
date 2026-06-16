@@ -1,8 +1,8 @@
-# ruff: noqa: F403, F405
 from __future__ import annotations
+from typing import TYPE_CHECKING, Any
+# ruff: noqa: F403, F405
 
 import asyncio
-from typing import TYPE_CHECKING, Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.fmp_models import *

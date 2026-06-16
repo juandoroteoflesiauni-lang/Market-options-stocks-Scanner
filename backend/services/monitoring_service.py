@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Bot Monitoring Service — unified real-time telemetry for the dashboard.
 
 Reads live state directly from the active ``BingXBotService``, ``BingXRiskDesk``
@@ -21,7 +23,6 @@ This module lives in ``layer_4`` (services). It imports from ``layer_3``
 higher layers.
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextlib
@@ -31,7 +32,6 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.config.settings import load_settings

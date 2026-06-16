@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Predictive / probabilistic module backtester."""
 
-from __future__ import annotations
 
 from collections.abc import Sequence
 

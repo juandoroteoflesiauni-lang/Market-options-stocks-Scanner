@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Macro data snapshot provider for probabilistic regime priors."""
 
-from __future__ import annotations
 
 import os
 import time

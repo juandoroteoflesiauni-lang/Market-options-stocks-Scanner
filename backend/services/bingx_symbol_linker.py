@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Central BingX symbol-to-underlying mapper.
 
 Provides three canonical operations for resolving BingX venue symbols:
@@ -14,7 +15,6 @@ this transparently via the ``ON-USDT`` branch in
 :func:`underlying_from_bingx_symbol`.
 """
 
-from __future__ import annotations
 
 import re
 from typing import Literal
@@ -48,6 +48,12 @@ def normalize_venue_symbol(symbol: str) -> str:
     'BTC-USDT'
     """
     return str(symbol or "").upper().strip().replace("/", "-")
+
+
+def display_name_from_bingx_symbol(symbol: str) -> str:
+    """Convierte símbolo API (``NCSKAAPL2USD-USDT``) o venue a display (``AAPL-USDT``)."""
+    root = underlying_from_bingx_symbol(symbol)
+    return f"{root}-USDT"
 
 
 def underlying_from_bingx_symbol(symbol: str) -> str:

@@ -1,14 +1,14 @@
+from __future__ import annotations
+from typing import Any
 """Velas diarias del subyacente vía REST Massive / Polygon (misma auth que options snapshot).
 
 Expone cierres (HV) y OHLCV completo para ``SMCEngine`` (Capa 3 técnico) en el snapshot de opciones.
 """
 
-from __future__ import annotations
 
 import json
 import math
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 import httpx
 import numpy as np
@@ -60,7 +60,7 @@ def fetch_equity_daily_bars(
     *,
     settings: Config | None = None,
     lookback_calendar_days: int = 500,
-) -> tuple[np.ndarray | None, pd.DataFrame | None, dict[str, Any]]:
+) -> tuple[np.np.ndarray[Any, Any] | None, pd.DataFrame | None, dict[str, Any]]:
     """
     Una sola petición REST: cierres ascendentes + DataFrame OHLCV para SMC.
 
@@ -73,6 +73,15 @@ def fetch_equity_daily_bars(
     if not sym:
         meta["error"] = "empty_symbol"
         return None, None, meta
+
+    from backend.hub.market_data_ttl_cache import get_equity_daily_bars, put_equity_daily_bars
+
+    cached = get_equity_daily_bars(sym)
+    if cached is not None:
+        closes_list, rows, cached_meta = cached
+        df = pd.DataFrame(rows)
+        closes = np.asarray(closes_list, dtype=np.float64)
+        return closes, df, {**cached_meta, "cache_hit": True}
 
     end = datetime.now(tz=UTC).date()
     start = end - timedelta(days=int(lookback_calendar_days))
@@ -146,6 +155,12 @@ def fetch_equity_daily_bars(
                     sym,
                     src,
                 )
+                put_equity_daily_bars(
+                    sym,
+                    closes.tolist(),
+                    df.to_dict(orient="records"),
+                    meta,
+                )
                 return closes, df, meta
 
     meta["error"] = "all_hosts_keys_failed"
@@ -158,7 +173,7 @@ def fetch_equity_daily_closes(
     *,
     settings: Config | None = None,
     lookback_calendar_days: int = 500,
-) -> tuple[np.ndarray | None, dict[str, Any]]:
+) -> tuple[np.np.ndarray[Any, Any] | None, dict[str, Any]]:
     """Solo cierres — delega en :func:`fetch_equity_daily_bars` (una petición HTTP)."""
     closes, _df, meta = fetch_equity_daily_bars(
         symbol, settings=settings, lookback_calendar_days=lookback_calendar_days

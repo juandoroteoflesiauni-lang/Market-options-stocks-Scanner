@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Any
 """Pure Greek-flow snapshot calculations for normalized option chains."""
 
-from __future__ import annotations
 
 import math
-from typing import Any
 
 CONTRACT_MULTIPLIER = 100.0
 REQUIRED_COMPONENTS = (

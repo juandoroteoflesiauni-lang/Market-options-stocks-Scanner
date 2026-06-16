@@ -1,16 +1,16 @@
+from __future__ import annotations
+from typing import Any
 """Mini-chart service for market scanner.
 
 Handles fetching, caching, and normalising 5m OHLCV candles
 from FMP Enterprise or Alpaca for scanner card sparklines.
 """
 
-from __future__ import annotations
 
 import asyncio
 import math
 import os
 import time
-from typing import Any
 
 from backend.config.settings import load_settings
 from backend.layer_1_data.datos.intraday_bars_fetcher import _fetch_alpaca_bars, _fetch_fmp_bars

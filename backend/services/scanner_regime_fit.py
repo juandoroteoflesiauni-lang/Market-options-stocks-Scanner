@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Fase 2: edge-regime mapping — score how well a row's edge fits the regime.
 
 Given the active desk regime and a row's top conviction factors, this module
@@ -11,7 +12,6 @@ historically worked in the current regime — a reason for the desk to size down
 never a green light. This score never authorizes risk by itself.
 """
 
-from __future__ import annotations
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (

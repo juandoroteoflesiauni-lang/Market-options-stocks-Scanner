@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Núcleo matemático de HMM (Hidden Markov Model) — Sector Técnico.
 
 Funciones puras numpy para inferencia online de un HMM Gaussiano multivariante
@@ -9,7 +11,6 @@ Restricciones:
 - log-sum-exp numéricamente estable para evitar underflow.
 """
 
-from __future__ import annotations
 
 from math import exp, isfinite, log
 
@@ -32,7 +33,7 @@ REGIME_CRITICAL = 2
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def log_sum_exp(values: np.ndarray) -> float:
+def log_sum_exp(values: np.ndarray[Any, Any]) -> float:
     """Log-sum-exp numéricamente estable.
 
     LSE(v) = max(v) + log Σ exp(v_i - max(v))
@@ -53,7 +54,7 @@ def log_sum_exp(values: np.ndarray) -> float:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def normalised_entropy(probabilities: np.ndarray) -> float:
+def normalised_entropy(probabilities: np.ndarray[Any, Any]) -> float:
     """Entropía normalizada de una distribución discreta.
 
     H_norm = -Σ p_i log(p_i) / log(K)
@@ -74,9 +75,9 @@ def normalised_entropy(probabilities: np.ndarray) -> float:
 
 
 def log_gaussian_emission(
-    observation: np.ndarray,
-    mean: np.ndarray,
-    inverse_covariance: np.ndarray,
+    observation: np.ndarray[Any, Any],
+    mean: np.ndarray[Any, Any],
+    inverse_covariance: np.ndarray[Any, Any],
     log_norm_const: float,
 ) -> float:
     """Log-probabilidad de emisión Gaussiana multivariante.
@@ -85,9 +86,9 @@ def log_gaussian_emission(
 
     Parameters
     ----------
-    observation         : ndarray shape (d,).
-    mean                : ndarray shape (d,).
-    inverse_covariance  : ndarray shape (d, d).
+    observation         : np.ndarray[Any, Any] shape (d,).
+    mean                : np.ndarray[Any, Any] shape (d,).
+    inverse_covariance  : np.ndarray[Any, Any] shape (d, d).
     log_norm_const      : 0.5·d·log(2π) + 0.5·log|Σ|.
 
     Returns
@@ -105,9 +106,9 @@ def log_gaussian_emission(
 
 
 def precompute_emission_cache(
-    means: list[np.ndarray],
-    covariances: list[np.ndarray],
-) -> list[tuple[np.ndarray, np.ndarray, float]]:
+    means: list[np.ndarray[Any, Any]],
+    covariances: list[np.ndarray[Any, Any]],
+) -> list[tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], float]]:
     """Pre-computa (mean, inv_cov, log_norm_const) por estado del HMM.
 
     Returns
@@ -138,25 +139,25 @@ def precompute_emission_cache(
 
 
 def forward_step(
-    log_alpha: np.ndarray,
-    log_transition: np.ndarray,
-    log_emissions: np.ndarray,
+    log_alpha: np.ndarray[Any, Any],
+    log_transition: np.ndarray[Any, Any],
+    log_emissions: np.ndarray[Any, Any],
     initialised: bool,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Paso del filtro forward en espacio logarítmico.
 
     log α_t(j) = log P(x_t | s_j) + log-sum-exp_i [log α_{t-1}(i) + log A_{ij}]
 
     Parameters
     ----------
-    log_alpha      : ndarray shape (K,) — log-alpha del paso anterior.
-    log_transition : ndarray shape (K, K) — log de la matriz de transición.
-    log_emissions  : ndarray shape (K,) — log P(x_t | s_j) por estado.
+    log_alpha      : np.ndarray[Any, Any] shape (K,) — log-alpha del paso anterior.
+    log_transition : np.ndarray[Any, Any] shape (K, K) — log de la matriz de transición.
+    log_emissions  : np.ndarray[Any, Any] shape (K,) — log P(x_t | s_j) por estado.
     initialised    : bool — si False, omite la convolución de transición.
 
     Returns
     -------
-    new_log_alpha : ndarray shape (K,) normalizado.
+    new_log_alpha : np.ndarray[Any, Any] shape (K,) normalizado.
     """
     K = len(log_alpha)
     log_alpha = np.asarray(log_alpha, dtype=np.float64)
@@ -181,25 +182,25 @@ def forward_step(
 
 
 def infer_hmm_sequence(
-    observations: np.ndarray,
-    initial_log_probs: np.ndarray,
-    log_transition: np.ndarray,
-    emission_cache: list[tuple[np.ndarray, np.ndarray, float]],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    observations: np.ndarray[Any, Any],
+    initial_log_probs: np.ndarray[Any, Any],
+    log_transition: np.ndarray[Any, Any],
+    emission_cache: list[tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], float]],
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Inferencia forward completa sobre una secuencia de observaciones.
 
     Parameters
     ----------
-    observations       : ndarray shape (T, d).
-    initial_log_probs  : ndarray shape (K,) — log de probabilidades iniciales.
-    log_transition     : ndarray shape (K, K).
+    observations       : np.ndarray[Any, Any] shape (T, d).
+    initial_log_probs  : np.ndarray[Any, Any] shape (K,) — log de probabilidades iniciales.
+    log_transition     : np.ndarray[Any, Any] shape (K, K).
     emission_cache     : lista de (mean, inv_cov, log_norm) por estado.
 
     Returns
     -------
-    state_sequence     : ndarray int shape (T,) — estado más probable en cada paso.
-    state_probs        : ndarray float shape (T, K) — P(s_j | x_{1:t}).
-    transition_risks   : ndarray float shape (T,) — entropía normalizada por paso.
+    state_sequence     : np.ndarray[Any, Any] int shape (T,) — estado más probable en cada paso.
+    state_probs        : np.ndarray[Any, Any] float shape (T, K) — P(s_j | x_{1:t}).
+    transition_risks   : np.ndarray[Any, Any] float shape (T,) — entropía normalizada por paso.
     """
     observations = np.asarray(observations, dtype=np.float64)
     T = len(observations)
@@ -249,29 +250,29 @@ def classify_regime(entropy: float) -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def to_log_matrix(matrix: np.ndarray) -> np.ndarray:
+def to_log_matrix(matrix: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Convierte una matriz de probabilidad a espacio logarítmico."""
     arr = np.asarray(matrix, dtype=np.float64)
     return np.where(arr > 0, np.log(arr), -np.inf)
 
 
-def to_log_vector(vector: np.ndarray) -> np.ndarray:
+def to_log_vector(vector: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Convierte un vector de probabilidad a espacio logarítmico."""
     arr = np.asarray(vector, dtype=np.float64)
     return np.where(arr > 0, np.log(arr), -np.inf)
 
 
 def build_ohlcv_features(
-    close: np.ndarray,
-    volume: np.ndarray,
+    close: np.ndarray[Any, Any],
+    volume: np.ndarray[Any, Any],
     vol_window: int = 20,
     ret_window: int = 20,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Construye features [log_return, realized_volatility, volume_zscore] desde OHLCV.
 
     Returns
     -------
-    features : ndarray shape (n, 3) — rows con NaN en prefijo descartables.
+    features : np.ndarray[Any, Any] shape (n, 3) — rows con NaN en prefijo descartables.
     """
     close = np.asarray(close, dtype=np.float64)
     volume = np.asarray(volume, dtype=np.float64)

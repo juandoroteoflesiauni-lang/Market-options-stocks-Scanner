@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import Any
 """Binding portfolio risk service for prop-firm style evaluations."""
 
-from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.portfolio_risk_models import (
@@ -21,7 +21,7 @@ from backend.domain.portfolio_risk_models import (
     RuleUsage,
     TradeCandidate,
 )
-from backend.layer_5_risk.portfolio_risk.component import (
+from backend.services.portfolio_risk.component import (
     fractional_kelly,
     historical_var_pct,
     position_notional_from_risk,
@@ -735,7 +735,8 @@ class PortfolioRiskService:
         return CandidateGateDecision(
             symbol=candidate.symbol,
             direction=candidate.direction,
-            decision=decision,  # type: ignore[arg-type]
+            decision=decision,
+
             allowed_risk_pct=round(budget.per_trade_pct, 4),
             suggested_notional=round(max(0.0, suggested), 2),
             size_multiplier=round(size_multiplier, 4),
@@ -1130,7 +1131,8 @@ class PortfolioRiskService:
             max_attempts_remaining_today=int(max(0, budget.max_attempts_remaining)),
             recommended_risk_per_trade_pct=round(recommended, 4),
             kill_switch_reasons=reasons,
-            funding_grade=grade,  # type: ignore[arg-type]
+            funding_grade=grade,
+
             remaining_daily_risk_pct=round(remaining_daily_risk_pct, 4),
             remaining_max_loss_pct=round(remaining_max_loss_pct, 4),
             consistency_headroom_pct=round(consistency_headroom_pct, 4),

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Singleton de configuración activa de pesos estratégicos del funnel.
 
 Provee el punto único de acceso a los StrategyWeights actualmente activos.
@@ -5,7 +6,6 @@ Puede ser modificado en caliente vía API REST (POST /api/strategy/weights)
 y es consultado por todas las fases del pipeline.
 """
 
-from __future__ import annotations
 
 import threading
 

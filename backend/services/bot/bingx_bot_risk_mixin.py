@@ -1,11 +1,14 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING, Any
+
+import os
 
 from backend.services.bot.bingx_bot_types import *
+from backend.services.bingx_decision_engine import BingXDecisionConfig, decide
 
 """Mixin class for BingX Bot Risk."""
 
 from collections.abc import Iterable
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 
@@ -152,14 +155,24 @@ class BingXBotRiskMixin:
         # thin, too wide or too one-sided for safe entry.
         market_type = self._resolve_market_type(signal.symbol)
         is_stock_perp = market_type in {"stock_perp", "stock_index_perp"}
-        exec_allowed, l2_reasons = _evaluate_l2_execution_quality(
-            signal.lob_analysis,
-            self._exec_quality_policy,
-            is_stock_perp=is_stock_perp,
-        )
-        if not exec_allowed:
-            reasons.extend(l2_reasons)
-            return BingXOrderPlan(
+
+        exec_quality_on = os.getenv("BINGX_EXEC_QUALITY_ENABLED", "true").lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+        if exec_quality_on:
+            from backend.services.bingx_bot_service import _evaluate_l2_execution_quality
+
+            exec_allowed, l2_reasons = _evaluate_l2_execution_quality(
+                signal.lob_analysis,
+                self._exec_quality_policy,
+                is_stock_perp=is_stock_perp,
+            )
+            if not exec_allowed:
+                reasons.extend(l2_reasons)
+                return BingXOrderPlan(
                 symbol=signal.symbol,
                 side="BUY" if signal.direction == "LONG" else "SELL",
                 notional_usdt=0.0,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """final_signal_composer.py
 ============================
 Final-stage signal composition.
@@ -15,9 +17,7 @@ Public API
                        portfolio_context) -> dict
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 import numpy as np
 import pandas as pd

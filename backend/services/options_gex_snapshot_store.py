@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Forward persistence for canonical Options/GEX live snapshots."""
 
-from __future__ import annotations
 
 import hashlib
 import json
@@ -8,9 +9,14 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
-DEFAULT_OPTIONS_GEX_SNAPSHOT_DB = Path("backend/data/predictions.db")
+from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB
+from backend.infrastructure.sqlite_health import (
+    apply_sqlite_pragmas,
+    ensure_healthy_or_quarantine,
+)
+
+DEFAULT_OPTIONS_GEX_SNAPSHOT_DB = OPTIONS_GEX_SNAPSHOTS_DB
 
 
 @dataclass(frozen=True)
@@ -25,6 +31,7 @@ class OptionsGexSnapshotStore:
 
     def __init__(self, db_path: Path | str = DEFAULT_OPTIONS_GEX_SNAPSHOT_DB) -> None:
         self.db_path = Path(db_path)
+        ensure_healthy_or_quarantine(self.db_path)
 
     def persist(self, snapshot: object) -> OptionsGexSnapshotPersistResult:
         payload = _as_dict(snapshot)
@@ -82,10 +89,9 @@ class OptionsGexSnapshotStore:
     def _init_db(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.db_path) as conn:
+            apply_sqlite_pragmas(conn)
             conn.executescript(
                 """
-                PRAGMA journal_mode=WAL;
-                PRAGMA synchronous=NORMAL;
                 CREATE TABLE IF NOT EXISTS options_gex_snapshots (
                     snapshot_id TEXT PRIMARY KEY,
                     symbol TEXT NOT NULL,
@@ -116,7 +122,8 @@ def _as_dict(value: object) -> dict[str, Any]:
     if isinstance(value, dict):
         return dict(value)
     if hasattr(value, "model_dump"):
-        dumped = value.model_dump(mode="json")  # type: ignore[attr-defined]
+        dumped = value.model_dump(mode="json")
+
         return dumped if isinstance(dumped, dict) else {}
     return {}
 

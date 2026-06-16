@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """BingX Risk Desk — institutional order controls for the BingX Bot.
 
 Applies 8 independent guardrails before any order reaches the venue:
@@ -20,13 +22,11 @@ This module is intentionally free of HTTP I/O.  Callers inject account state
 (realized PnL, open positions) so the desk can be tested without a live client.
 """
 
-from __future__ import annotations
 
 import hashlib
 import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 
@@ -318,7 +318,10 @@ class BingXRiskDesk:
             reason_codes.append(REASON_SPREAD_TOO_WIDE)
 
         # ── Gate 8a: L2 quality floor ─────────────────────────────────────────
-        if intent.requires_l2 and intent.l2_quality_score is None:
+        requires_l2 = intent.requires_l2 and os.getenv(
+            "BINGX_RISK_REQUIRES_L2", "true"
+        ).lower() not in {"0", "false", "no", "off"}
+        if requires_l2 and intent.l2_quality_score is None:
             reason_codes.append(REASON_L2_QUALITY_MISSING)
         if (
             intent.l2_quality_score is not None
@@ -334,7 +337,13 @@ class BingXRiskDesk:
             reason_codes.append(REASON_PROVIDER_DEGRADED)
 
         # ── Gate 9: Zone Validation (Mutual Exclusion) ───────────────────────
-        if not intent.reduce_only:
+        zone_veto_on = os.getenv("BINGX_ZONE_VETO_ENABLED", "true").lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+        if zone_veto_on and not intent.reduce_only:
             allow_long = intent.price_zone != "DISTRIBUCION"
             veto_short = intent.price_zone == "ACUMULACION"
             logger.info(
@@ -445,6 +454,23 @@ class BingXRiskDesk:
             realized_pnl,
             self._state.realized_pnl_today,
         )
+
+    def sync_open_positions_from_venue(self, rows: list[dict[str, Any]]) -> None:
+        """Reconcilia posiciones abiertas con el exchange (evita estado fantasma)."""
+        synced: dict[str, float] = {}
+        for row in rows:
+            symbol = str(row.get("symbol") or row.get("symbolName") or "").strip()
+            if not symbol:
+                continue
+            qty = float(row.get("positionAmt") or row.get("quantity") or 0.0)
+            if abs(qty) < 1e-12:
+                continue
+            mark = float(row.get("markPrice") or row.get("avgPrice") or row.get("entryPrice") or 0.0)
+            notional = abs(qty) * mark if mark > 0 else abs(float(row.get("positionValue") or 0.0))
+            if notional > 0:
+                synced[symbol] = synced.get(symbol, 0.0) + notional
+        self._state.open_positions = synced
+        logger.info("risk_desk.positions_synced count=%d symbols=%s", len(synced), list(synced))
 
     def record_close(self, symbol: str, *, realized_pnl: float) -> None:
         """Remove a symbol from open positions after it has been closed."""

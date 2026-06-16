@@ -4,6 +4,7 @@ import pytest
 
 from backend.services.bingx_symbol_linker import (
     classify_underlying,
+    display_name_from_bingx_symbol,
     is_ncsk_vst_stock_perp_symbol,
     normalize_venue_symbol,
     underlying_from_bingx_symbol,
@@ -83,6 +84,19 @@ def test_is_ncsk_vst_stock_perp_symbol_true(symbol: str) -> None:
 
 def test_is_ncsk_vst_stock_perp_symbol_false_for_display_name() -> None:
     assert is_ncsk_vst_stock_perp_symbol("PLTR-USDT") is False
+
+
+@pytest.mark.parametrize(
+    ("symbol", "expected"),
+    [
+        ("NCSKAAPL2USD-USDT", "AAPL-USDT"),
+        ("NCSKGOOGL2USD-USDT", "GOOGL-USDT"),
+        ("MSFT-USDT", "MSFT-USDT"),
+        ("MSFTON-USDT", "MSFT-USDT"),
+    ],
+)
+def test_display_name_from_bingx_symbol(symbol: str, expected: str) -> None:
+    assert display_name_from_bingx_symbol(symbol) == expected
 
 
 @pytest.mark.parametrize(

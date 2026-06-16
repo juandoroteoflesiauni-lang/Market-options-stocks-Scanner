@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Motor Cuantitativo SMC (Smart Money Concepts) — Sector Técnico.
 
 Implementa la detección vectorizada de BOS (Break of Structure), CHoCH (Change of Character),
 Order Blocks institucionales, Fair Value Gaps y modelos ICT.
 """
 
-from __future__ import annotations
 
 import logging
 from typing import Final

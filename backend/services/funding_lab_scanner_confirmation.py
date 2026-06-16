@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Protocol, Any
 """Live Market Scanner confirmation adapter for Funding Lab.
 
 This module is intentionally thin: it runs a single-symbol scanner request and
@@ -6,9 +8,7 @@ are fail-closed so Funding Lab never treats missing live confirmation as an
 authorization.
 """
 
-from __future__ import annotations
 
-from typing import Any, Protocol
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Tests for ``bingx_decision_engine`` — multi-module BingX decision rules.
 
 Coverage:
@@ -12,10 +14,8 @@ Coverage:
 - JSON safety
 """
 
-from __future__ import annotations
 
 import json
-from typing import Any
 
 import pytest
 

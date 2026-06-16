@@ -1,3 +1,4 @@
+from typing import Any
 """
 EMA Delta Ribbon Híbrido — Cinta EMA + Shadow Delta Acumulado
 ═════════════════════════════════════════════════════════════
@@ -115,13 +116,13 @@ class EMARibbon:
     Periods default: [8, 13, 21, 34, 55] (Fibonacci)
     """
 
-    def __init__(self, periods: list[int] = None, label: str = ""):
+    def __init__(self, periods: list[int] | None = None, label: str = ""):
         self.periods = sorted(periods or [8, 13, 21, 34, 55])
         self.label = label
         self._emas = {p: IncrementalEMA(p) for p in self.periods}
         self._prev_width: float | None = None
 
-    def update(self, value: float) -> dict:
+    def update(self, value: float) -> dict[str, Any]:
         """
         Procesa un nuevo valor y retorna el estado completo de la cinta.
         Retorna None values hasta que todos los períodos tengan warm-up.
@@ -135,10 +136,10 @@ class EMARibbon:
         if any(v is None for v in vals.values()):
             return self._empty(vals)
 
-        ema_values = [vals[p] for p in self.periods]
+        ema_values: list[float] = [float(vals[p]) for p in self.periods if vals[p] is not None]
 
         # ── Width: separación entre la más rápida y la más lenta ──
-        width = abs(ema_values[0] - ema_values[-1])
+        width = float(abs(ema_values[0] - ema_values[-1]))
         width_pct = width / abs(ema_values[-1]) * 100 if abs(ema_values[-1]) > 1e-9 else 0.0
 
         # ── Slope: pendiente promedio (dirección de la cinta) ─────
@@ -211,7 +212,7 @@ class EMARibbon:
             f"{self.label}_ready": True,
         }
 
-    def _empty(self, vals: dict) -> dict:
+    def _empty(self, vals: dict) -> dict[str, Any]:
         return {f"{self.label}_ema_{p}": vals.get(p) for p in self.periods} | {
             f"{self.label}_width": 0.0,
             f"{self.label}_width_pct": 0.0,
@@ -258,11 +259,11 @@ class ShadowDeltaAccumulator:
         self.norm_window = norm_window
         self.norm_mode = norm_mode
         self._acc: float = 0.0  # acumulado neto
-        self._acc_buf: deque = deque(maxlen=norm_window)
+        self._acc_buf: deque[Any] = deque(maxlen=norm_window)
         self._smooth_ema: IncrementalEMA = IncrementalEMA(smooth_period)
         self._prev_iv: float | None = None
 
-    def update(self, shadow_delta_bar: ShadowDeltaBar | None) -> tuple[float, float]:
+    def update(self, shadow_delta_bar: Any | None) -> tuple[float, float]:
         """
         Retorna (shadow_delta_acum_raw, shadow_delta_acum_norm).
         El valor normalizado es el que se alimenta al EMARibbon de Shadow Delta.
@@ -613,7 +614,7 @@ class HybridEMADeltaRibbonEngine:
     def __init__(
         self,
         ticker: str,
-        periods: list[int] = None,
+        periods: list[int] | None = None,
         norm_window: int = 50,
         norm_mode: str = "zscore",
         smooth_sd: int = 3,
@@ -645,7 +646,7 @@ class HybridEMADeltaRibbonEngine:
         gamma_flip: float,
         sweep_count: int,
         timestamp: pd.Timestamp,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Procesa una vela de 1m con su Shadow Delta del mismo minuto."""
 
         # ── Cinta A: precio ───────────────────────────────────

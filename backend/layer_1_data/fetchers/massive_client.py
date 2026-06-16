@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/layer_1_data/fetchers/massive_client.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,10 +7,8 @@ Massive API Client — Polygon.io Institutional Suite.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import logging
-from typing import Any, Final
 
 try:
     import httpx as _httpx

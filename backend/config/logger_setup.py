@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Configuracion central de logging para QuantumAnalyzer.
 
 Extends the base rotating-file + console setup with an optional
@@ -5,7 +6,6 @@ Extends the base rotating-file + console setup with an optional
 table when the Audit Complex subsystem is configured.
 """
 
-from __future__ import annotations
 
 import logging
 import re

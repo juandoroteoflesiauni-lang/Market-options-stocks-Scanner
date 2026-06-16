@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Memory Pool para arrays NumPy - Optimización de memoria en HFT.
 
 Este módulo implementa un pool de memoria para reutilizar arrays NumPy,
@@ -15,7 +17,6 @@ Solución:
 - Reducción de GC pressure
 """
 
-from __future__ import annotations
 
 import logging
 from collections import deque
@@ -49,7 +50,7 @@ class NumpyMemoryPool:
     pool.release(arr)
 
     # Estadísticas
-    print(pool.stats)  # {'hits': 95, 'misses': 5, 'allocs': 5}
+    logger.info(pool.stats)  # {'hits': 95, 'misses': 5, 'allocs': 5}
     ```
     """
 
@@ -100,7 +101,7 @@ class NumpyMemoryPool:
         shape: tuple[int, ...],
         dtype: np.dtype = np.float64,
         zeros: bool = False,
-    ) -> np.ndarray:
+    ) -> np.ndarray[Any, Any]:
         """Adquiere un array del pool (o crea uno nuevo).
 
         Args:
@@ -108,8 +109,7 @@ class NumpyMemoryPool:
             dtype: Tipo de dato (default: np.float64)
             zeros: Si True, inicializa en ceros. Si False, datos arbitrarios.
 
-        Returns:
-            np.ndarray listo para usar
+        Returns: np.ndarray[Any, Any] listo para usar
 
         Ejemplo:
         ```python
@@ -134,15 +134,12 @@ class NumpyMemoryPool:
         self._stats["misses"] += 1
         self._stats["allocs"] += 1
 
-        if zeros:
-            arr = np.zeros(shape, dtype=dtype)
-        else:
-            arr = np.empty(shape, dtype=dtype)
+        arr = np.zeros(shape, dtype=dtype) if zeros else np.empty(shape, dtype=dtype)
 
         logger.debug(f"Allocated new array: shape={shape}, dtype={dtype}")
         return arr
 
-    def release(self, arr: np.ndarray, shape: tuple | None = None) -> None:
+    def release(self, arr: np.ndarray[Any, Any], shape: tuple | None = None) -> None:
         """Devuelve un array al pool para reutilización.
 
         Args:
@@ -181,7 +178,7 @@ class NumpyMemoryPool:
         shapes: list[tuple[int, ...]],
         dtype: np.dtype = np.float64,
         zeros: bool = False,
-    ) -> list[np.ndarray]:
+    ) -> list[np.ndarray[Any, Any]]:
         """Adquiere múltiples arrays del pool.
 
         Args:
@@ -203,7 +200,7 @@ class NumpyMemoryPool:
         """
         return [self.acquire(shape, dtype, zeros) for shape in shapes]
 
-    def release_batch(self, arrays: list[np.ndarray]) -> None:
+    def release_batch(self, arrays: list[np.ndarray[Any, Any]]) -> None:
         """Devuelve múltiples arrays al pool.
 
         Args:
@@ -277,7 +274,7 @@ def allocate_technical_arrays(
     bars: int = 320,
     dtype: np.dtype = np.float64,
     pool: NumpyMemoryPool | None = None,
-) -> dict[str, np.ndarray]:
+) -> dict[str, np.ndarray[Any, Any]]:
     """Asigna arrays para cálculos técnicos usando el pool.
 
     Args:
@@ -324,7 +321,7 @@ def allocate_technical_arrays(
 
 
 def release_technical_arrays(
-    arrays: dict[str, np.ndarray],
+    arrays: dict[str, np.ndarray[Any, Any]],
     pool: NumpyMemoryPool | None = None,
 ) -> None:
     """Devuelve arrays técnicos al pool.
@@ -360,9 +357,9 @@ class TechnicalArraysContext:
         self.bars = bars
         self.dtype = dtype
         self.pool = pool or get_technical_pool()
-        self.arrays: dict[str, np.ndarray] | None = None
+        self.arrays: dict[str, np.ndarray[Any, Any]] | None = None
 
-    def __enter__(self) -> dict[str, np.ndarray]:
+    def __enter__(self) -> dict[str, np.ndarray[Any, Any]]:
         self.arrays = allocate_technical_arrays(self.bars, self.dtype, self.pool)
         return self.arrays
 
@@ -371,7 +368,7 @@ class TechnicalArraysContext:
             release_technical_arrays(self.arrays, self.pool)
         return False
 
-    async def __aenter__(self) -> dict[str, np.ndarray]:
+    async def __aenter__(self) -> dict[str, np.ndarray[Any, Any]]:
         return self.__enter__()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

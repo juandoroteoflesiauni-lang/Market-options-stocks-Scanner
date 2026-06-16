@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Optional FinRobot adapter for Market Scanner leaders research.
 
 This module is dependency-light by design. It imports FinRobot or a configured
@@ -5,13 +7,11 @@ callable only inside ``run_finrobot_leaders_research`` so normal scanner imports
 do not require optional research dependencies.
 """
 
-from __future__ import annotations
 
 import importlib
 import json
 import os
 from collections.abc import Callable
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.services.scanner_external_contracts import ResearchBriefResult

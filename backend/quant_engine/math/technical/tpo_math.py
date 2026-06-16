@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Núcleo matemático de TPO Profile y Skewness — Sector Técnico.
 
 Funciones puras numpy/scipy para cálculo de estadísticas de distribución TPO,
@@ -8,7 +10,6 @@ Restricciones:
 - Toda división regularizada con _EPS = 1e-12.
 """
 
-from __future__ import annotations
 
 from math import sqrt
 
@@ -35,15 +36,15 @@ _BIMODAL_GAP_TICKS: int = 6
 
 
 def compute_tpo_stats(
-    prices: np.ndarray,
-    tpo_counts: np.ndarray,
+    prices: np.ndarray[Any, Any],
+    tpo_counts: np.ndarray[Any, Any],
 ) -> tuple[float, float, float, float]:
     """Calcula estadísticas de primer, segundo y tercer momento de un perfil TPO.
 
     Parameters
     ----------
-    prices     : ndarray de precios de cada nivel (shape n).
-    tpo_counts : ndarray de conteos TPO por nivel (shape n).
+    prices     : np.ndarray[Any, Any] de precios de cada nivel (shape n).
+    tpo_counts : np.ndarray[Any, Any] de conteos TPO por nivel (shape n).
 
     Returns
     -------
@@ -80,8 +81,8 @@ def compute_tpo_stats(
 
 def classify_profile_shape(
     skewness: float,
-    prices_sorted: np.ndarray,
-    tpo_counts_sorted: np.ndarray,
+    prices_sorted: np.ndarray[Any, Any],
+    tpo_counts_sorted: np.ndarray[Any, Any],
     skew_threshold: float = _SKEW_THRESHOLD,
     symmetry_threshold: float = _SYMMETRY_THRESHOLD,
     bimodal_gap_ticks: int = _BIMODAL_GAP_TICKS,
@@ -104,7 +105,7 @@ def classify_profile_shape(
 
 
 def detect_bimodal(
-    tpo_counts_sorted: np.ndarray,
+    tpo_counts_sorted: np.ndarray[Any, Any],
     gap_ticks: int = _BIMODAL_GAP_TICKS,
 ) -> bool:
     """Detecta distribución bimodal (DDoubleDistribution).
@@ -137,12 +138,12 @@ def detect_bimodal(
 
 
 def build_tpo_histogram(
-    high: np.ndarray,
-    low: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
     tick_size: float,
     max_bins_per_bar: int = 500,
     max_total_levels: int = 2500,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Construye el histograma TPO a partir de barras OHLCV.
 
     Cada barra contribuye a todos los niveles de precio dentro de su rango
@@ -157,8 +158,8 @@ def build_tpo_histogram(
 
     Returns
     -------
-    prices     : ndarray de centros de nivel ordenados ascendentemente.
-    tpo_counts : ndarray de conteos de TPO por nivel.
+    prices     : np.ndarray[Any, Any] de centros de nivel ordenados ascendentemente.
+    tpo_counts : np.ndarray[Any, Any] de conteos de TPO por nivel.
     """
     high = np.asarray(high, dtype=np.float64)
     low = np.asarray(low, dtype=np.float64)
@@ -203,9 +204,9 @@ def build_tpo_histogram(
 
 
 def infer_tick_size(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    close: np.ndarray[Any, Any],
     max_total_levels: int = 2500,
 ) -> float:
     """Infiere el tick size óptimo para un perfil TPO dado el rango de precio.
@@ -242,9 +243,9 @@ def infer_tick_size(
 
 
 def analyze_tpo(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    close: np.ndarray[Any, Any],
     tick_size: float | None = None,
     max_bins_per_bar: int = 500,
     max_total_levels: int = 2500,

@@ -1,16 +1,16 @@
+from __future__ import annotations
+from typing import Any
 """Read-only FTMO GEX validation for Funding Lab.
 
 The validator only reads persisted Options/GEX evidence. It never calls option
 providers, market-data APIs, broker APIs, or the BingX Bot.
 """
 
-from __future__ import annotations
 
 import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 DIRECT_GEX_REQUIRED_SYMBOLS = frozenset({"AAPL", "GOOGL", "TSLA"})
 PROXY_GEX_CONTEXT_BY_SYMBOL = {

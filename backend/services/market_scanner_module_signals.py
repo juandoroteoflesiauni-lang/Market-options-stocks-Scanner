@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Shared helpers for Market Scanner Phase B module signals."""
 
-from __future__ import annotations
 
 import math
 

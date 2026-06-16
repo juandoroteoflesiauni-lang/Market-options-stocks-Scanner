@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/layer_1_data/fetchers/primary_fetcher.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,11 +7,9 @@ Primary (Matba Rofex) — REST connector using official pyRofex SDK.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
 
 import pyRofex
 

@@ -1,10 +1,10 @@
+from typing import Any
 """Massive API WebSocket Client - Real-time stock aggregates and trades."""
 
 import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 import websockets
 from websockets.client import ClientConnection

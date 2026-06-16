@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """prediction_logger.py
 ========================
 Audit-grade logger for every meta-signal prediction emitted by the system.
@@ -20,7 +22,6 @@ Public API
 - schedule_outcome_updates(logger, provider, delay_days)
 """
 
-from __future__ import annotations
 
 import json
 import sqlite3
@@ -30,7 +31,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd

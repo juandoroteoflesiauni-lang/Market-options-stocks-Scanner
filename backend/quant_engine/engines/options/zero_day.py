@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/zero_day.py
 Sector: Options / Zero Day (0DTE) Engine
@@ -9,7 +10,6 @@ Theoretical basis:
     Purely stateless, synchronous, offline, and pandas-free.
 """
 
-from __future__ import annotations
 
 import logging
 import warnings
@@ -17,7 +17,8 @@ import warnings
 import numpy as np
 import numpy.typing as npt
 from pydantic import BaseModel, ConfigDict
-from scipy.stats import norm  # type: ignore[import-not-found, import-untyped]
+from scipy.stats import norm
+
 
 from backend.models.result import Result
 

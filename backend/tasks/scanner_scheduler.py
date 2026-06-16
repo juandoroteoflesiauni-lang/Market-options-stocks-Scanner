@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Scanner scheduler — periodic Phase A scan cycle manager.
 
 Executes the full Phase A pipeline on a configurable interval:
@@ -10,7 +12,6 @@ Follows the same injectable ``now_fn``/``sleep_fn`` pattern as
 ``BingXBotScheduler`` for testability.
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextlib
@@ -18,7 +19,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta, timezone
 from enum import Enum
-from typing import Any
 
 try:
     import pytz as _pytz

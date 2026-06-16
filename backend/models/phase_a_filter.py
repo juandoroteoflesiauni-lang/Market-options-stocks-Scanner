@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Modelo de resultado del filtro global de Phase A.
 
 Cada ticker evaluado por Phase A produce un FilterResult con:
@@ -7,7 +8,6 @@ Cada ticker evaluado por Phase A produce un FilterResult con:
 - rejection_reason: causa de rechazo si corresponde
 """
 
-from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 

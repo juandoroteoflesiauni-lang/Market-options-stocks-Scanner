@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """Factor covariance estimation and portfolio risk attribution (Barra Point 2)."""
 
-from __future__ import annotations
 
 import math
 import os
 from datetime import UTC, datetime
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (

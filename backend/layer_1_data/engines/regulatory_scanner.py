@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/layer_1_data/engines/regulatory_scanner.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -6,7 +7,6 @@ Stateless, deterministic, and fail-graceful adaptation for low-latency scanning.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import re
 from datetime import UTC, datetime

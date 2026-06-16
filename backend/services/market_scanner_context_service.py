@@ -1,12 +1,12 @@
+from __future__ import annotations
+from typing import Any
 """Market Scanner dashboard context assembly."""
 
-from __future__ import annotations
 
 import asyncio
 import os
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (
@@ -153,7 +153,7 @@ async def fetch_symbol_sentiment(symbol: str, limit: int) -> dict[str, Any]:
 async def fetch_symbol_catalyst(symbol: str) -> dict[str, Any]:
     """Run the existing catalyst NLP engine for one symbol."""
     from backend.layer_1_data.fetchers.fmp_client import FMPClient
-    from backend.layer_3_specialists.ia_probabilistico.engines.catalyst_nlp_engine import (
+    from backend.quant_engine.engines.predictive.catalyst_nlp_engine import (
         CatalystNLPEngine,
     )
 
@@ -179,7 +179,7 @@ async def fetch_symbol_catalyst(symbol: str) -> dict[str, Any]:
 
 async def fetch_fear_greed_dashboard() -> dict[str, Any] | None:
     """Return the latest stored Fear & Greed dashboard snapshot."""
-    from backend.layer_3_specialists.ia_probabilistico.engines.fear_greed_storage import (
+    from backend.quant_engine.engines.predictive.fear_greed_storage import (
         get_fg_storage,
     )
 
@@ -209,10 +209,10 @@ async def _compute_live_fear_greed_dashboard() -> dict[str, Any] | None:
     """Compute a live Fear & Greed snapshot when no persisted scanner snapshot exists."""
     try:
         from backend.layer_1_data.fetchers.fmp_client import FMPClient
-        from backend.layer_3_specialists.ia_probabilistico.engines.fear_greed_engine import (
+        from backend.quant_engine.engines.predictive.fear_greed_engine import (
             FearGreedEngine,
         )
-        from backend.layer_3_specialists.ia_probabilistico.engines.market_data_fetcher import (
+        from backend.quant_engine.engines.predictive.market_data_fetcher import (
             MarketDataFetcher,
         )
 
@@ -335,7 +335,7 @@ def _aggregate_regulatory_scan(news: list[ScannerNewsItem]) -> dict[str, Any]:
 
 async def fetch_argentina_summary() -> dict[str, Any] | None:
     """Reuse the Argentina market-summary endpoint implementation."""
-    from backend.routers.argentina_router import get_argentina_summary
+    from backend.api.routes.argentina_router import get_argentina_summary
 
     result = await get_argentina_summary()
     return result if isinstance(result, dict) else None

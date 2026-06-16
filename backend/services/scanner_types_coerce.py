@@ -1,8 +1,8 @@
+from __future__ import annotations
+from typing import Any
 """Coerce numpy / odd scalars to JSON-safe Python types for Pydantic scanner models."""
 
-from __future__ import annotations
 
-from typing import Any
 
 import numpy as np
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/domain/fmp_models.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -6,7 +7,6 @@ Compatible with Pydantic V2.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 

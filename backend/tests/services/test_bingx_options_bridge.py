@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Tests for ``bingx_options_bridge`` — BingX ↔ institutional options metrics.
 
 Coverage:
@@ -9,11 +11,9 @@ Coverage:
 - JSON safety via ``to_dict``
 """
 
-from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest

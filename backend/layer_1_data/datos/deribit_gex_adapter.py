@@ -1,8 +1,8 @@
+from __future__ import annotations
+from typing import Any
 """Deribit public options → gex_levels shape compatible with Massive/scanner."""
 
-from __future__ import annotations
 
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.layer_1_data.datos.deribit_options_client import DeribitOptionsClient

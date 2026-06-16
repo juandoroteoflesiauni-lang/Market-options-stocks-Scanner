@@ -1,15 +1,15 @@
+from __future__ import annotations
+from typing import Any
 """Private BingX account WebSocket manager.
 
 This module stays in Layer 1 because it owns exchange I/O. It exposes decoded
 account/order events through an async iterator and keeps the listen key alive.
 """
 
-from __future__ import annotations
 
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from typing import Any
 
 try:  # pragma: no cover - optional runtime dependency.
     import websockets

@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Train / calibrate per-module weights from simple grid search on toy signals."""
 
-from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass

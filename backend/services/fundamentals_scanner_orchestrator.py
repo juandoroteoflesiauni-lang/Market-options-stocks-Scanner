@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Any
 """Fundamentals module synthesis for Market Scanner Phase B (FMP + forensic scores)."""
 
-from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (
@@ -12,7 +12,7 @@ from backend.domain.market_scanner_models import (
     ScannerIndicatorDefinition,
     ScannerModuleSignal,
 )
-from backend.layer_3_specialists.fundamentales.scoring_engine import calcular_scores
+from backend.quant_engine.engines.fundamental.scoring_engine import calcular_scores
 from backend.services.market_scanner_module_signals import (
     build_module_signal,
     neutral_module_signal,

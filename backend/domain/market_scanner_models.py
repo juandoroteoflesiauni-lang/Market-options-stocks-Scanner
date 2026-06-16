@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Domain contracts for the Market Scanner module."""
 
-from __future__ import annotations
 
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Primitivas de Volatilidad e Indicadores de Régimen — Sector Opciones/GEX.
 
 Proporciona funciones vectorizadas para el cálculo de volatilidad histórica (HV),
@@ -5,15 +7,14 @@ regímenes de IV (Rank/Percentile), Volatility Risk Premium (VRP) y análisis
 de estructura temporal y Skew de la cadena de opciones.
 """
 
-from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-from scipy.optimize import brentq  # type: ignore[import-untyped]
+from scipy.optimize import brentq
+
 
 from .bsm import BlackScholesPricer, OptionType
 from .derivatives import SVIParameters, VolatilitySurfaceMath

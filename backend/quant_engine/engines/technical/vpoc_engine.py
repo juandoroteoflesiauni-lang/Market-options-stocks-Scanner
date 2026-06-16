@@ -1,15 +1,15 @@
+from __future__ import annotations
+from typing import Any
 """Motor VPOC Migration — Sector Técnico.
 
 Ports the vPOC/Value Area migration logic. Builds rolling volume profiles
 and classifies the direction of Point of Control migration.
 """
 
-from __future__ import annotations
 
 import logging
 from enum import Enum
 from math import ceil, isfinite
-from typing import Any
 
 import numpy as np
 import pandas as pd

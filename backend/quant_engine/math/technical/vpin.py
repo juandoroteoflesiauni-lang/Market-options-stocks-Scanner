@@ -1,3 +1,4 @@
+from typing import Any
 """
 Sector 3: Lógica de Volume-Synchronized Probability of Informed Trading.
 """

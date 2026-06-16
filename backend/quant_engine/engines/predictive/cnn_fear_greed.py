@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/engine/metrics/cnn_fear_greed.py
 Sector: Options / CNN Fear & Greed Index Fetcher & Comparator
@@ -9,10 +11,8 @@ Theoretical basis:
     Purely stateless, synchronous, and offline.
 """
 
-from __future__ import annotations
 
 import logging
-from typing import Any
 
 import numpy as np
 import numpy.typing as npt

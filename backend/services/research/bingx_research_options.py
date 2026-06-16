@@ -1,15 +1,18 @@
-# ruff: noqa: F403, F405
 from __future__ import annotations
+from typing import Any
+# ruff: noqa: F403, F405
 
 import logging
-from typing import Any
+import time
+import json
+import sqlite3
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 from backend.services.research.research_types import *
+from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB
 from backend.services.research.research_types import (
-    _DB_PATH,
     _bucket_tail_risk,
     _now_iso,
     _safe_float,
@@ -108,7 +111,7 @@ async def _fetch_options_gex_desk(
     options_snapshot: dict[str, Any] | None = None,
     klines: tuple[dict[str, Any], ...] | None = None,
 ) -> OptionsGexDeskState:
-    """Read the latest Options/GEX snapshot from ``predictions.db``.
+    """Read the latest Options/GEX snapshot from ``options_gex_snapshots.sqlite3``.
 
     Connects to the SQLite database in **read-only** mode (``mode=ro`` URI) so
     it never blocks or corrupts the write path.  All failures — missing file,
@@ -142,7 +145,7 @@ async def _fetch_options_gex_desk(
 
     t0 = time.monotonic()
     try:
-        db_path = _DB_PATH
+        db_path = OPTIONS_GEX_SNAPSHOTS_DB
         if not db_path.exists():
             return OptionsGexDeskState(
                 desk_status=_unavailable_desk_status(
@@ -625,7 +628,7 @@ async def _fetch_options_gex_desk(
                         )
 
                         # Populate predictive report with combined results
-                        from backend.layer_3_specialists.ia_probabilistico.domain.probabilistic_models import (
+                        from backend.domain.probabilistic_models import (
                             PredictiveOptionsBundleReport,
                         )
 
@@ -679,7 +682,7 @@ async def _fetch_options_gex_desk(
         # Build the real PredictiveOptionsBundleReport
         if predictive_report is None:
             # Build the real PredictiveOptionsBundleReport
-            from backend.layer_3_specialists.ia_probabilistico.domain.probabilistic_models import (
+            from backend.domain.probabilistic_models import (
                 PredictiveOptionsBundleReport,
             )
 

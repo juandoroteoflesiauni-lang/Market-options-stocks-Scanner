@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Tests unitarios para Phase A (ApiKeyPool) y Phase B (MicrostructureEngine).
 
 Cubre:
@@ -6,7 +7,6 @@ Cubre:
 - Legacy QuantitativeEngine wrapper
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/domain/argentina_models.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,11 +7,9 @@ Domain contracts for Argentine macro-economic data (Sector: DATA).
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import datetime as _dt
 from datetime import datetime
-from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 

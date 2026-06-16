@@ -1,6 +1,6 @@
+from typing import Any
 import logging
 from collections import defaultdict, deque
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

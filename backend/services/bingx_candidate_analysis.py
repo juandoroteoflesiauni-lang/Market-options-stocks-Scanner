@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING, Any
 """Unified analysis contract for BingX candidates.
 
 Connects venue, underlying, options, technical (underlying equity TA),
@@ -10,16 +12,14 @@ Survival contract:
 - ``to_dict()`` is always JSON-safe — all nested types are Python builtins.
 """
 
-from __future__ import annotations
 
 import asyncio
 import math
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from backend.layer_3_specialists.ia_probabilistico.domain.probabilistic_models import (
+    from backend.domain.probabilistic_models import (
         PredictiveOptionsBundleReport,
     )
 
@@ -211,6 +211,7 @@ class BingXCandidateAnalysis:
     errors: dict[str, str] = field(default_factory=dict)
     readiness_score: float = 0.0
     captured_at: str = ""
+    avwap_hybrid_signals: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -754,7 +755,7 @@ async def build_candidate_analysis(
     bridge. When ``None``, the bridge returns ``unavailable`` with reason
     ``no_options_snapshot_fn`` — equivalent to "no options pipeline wired".
     The router-level caller passes
-    :func:`backend.routers.options_router.options_snapshot_service`.
+    :func:`backend.api.routes.options_router.options_snapshot_service`.
 
     ``venue_technical_fn`` enables the full SMC/VSA/FVG/VP/OF stack against
     the BingX venue klines (via the technical bridge). When ``None``, the

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING, Any
 """
 Vectorized financial data structures for memory-efficient time series.
 
@@ -25,12 +27,13 @@ Example
 >>> revenue_cagr = vectorized.calculate_cagr(vectorized.revenue)
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import numpy as np
+import logging
+logger = logging.getLogger(__name__)
+
 
 # Optional imports for type hints
 if TYPE_CHECKING:
@@ -49,27 +52,27 @@ class VectorizedFinancials:
 
     Attributes
     ----------
-    dates : np.ndarray
+    dates : np.ndarray[Any, Any]
         Dates as int32 (YYYYMMDD format)
-    revenue : np.ndarray
+    revenue : np.ndarray[Any, Any]
         Revenue time series (float32)
-    gross_profit : np.ndarray
+    gross_profit : np.ndarray[Any, Any]
         Gross profit time series
-    operating_income : np.ndarray
+    operating_income : np.ndarray[Any, Any]
         Operating income (EBIT proxy)
-    net_income : np.ndarray
+    net_income : np.ndarray[Any, Any]
         Net income
-    ebitda : np.ndarray
+    ebitda : np.ndarray[Any, Any]
         EBITDA
-    total_assets : np.ndarray
+    total_assets : np.ndarray[Any, Any]
         Total assets
-    total_debt : np.ndarray
+    total_debt : np.ndarray[Any, Any]
         Total debt (short + long term)
-    cash : np.ndarray
+    cash : np.ndarray[Any, Any]
         Cash and equivalents
-    operating_cash_flow : np.ndarray
+    operating_cash_flow : np.ndarray[Any, Any]
         Operating cash flow
-    free_cash_flow : np.ndarray
+    free_cash_flow : np.ndarray[Any, Any]
         Free cash flow
 
     Examples
@@ -87,24 +90,24 @@ class VectorizedFinancials:
     """
 
     # Time dimension
-    dates: np.ndarray  # int32 YYYYMMDD
+    dates: np.ndarray[Any, Any]  # int32 YYYYMMDD
 
     # Income Statement (float32 for memory efficiency)
-    revenue: np.ndarray
-    gross_profit: np.ndarray
-    operating_income: np.ndarray
-    net_income: np.ndarray
-    ebitda: np.ndarray
+    revenue: np.ndarray[Any, Any]
+    gross_profit: np.ndarray[Any, Any]
+    operating_income: np.ndarray[Any, Any]
+    net_income: np.ndarray[Any, Any]
+    ebitda: np.ndarray[Any, Any]
 
     # Balance Sheet
-    total_assets: np.ndarray
-    total_debt: np.ndarray
-    cash: np.ndarray
-    shareholders_equity: np.ndarray
+    total_assets: np.ndarray[Any, Any]
+    total_debt: np.ndarray[Any, Any]
+    cash: np.ndarray[Any, Any]
+    shareholders_equity: np.ndarray[Any, Any]
 
     # Cash Flow
-    operating_cash_flow: np.ndarray
-    free_cash_flow: np.ndarray
+    operating_cash_flow: np.ndarray[Any, Any]
+    free_cash_flow: np.ndarray[Any, Any]
 
     # Metadata
     symbol: str = ""
@@ -209,7 +212,7 @@ class VectorizedFinancials:
                 total += attr.nbytes
         return total
 
-    def roic_series(self) -> np.ndarray:
+    def roic_series(self) -> np.ndarray[Any, Any]:
         """
         Calculate ROIC (Return on Invested Capital) time series.
 
@@ -220,13 +223,13 @@ class VectorizedFinancials:
 
         Returns
         -------
-        np.ndarray
+        np.ndarray[Any, Any]
             ROIC series (float32)
 
         Examples
         --------
         >>> roic = vectorized.roic_series()
-        >>> print(f"Average ROIC: {roic.mean():.2%}")
+        >>> logger.info(f"Average ROIC: {roic.mean():.2%}")
         """
         if self.fiscal_periods == 0:
             return np.array([], dtype=np.float32)
@@ -247,13 +250,13 @@ class VectorizedFinancials:
 
         return roic.astype(np.float32)
 
-    def calculate_cagr(self, values: np.ndarray, periods_per_year: int = 4) -> float | None:
+    def calculate_cagr(self, values: np.ndarray[Any, Any], periods_per_year: int = 4) -> float | None:
         """
         Calculate Compound Annual Growth Rate.
 
         Parameters
         ----------
-        values : np.ndarray
+        values : np.ndarray[Any, Any]
             Time series values
         periods_per_year : int
             Number of periods per year (4=quarterly, 1=annual)
@@ -266,7 +269,7 @@ class VectorizedFinancials:
         Examples
         --------
         >>> revenue_cagr = vectorized.calculate_cagr(vectorized.revenue)
-        >>> print(f"Revenue CAGR: {revenue_cagr:.2%}")
+        >>> logger.info(f"Revenue CAGR: {revenue_cagr:.2%}")
         """
         if len(values) < 2:
             return None
@@ -291,7 +294,7 @@ class VectorizedFinancials:
         cagr = (last / first) ** (1 / years) - 1
         return float(cagr)
 
-    def growth_rates(self) -> dict:
+    def growth_rates(self) -> dict[str, Any]:
         """
         Calculate all growth metrics at once.
 
@@ -307,7 +310,7 @@ class VectorizedFinancials:
         Examples
         --------
         >>> growth = vectorized.growth_rates()
-        >>> print(f"Revenue CAGR: {growth['revenue_cagr']:.2%}")
+        >>> logger.info(f"Revenue CAGR: {growth['revenue_cagr']:.2%}")
         """
         return {
             "revenue_cagr": self.calculate_cagr(self.revenue),
@@ -315,7 +318,7 @@ class VectorizedFinancials:
             "fcf_cagr": self.calculate_cagr(self.free_cash_flow),
         }
 
-    def profitability_metrics(self) -> dict:
+    def profitability_metrics(self) -> dict[str, Any]:
         """
         Calculate profitability metrics (vectorized).
 
@@ -333,7 +336,7 @@ class VectorizedFinancials:
         Examples
         --------
         >>> metrics = vectorized.profitability_metrics()
-        >>> print(f"ROE: {metrics['roe'].mean():.2%}")  # Average ROE
+        >>> logger.info(f"ROE: {metrics['roe'].mean():.2%}")  # Average ROE
         """
         if self.fiscal_periods == 0:
             return {}
@@ -358,7 +361,7 @@ class VectorizedFinancials:
             "net_margin": net_margin,
         }
 
-    def summary_stats(self) -> dict:
+    def summary_stats(self) -> dict[str, Any]:
         """
         Get summary statistics for all metrics.
 
@@ -373,7 +376,7 @@ class VectorizedFinancials:
         if self.fiscal_periods == 0:
             return {}
 
-        def safe_stats(arr: np.ndarray) -> dict:
+        def safe_stats(arr: np.ndarray[Any, Any]) -> dict[str, Any]:
             if len(arr) == 0 or np.all(arr == 0):
                 return {"mean": 0, "std": 0, "min": 0, "max": 0, "latest": 0}
             return {

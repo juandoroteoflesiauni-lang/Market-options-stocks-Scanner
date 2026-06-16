@@ -1,6 +1,6 @@
+from __future__ import annotations
 """SQLite persistence for Fase 3 crowding snapshots (validation / audit)."""
 
-from __future__ import annotations
 
 import json
 import os
@@ -49,7 +49,8 @@ def _ensure_db() -> None:
 
 
 @contextmanager
-def _db_context():  # type: ignore[misc]
+def _db_context():
+
     conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
     try:

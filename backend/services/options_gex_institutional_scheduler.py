@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Scheduling primitives for institutional Options/GEX snapshots.
 
 This module is intentionally framework-agnostic: cron, APScheduler, Celery or a
@@ -6,7 +7,6 @@ runner. The scheduler owns timing, idempotency per slot and the canonical job
 set; data fetching and persistence stay outside.
 """
 
-from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field

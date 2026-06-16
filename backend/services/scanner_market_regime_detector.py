@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Fase 2: desk-level market regime detector for the Market Scanner.
 
 Unifies four deterministic components into a single desk regime label:
@@ -16,9 +18,7 @@ Architecture note: HMM is consumed through the layer-3 specialist adapter
 (``analyze_hmm_regime_from_ohlcv``); this service performs no market IO.
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import DeskRegimeLabel, DeskRegimeSnapshot
@@ -68,7 +68,7 @@ def analyze_spy_regime(spy_bars: list[dict[str, Any]]) -> dict[str, Any] | None:
     try:
         import pandas as pd
 
-        from backend.layer_3_specialists.tecnico.hmm_engine import analyze_hmm_regime_from_ohlcv
+        from backend.quant_engine.engines.technical.hmm_engine import analyze_hmm_regime_from_ohlcv
 
         closes: list[float] = []
         volumes: list[float] = []

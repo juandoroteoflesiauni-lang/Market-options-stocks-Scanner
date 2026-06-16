@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/cross_asset.py
 Sector: Options / Cross-Asset Correlation Engine
@@ -8,7 +9,6 @@ Theoretical basis:
     and a reference portfolio of global macro assets to detect institutional flow regimes.
 """
 
-from __future__ import annotations
 
 import logging
 

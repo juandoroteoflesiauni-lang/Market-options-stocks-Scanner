@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Any
 """Fase 3: per-row capacity / liquidity signals (no extra market IO in v1)."""
 
-from __future__ import annotations
 
 import os
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (

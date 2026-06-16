@@ -1,7 +1,7 @@
+from typing import Any
 import logging
 import time
 from enum import StrEnum
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

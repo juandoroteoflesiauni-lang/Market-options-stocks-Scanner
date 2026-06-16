@@ -1,15 +1,15 @@
+from __future__ import annotations
+from typing import Any
 """Normalizador de opciones para la API de Massive.
 
 Transforma las respuestas raw de Massive en objetos OptionContract y
 OptionChainSnapshot válidos para el pipeline de Phase C.
 """
 
-from __future__ import annotations
 
 import time
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any
 
 from backend.models.market_snapshot import DataLineage
 from backend.models.option_contract import OptionChainSnapshot, OptionContract

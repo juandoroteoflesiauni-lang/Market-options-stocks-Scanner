@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Núcleo matemático de Volume Spread Analysis (VSA) — Sector Técnico.
 
 Funciones vectorizadas puras numpy para clasificación de barras VSA,
@@ -8,7 +10,6 @@ Restricciones:
 - Toda división regularizada con _EPS = 1e-12.
 """
 
-from __future__ import annotations
 
 import numpy as np
 
@@ -35,14 +36,14 @@ _SPREAD_NARROW_RATIO: float = 0.70
 
 
 def compute_volume_zscore(
-    volume: np.ndarray,
+    volume: np.ndarray[Any, Any],
     window: int = _DEFAULT_VOL_WINDOW,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Z-score de volumen rodante sobre una ventana deslizante.
 
     Returns
     -------
-    vz : ndarray shape (n,) con NaN en las primeras (window-1) posiciones.
+    vz : np.ndarray[Any, Any] shape (n,) con NaN en las primeras (window-1) posiciones.
     """
     volume = np.asarray(volume, dtype=np.float64)
     n = len(volume)
@@ -61,10 +62,10 @@ def compute_volume_zscore(
 
 
 def compute_close_location(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    close: np.ndarray[Any, Any],
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Ubicación del cierre dentro del rango de la barra y spread porcentual.
 
     Returns
@@ -87,12 +88,12 @@ def compute_close_location(
 
 
 def compute_absorption_index(
-    high: np.ndarray,
-    low: np.ndarray,
-    volume: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    volume: np.ndarray[Any, Any],
     window: int = _DEFAULT_ABSORPTION_WINDOW,
     threshold: float = _DEFAULT_ABSORPTION_THRESHOLD,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Índice de absorción (Vol / Spread) y su z-score rodante.
 
     Returns
@@ -127,13 +128,13 @@ def compute_absorption_index(
 
 
 def detect_buying_climax(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    volume: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    close: np.ndarray[Any, Any],
+    volume: np.ndarray[Any, Any],
     climax_percentile: float = _DEFAULT_CLIMAX_VOL_PERCENTILE,
     window: int = _DEFAULT_CLIMAX_VOL_WINDOW,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Identifica velas con firma de clímax de compra institucional.
 
     Criterio:
@@ -166,17 +167,17 @@ def detect_buying_climax(
 
 
 def compute_mfi_kinetic(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    volume: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    close: np.ndarray[Any, Any],
+    volume: np.ndarray[Any, Any],
     period: int = 3,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """MFI Kinético — versión comprimida de Money Flow Index.
 
     Returns
     -------
-    mfi : ndarray shape (n,) en rango [0, 100], NaN en prefijo.
+    mfi : np.ndarray[Any, Any] shape (n,) en rango [0, 100], NaN en prefijo.
     """
     high = np.asarray(high, dtype=np.float64)
     low = np.asarray(low, dtype=np.float64)
@@ -208,10 +209,10 @@ def compute_mfi_kinetic(
 
 
 def compute_weis_wave(
-    close: np.ndarray,
-    volume: np.ndarray,
+    close: np.ndarray[Any, Any],
+    volume: np.ndarray[Any, Any],
     threshold: float = _DEFAULT_WEIS_WAVE_THRESHOLD,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Acumula volumen en ondas unidireccionales (metodología Weis Wave).
 
     Una onda cambia de dirección cuando el precio se desplaza más de `threshold`
@@ -219,8 +220,8 @@ def compute_weis_wave(
 
     Returns
     -------
-    wave_volume    : ndarray — volumen acumulado en la onda actual.
-    wave_direction : ndarray int8 — +1 alcista, -1 bajista.
+    wave_volume    : np.ndarray[Any, Any] — volumen acumulado en la onda actual.
+    wave_direction : np.ndarray[Any, Any] int8 — +1 alcista, -1 bajista.
     """
     close = np.asarray(close, dtype=np.float64)
     volume = np.asarray(volume, dtype=np.float64)
@@ -266,24 +267,24 @@ VSA_EFFORT_VS_RESULT = 6
 
 
 def classify_vsa_bars(
-    close: np.ndarray,
-    open_: np.ndarray,
-    vz: np.ndarray,
-    close_location: np.ndarray,
-    spread: np.ndarray,
-    spread_mean: np.ndarray,
+    close: np.ndarray[Any, Any],
+    open_: np.ndarray[Any, Any],
+    vz: np.ndarray[Any, Any],
+    close_location: np.ndarray[Any, Any],
+    spread: np.ndarray[Any, Any],
+    spread_mean: np.ndarray[Any, Any],
     vz_climax: float = _VZ_CLIMAX,
     vz_low: float = _VZ_LOW,
     vz_effort: float = _VZ_EFFORT,
     close_ratio_high: float = _CLOSE_RATIO_HIGH,
     close_ratio_low: float = _CLOSE_RATIO_LOW,
     spread_narrow_ratio: float = _SPREAD_NARROW_RATIO,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Clasifica cada barra según las etiquetas canónicas de Tom Williams.
 
     Returns
     -------
-    labels : ndarray int8 con códigos VSA_* (0–6).
+    labels : np.ndarray[Any, Any] int8 con códigos VSA_* (0–6).
     """
     close = np.asarray(close, dtype=np.float64)
     open_ = np.asarray(open_, dtype=np.float64)
@@ -316,19 +317,19 @@ def classify_vsa_bars(
 
 
 def compute_cvd_approx(
-    open_: np.ndarray,
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    volume: np.ndarray,
-) -> np.ndarray:
+    open_: np.ndarray[Any, Any],
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    close: np.ndarray[Any, Any],
+    volume: np.ndarray[Any, Any],
+) -> np.ndarray[Any, Any]:
     """Cálculo aproximado del Cumulative Volume Delta (CVD).
 
     CVD_i = Σ V_i × (C_i - O_i) / (H_i - L_i)
 
     Returns
     -------
-    cvd : ndarray acumulado, shape (n,).
+    cvd : np.ndarray[Any, Any] acumulado, shape (n,).
     """
     open_ = np.asarray(open_, dtype=np.float64)
     high = np.asarray(high, dtype=np.float64)

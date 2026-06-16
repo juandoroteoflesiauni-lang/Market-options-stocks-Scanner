@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """Optional HTTPS webhook delivery after Market Scanner runs (desk alerts)."""
 
-from __future__ import annotations
 
 import ipaddress
 import json
 import re
-from typing import Any
 from urllib.parse import urlparse
 
 import httpx

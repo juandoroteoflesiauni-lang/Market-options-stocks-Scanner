@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Any
 """Data-tier policy: scale effective weights by indicator audit status (real/partial/proxy)."""
 
-from __future__ import annotations
 
 import os
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import ScannerIndicatorDefinition, ScannerIndicatorStatus

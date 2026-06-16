@@ -1,9 +1,9 @@
+from __future__ import annotations
 """
 Domain contracts for regulatory kill-switch scanning.
 Immutable Pydantic V2 models used by the regulatory scanner engine.
 """
 
-from __future__ import annotations
 
 from enum import Enum
 from typing import Final

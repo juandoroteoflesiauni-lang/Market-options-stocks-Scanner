@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/engine/metrics/markov_regime.py
 Sector: Options / Markov Regime Engine
@@ -16,10 +18,8 @@ Strategy:
      rapidly (high entropy).
 """
 
-from __future__ import annotations
 
 import logging
-from typing import Any, cast
 
 import numpy as np
 import pandas as pd

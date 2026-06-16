@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Curated liquid symbol universes for the Market Scanner."""
 
-from __future__ import annotations
 
 
 def _dedupe(symbols: list[str]) -> list[str]:
@@ -432,9 +432,12 @@ ALL_LIQUID = _dedupe(
     + INDICES_ETFS
 )
 
+from backend.services.alpaca_universe_fetcher import ALPACA_EXTENDED_CACHE
+
 DEFAULT_UNIVERSES: dict[str, tuple[str, list[str]]] = {
     "general": ("General", GENERAL),
     "wall_street": ("Wall Street", WALL_STREET),
+    "alpaca_extended": ("Alpaca Broad Market", ALPACA_EXTENDED_CACHE),
     "magnificas": ("7 Magnificas", MAGNIFICAS),
     "ftmo_core": ("FTMO Core", FTMO_CORE),
     "options_liquid": ("Options Liquid", OPTIONS_LIQUID),

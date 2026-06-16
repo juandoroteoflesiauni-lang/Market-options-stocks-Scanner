@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Implementación del repositorio de precios usando FMP (Financial Modeling Prep).
 
 Este módulo adapta el FMPClient existente a la interfaz PriceRepository,
 proporcionando manejo de errores específico y logging centralizado.
 """
 
-from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -34,7 +34,8 @@ from backend.domain.repositories.price_repository import (
 try:
     from layer_1_data.fetchers.fmp_client import FMPClient
 except ImportError:
-    FMPClient = None  # type: ignore
+    FMPClient = None
+
 
 logger = logging.getLogger("backend.infrastructure.repositories.fmp_price_repository")
 

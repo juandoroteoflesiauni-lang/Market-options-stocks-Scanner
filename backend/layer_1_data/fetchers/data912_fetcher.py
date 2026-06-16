@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/layer_1_data/fetchers/data912_fetcher.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,10 +7,8 @@ Data912 — High-frequency connector for Argentine live market data.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import logging
-from typing import Any, Final
 
 import httpx
 from pydantic import BaseModel

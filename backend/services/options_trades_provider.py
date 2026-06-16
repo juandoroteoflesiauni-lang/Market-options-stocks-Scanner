@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Recent options trades provider for order-flow toxicity analysis."""
 
-from __future__ import annotations
 
 import os
 from collections.abc import Iterable
@@ -74,7 +74,7 @@ def _mid_or_last(
 
 def _load_option_chain_rows(symbol: str) -> tuple[list[object], str, str, dict[str, object]]:
     from backend.layer_1_data.datos.massive_options_fetcher import fetch_option_chain_raw
-    from backend.routers.options_router import _parse_finnhub_chain
+    from backend.api.routes.options_router import _parse_finnhub_chain
 
     raw, chain_src, fetch_meta = fetch_option_chain_raw(symbol, None)
     as_of = datetime.now(tz=UTC).isoformat()

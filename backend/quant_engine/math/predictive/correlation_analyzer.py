@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/correlation_analyzer.py
 Sector: Quantitative Engine / Correlation Analyzer
@@ -8,7 +9,6 @@ Theoretical basis:
     sentiment indicators relative to asset returns across varying time horizons.
 """
 
-from __future__ import annotations
 
 import logging
 

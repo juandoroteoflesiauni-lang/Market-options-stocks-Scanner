@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/shadow_delta.py
 Sector: Options / Shadow Delta Engine
@@ -9,7 +10,6 @@ Theoretical basis:
     Purely stateless, synchronous, offline, and pandas/plotly-free.
 """
 
-from __future__ import annotations
 
 import logging
 import warnings
@@ -17,7 +17,8 @@ import warnings
 import numpy as np
 import numpy.typing as npt
 from pydantic import BaseModel, ConfigDict
-from scipy.special import ndtr  # type: ignore[import-not-found, import-untyped]
+from scipy.special import ndtr
+
 
 from backend.models.result import Result
 

@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import Any
 """Macro context for Market Scanner Phase B (Layer 4 → Layer 1 only)."""
 
-from __future__ import annotations
 
 import asyncio
 from datetime import date, timedelta
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 

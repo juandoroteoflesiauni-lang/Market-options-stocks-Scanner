@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """signal_scheduler.py
 =======================
 Llama al endpoint meta-signal cada 15 minutos para cada simbolo durante
@@ -10,14 +12,12 @@ Dejar corriendo en background durante 3+ dias para alcanzar
 ~2800 predicciones (22 simbolos x 26 rondas/dia x 3 dias).
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging
 import os
 from datetime import datetime, time
 from pathlib import Path
-from typing import Any
 
 import httpx
 import pytz

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """audit_prediction_quality.py
 ==================================
 Weekly audit of accumulated predictions before they're consumed by the
@@ -20,14 +22,12 @@ Checks
 Exit codes: 0 OK, 1 if errors[] non-empty.
 """
 
-from __future__ import annotations
 
 import argparse
 import json
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -525,8 +525,8 @@ def main(argv: list[str] | None = None) -> int:
     report = audit_symbol(args.symbol)
     out_path = _save_report(report)
 
-    print(json.dumps(report, indent=2, default=str))
-    print(f"\nReport saved to: {out_path}", file=sys.stderr)
+    logger.info(json.dumps(report, indent=2, default=str))
+    logger.info(f"\nReport saved to: {out_path}", file=sys.stderr)
 
     return 1 if report["errors"] else 0
 

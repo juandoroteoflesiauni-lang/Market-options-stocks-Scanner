@@ -1,5 +1,5 @@
-# ruff: noqa: F403, F405
 from __future__ import annotations
+# ruff: noqa: F403, F405
 
 from typing import TYPE_CHECKING
 

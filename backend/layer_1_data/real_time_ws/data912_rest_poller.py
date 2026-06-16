@@ -1,3 +1,4 @@
+from typing import Any
 """
 backend/layer_1_data/real_time_ws/data912_rest_poller.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -11,7 +12,6 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from backend.domain.data912_models import Data912LiveQuote
 from backend.layer_1_data.fetchers.data912_fetcher import Data912Fetcher

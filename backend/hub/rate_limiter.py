@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Unified rate limiter with per-provider token buckets and optional Redis distribution."""
 
-from __future__ import annotations
 
 import asyncio
 import contextlib
@@ -9,7 +10,6 @@ import os
 import random
 import time
 from dataclasses import dataclass
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Tiingo market data provider for Layer 1 ingestion.
 
 Tiingo's IEX feed is useful for OHLCV, intraday bars and top-of-book quotes.
@@ -5,7 +6,6 @@ It is intentionally not marked as an L2 provider: the public API exposes best
 bid/ask fields, not multi-level order-book ladders.
 """
 
-from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass

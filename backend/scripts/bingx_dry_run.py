@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Standalone BingX bot dry-run probe.
 
 Executes one full Scan -> Filter -> Risk -> Execute cycle against the BingX
@@ -15,7 +17,6 @@ Exit codes:
     2  — no snapshots returned (likely network / venue issue).
 """
 
-from __future__ import annotations
 
 import argparse
 import asyncio
@@ -23,7 +24,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
 
 if __package__ in {None, ""}:  # pragma: no cover - script execution shim
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -43,7 +43,7 @@ from backend.layer_1_data.datos.bingx_client import (
 )
 from backend.layer_1_data.fetchers.fmp_client import FMPClient
 from backend.layer_1_data.fetchers.massive_client import MassiveClient
-from backend.routers.options_router import options_snapshot_service
+from backend.api.routes.options_router import options_snapshot_service
 from backend.services.bingx_audit_store import BingXAuditEntry, BingXAuditStore
 from backend.services.bingx_bot_service import (
     DEFAULT_KLINES_PER_SYMBOL,

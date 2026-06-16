@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Protocol, Literal, Any
 """BingX candidate data-context contract.
 
 Maps a BingX venue symbol to all data sources needed for analysis,
@@ -6,13 +8,11 @@ separating venue data (BingX perp OHLCV/OI/funding) from underlying data
 availability without raising.
 """
 
-from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal, Protocol
 
 from backend.config.logger_setup import get_logger
 from backend.layer_1_data.datos.bingx_client import BingXClient, BingXKline

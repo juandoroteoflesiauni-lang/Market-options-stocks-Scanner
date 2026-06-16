@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Motor de Confluencia SMC-Opciones — Sector Opciones/GEX.
 
 Valida puntos de interés (POIs) estructurales (SMC) mediante flujos mecánicos
 de opciones (GEX Walls, ZGL, Max Pain).
 """
 
-from __future__ import annotations
 
 from ...domain.confluence.confluence_models import GEXLevels, OptionsSMCConfluenceResult
 

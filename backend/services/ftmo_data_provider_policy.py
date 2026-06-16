@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Canonical data-provider policy for FTMO Funding Lab.
 
 This module is deliberately read-only and contains no provider IO. It is the
@@ -5,10 +7,8 @@ single source of truth for which feeds authorize production readiness, which
 feeds are validation-only, and which feeds are contextual.
 """
 
-from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any
 
 PRIMARY = "primary"
 VALIDATION = "validation"

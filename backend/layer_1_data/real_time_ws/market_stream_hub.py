@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Shared live market stream hub.
 
 One upstream producer is kept per stream key and its payloads are fan-out to all
 subscribers. This prevents each browser tab from opening its own provider WS.
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextlib

@@ -1,8 +1,11 @@
-# ruff: noqa: F403, F405
 from __future__ import annotations
+# ruff: noqa: F403, F405
 
 import logging
-from datetime import datetime
+import time
+import json
+import duckdb
+from datetime import datetime, UTC
 
 logger = logging.getLogger(__name__)
 from backend.services.research.research_types import *

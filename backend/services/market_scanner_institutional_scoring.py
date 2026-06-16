@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """Institutional scoring layer: effective weights, regime modulation, concentration guard."""
 
-from __future__ import annotations
 
 import math
 import os
 from dataclasses import dataclass
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (
@@ -415,7 +415,8 @@ def _raw_weight_for_indicator(
     if custom is not None:
         return float(custom)
     if indicator.default_enabled:
-        return float(indicator.weight_by_timeframe.get(timeframe, 0.0))  # type: ignore[arg-type]
+        return float(indicator.weight_by_timeframe.get(timeframe, 0.0))
+
     return 0.0
 
 

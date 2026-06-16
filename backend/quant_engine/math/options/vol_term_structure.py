@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/vol_term_structure.py
 Sector: Options / Volatility Term Structure Engine
@@ -10,14 +11,14 @@ Theoretical basis:
     Flat curves or inversions indicate structural shifts and risk spikes.
 """
 
-from __future__ import annotations
 
 import logging
 
 import numpy as np
 import numpy.typing as npt
 from pydantic import BaseModel, ConfigDict
-from scipy.interpolate import CubicSpline  # type: ignore[import-not-found, import-untyped]
+from scipy.interpolate import CubicSpline
+
 
 from backend.models.result import Result
 

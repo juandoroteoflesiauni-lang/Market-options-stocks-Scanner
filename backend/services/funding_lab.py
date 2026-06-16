@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Intraday Funding Lab outcomes and metric-lake persistence.
 
 This module is intentionally small and independent from the broader
@@ -6,7 +7,6 @@ mutation used by Funding Lab research: legacy 1d/3d/5d outcomes become
 1h/4h/EOD outcomes inside the same RTH session.
 """
 
-from __future__ import annotations
 
 import math
 import sqlite3

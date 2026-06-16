@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for StructuredLogger and DuckDBHandler."""
 
-from __future__ import annotations
 
 import logging
 
@@ -28,13 +28,17 @@ def _store() -> AuditComplexStore:
 
 
 def test_correlation_id_defaults_to_none() -> None:
+    set_correlation_id(None)
     cid = get_correlation_id()
     assert cid is None
 
 
 def test_set_correlation_id_returns_value() -> None:
     set_correlation_id("test-corr-123")
-    assert get_correlation_id() == "test-corr-123"
+    try:
+        assert get_correlation_id() == "test-corr-123"
+    finally:
+        set_correlation_id(None)
 
 
 def test_set_correlation_id_none_clears() -> None:

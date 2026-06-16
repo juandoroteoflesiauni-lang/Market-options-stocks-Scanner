@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Emisor de señales de ejecución para Phase D.
 
 Analiza ticks en tiempo real y genera ExecutionSignals basándose en:
@@ -8,13 +10,11 @@ Analiza ticks en tiempo real y genera ExecutionSignals basándose en:
 - Confluencia con scores de Phase C
 """
 
-from __future__ import annotations
 
 import logging
 import time
 import uuid
 from decimal import Decimal
-from typing import Any
 
 from backend.models.execution_signal import (
     ExecutionSignal,

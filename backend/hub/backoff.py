@@ -1,9 +1,9 @@
+from typing import TypeVar, Any
 import asyncio
 import logging
 import random
 from collections.abc import Callable, Coroutine
 from functools import wraps
-from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 

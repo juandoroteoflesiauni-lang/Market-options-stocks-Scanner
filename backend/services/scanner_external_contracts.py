@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Serializable contracts for optional Market Scanner external integrations.
 
 These models are intentionally dependency-free. External engines may adapt their
@@ -5,10 +7,8 @@ outputs into these contracts, but importing this module must never import heavy
 runtime libraries or authorize scanner/funding decisions.
 """
 
-from __future__ import annotations
 
 import math
-from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Núcleo matemático de Smart Money Concepts (SMC) — Sector Técnico.
 
 Funciones vectorizadas puras numpy para detección de Order Blocks, Fair Value Gaps,
@@ -9,7 +11,6 @@ Restricciones:
 - Funciones puras: reciben ndarray, retornan ndarray o tuplas de primitivos.
 """
 
-from __future__ import annotations
 
 import numpy as np
 
@@ -34,11 +35,11 @@ _OTE_PIVOT_BARS: int = 40
 
 
 def compute_atr(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    close: np.ndarray[Any, Any],
     window: int = 14,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Average True Range (Wilder) — shape (n,), NaN en prefijo."""
     high = np.asarray(high, dtype=np.float64)
     low = np.asarray(low, dtype=np.float64)
@@ -67,21 +68,21 @@ def compute_atr(
 
 
 def detect_order_blocks(
-    open_: np.ndarray,
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    volume: np.ndarray,
-    atr: np.ndarray,
-    vol_mean: np.ndarray,
+    open_: np.ndarray[Any, Any],
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    close: np.ndarray[Any, Any],
+    volume: np.ndarray[Any, Any],
+    atr: np.ndarray[Any, Any],
+    vol_mean: np.ndarray[Any, Any],
     displacement_delta: float = _DISPLACEMENT_DELTA,
     invalidation_pct: float = _OB_INVALIDATION_PCT,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Detecta Order Blocks institucionales (bullish y bearish).
 
     Returns
     -------
-    bull_indices, bull_ob50, bear_indices, bear_ob50 : ndarray de int/float
+    bull_indices, bull_ob50, bear_indices, bear_ob50 : np.ndarray[Any, Any] de int/float
         Índices de barras con OB y sus niveles 50 % respectivos.
     """
     open_ = np.asarray(open_, dtype=np.float64)
@@ -141,14 +142,14 @@ def detect_order_blocks(
 
 
 def detect_fvg(
-    high: np.ndarray,
-    low: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Detecta Fair Value Gaps (3-bar imbalance patterns).
 
     Returns
     -------
-    bull_bar_idx, bull_top, bull_bottom, bear_bar_idx, bear_size : ndarray
+    bull_bar_idx, bull_top, bull_bottom, bear_bar_idx, bear_size : np.ndarray[Any, Any]
     """
     high = np.asarray(high, dtype=np.float64)
     low = np.asarray(low, dtype=np.float64)
@@ -184,15 +185,15 @@ def detect_fvg(
 
 
 def compute_swing_levels(
-    high: np.ndarray,
-    low: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
     lookback: int = _SWING_LOOKBACK,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Rolling max/min de los `lookback` períodos anteriores (Swing High / Low).
 
     Returns
     -------
-    swing_high, swing_low : ndarray shape (n,) con NaN en prefijo.
+    swing_high, swing_low : np.ndarray[Any, Any] shape (n,) con NaN en prefijo.
     """
     high = np.asarray(high, dtype=np.float64)
     low = np.asarray(low, dtype=np.float64)
@@ -206,18 +207,18 @@ def compute_swing_levels(
 
 
 def detect_bos_choch(
-    close: np.ndarray,
-    swing_high: np.ndarray,
-    swing_low: np.ndarray,
-    fvg_bar_indices: np.ndarray,
+    close: np.ndarray[Any, Any],
+    swing_high: np.ndarray[Any, Any],
+    swing_low: np.ndarray[Any, Any],
+    fvg_bar_indices: np.ndarray[Any, Any],
     bos_confirm_mult: float = _BOS_CONFIRM_MULT,
     lookback: int = _SWING_LOOKBACK,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Detecta eventos BOS y CHoCH.
 
     Returns
     -------
-    event_bar_indices, event_levels : ndarray (int64 y float64).
+    event_bar_indices, event_levels : np.ndarray[Any, Any] (int64 y float64).
         Tipo codificado: 1 = BOS_BULL, 2 = BOS_BEAR, 3 = CHOCH_BULL, 4 = CHOCH_BEAR.
     Devuelve (event_indices, event_levels, event_types).
     """
@@ -263,18 +264,18 @@ def detect_bos_choch(
 
 
 def detect_liquidity_sweeps(
-    high: np.ndarray,
-    low: np.ndarray,
-    volume: np.ndarray,
-    vol_mean: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
+    volume: np.ndarray[Any, Any],
+    vol_mean: np.ndarray[Any, Any],
     window: int = _LIQUIDITY_WINDOW,
     vol_factor: float = _LIQ_VOL_FACTOR,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Detecta barridos de liquidez por volumen extremo sobre máximos/mínimos previos.
 
     Returns
     -------
-    sweep_bar_indices, sweep_levels, sweep_type : ndarray
+    sweep_bar_indices, sweep_levels, sweep_type : np.ndarray[Any, Any]
         sweep_type: 1 = BSL (bullish), 2 = SSL (bearish).
     """
     high = np.asarray(high, dtype=np.float64)
@@ -311,8 +312,8 @@ def detect_liquidity_sweeps(
 
 
 def compute_ote_zone(
-    high: np.ndarray,
-    low: np.ndarray,
+    high: np.ndarray[Any, Any],
+    low: np.ndarray[Any, Any],
     pivot_index: int,
     pivot_bars: int = _OTE_PIVOT_BARS,
 ) -> tuple[float | None, float | None]:
@@ -338,7 +339,7 @@ def compute_ote_zone(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def rolling_volume_mean(volume: np.ndarray, window: int) -> np.ndarray:
+def rolling_volume_mean(volume: np.ndarray[Any, Any], window: int) -> np.ndarray[Any, Any]:
     """Media rodante de volumen sin pandas."""
     volume = np.asarray(volume, dtype=np.float64)
     n = len(volume)

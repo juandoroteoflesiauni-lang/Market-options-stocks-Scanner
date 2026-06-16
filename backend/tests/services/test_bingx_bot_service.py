@@ -1,8 +1,8 @@
 from __future__ import annotations
+from typing import Any, Literal
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 import pytest
 
@@ -18,30 +18,31 @@ from backend.layer_1_data.datos.bingx_client import (
     BingXOrderResponse,
     BingXPerpOrderRequest,
 )
-from backend.layer_3_specialists.tecnico.lob_dynamics_engine import (
+from backend.quant_engine.engines.technical.lob_dynamics_engine import (
     LOBDynamicsAnalysis,
     LOBDynamicsResult,
     SpoofingState,
 )
-from backend.services.bingx_bot_service import (
+from backend.services.bot.bingx_bot_types import (
     DEFAULT_UNIVERSE,
     EXECUTION_COOLDOWN_MINUTES,
     REASON_L2_DEPTH_TOO_THIN,
     REASON_L2_IMBALANCE_EXTREME,
     REASON_L2_SPREAD_TOO_WIDE,
     REASON_L2_UNAVAILABLE,
-    BingXBotService,
     BingXMarketSnapshot,
     BingXRiskPolicy,
     BingXSignal,
-    BingXTechnicalBlock,
     ExecutionQualityPolicy,
     FilterDecision,
+)
+from backend.services.bingx_bot_service import (
+    BingXBotService,
     _evaluate_l2_execution_quality,
     _normalize_bingx_symbol_for_scanner,
     _synthetic_stock_symbols,
 )
-from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
+from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis, BingXTechnicalBlock
 from backend.services.scanner_funding_gate import (
     REASON_SCANNER_DAILY_OPPOSES,
     REASON_SCANNER_INTRADAY_NOT_ALIGNED,
@@ -92,13 +93,14 @@ def _snapshot(symbol: str = "AAPL-USDT") -> BingXMarketSnapshot:
 
 def _signal(
     symbol: str = "AAPL-USDT",
-    direction: str = "LONG",
+    direction: Literal["LONG", "SHORT", "FLAT"] = "LONG",
     lob_analysis: LOBDynamicsAnalysis | None = None,
 ) -> BingXSignal:
     assert direction in {"LONG", "SHORT", "FLAT"}
     return BingXSignal(
         symbol=symbol,
-        direction=direction,  # type: ignore[arg-type]
+        direction=direction,
+
         score=1.0,
         horizon="1h",
         reason_codes=(),
@@ -250,7 +252,8 @@ def _tf(direction: str, ok: bool = True) -> MarketScannerTimeframeSignal:
     return MarketScannerTimeframeSignal(
         timeframe="5m",
         ok=ok,
-        direction=direction,  # type: ignore[arg-type]
+        direction=direction,
+
         label="buy" if direction == "bullish" else "sell" if direction == "bearish" else "neutral",
         score=78.0 if direction == "bullish" else 22.0 if direction == "bearish" else 50.0,
         confidence=0.8,
@@ -1136,7 +1139,8 @@ async def test_run_cycle_size_down_halves_notional(monkeypatch) -> None:
 async def test_risk_state_hydrates_from_account_positions() -> None:
     service = BingXBotService(
         client=ExecutionRecordingClient(),  # type: ignore[arg-type]
-        account_service=FakeAccountService(),  # type: ignore[arg-type]
+        account_service=FakeAccountService(),
+
     )
 
     await service._hydrate_risk_state_from_account()
@@ -1430,7 +1434,8 @@ class FakeAccountServiceForExit:
 async def test_monitor_exits_no_positions() -> None:
     service = BingXBotService(
         client=ExecutionRecordingClient(),  # type: ignore[arg-type]
-        account_service=FakeAccountServiceForExit([]),  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([]),
+
     )
     executions = await service.monitor_exits()
     assert len(executions) == 0
@@ -1457,7 +1462,8 @@ async def test_monitor_exits_long_gamma_flip_breached(monkeypatch) -> None:
     )
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
-        account_service=FakeAccountServiceForExit([pos]),  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1504,7 +1510,8 @@ async def test_monitor_exits_confluence_score_too_low(monkeypatch) -> None:
     )
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
-        account_service=FakeAccountServiceForExit([pos]),  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1547,7 +1554,8 @@ async def test_monitor_exits_confluence_signal_contradicts(monkeypatch) -> None:
     )
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
-        account_service=FakeAccountServiceForExit([pos]),  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1591,7 +1599,8 @@ async def test_monitor_exits_hold_position(monkeypatch) -> None:
     )
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
-        account_service=FakeAccountServiceForExit([pos]),  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1633,7 +1642,8 @@ async def test_get_account_state_includes_conviction_metrics(monkeypatch) -> Non
     )
     service = BingXBotService(
         client=ExecutionRecordingClient(),  # type: ignore[arg-type]
-        account_service=FakeAccountServiceForExit([pos]),  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+
     )
 
     service._conviction_scores["AAPL-USDT"] = 0.75
@@ -1666,7 +1676,8 @@ async def test_evaluate_dynamic_exits_half_tp_at_three_percent(monkeypatch) -> N
     )
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
-        account_service=FakeAccountServiceForExit([pos]),  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1711,7 +1722,8 @@ async def test_evaluate_dynamic_exits_fade_and_flip(monkeypatch) -> None:
     )
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
-        account_service=FakeAccountServiceForExit([pos]),  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1806,7 +1818,7 @@ async def test_run_cycle_exits_after_decide_reuses_cycle_analyses(monkeypatch) -
 def test_extract_options_exit_signals_prefers_predictive_report() -> None:
     from dataclasses import replace
 
-    from backend.layer_3_specialists.ia_probabilistico.domain.probabilistic_models import (
+    from backend.domain.probabilistic_models import (
         PredictiveOptionsBundleReport,
     )
     from backend.services.bingx_candidate_analysis import BingXOptionsBlock
@@ -2307,7 +2319,8 @@ async def test_structural_stop_loss() -> None:
 
     service = BingXBotService(
         client=ExecutionRecordingClient(),  # type: ignore[arg-type]
-        account_service=FakeAccountServiceForExit([pos]),  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+
     )
 
     # Pre-populate exit state tracker

@@ -1,7 +1,7 @@
 from __future__ import annotations
+from typing import Any
 
 import asyncio
-from typing import Any
 
 import httpx
 import pytest
@@ -14,7 +14,7 @@ class RecordingClient(BingXClient):
     def __init__(self, *, dry_run: bool = True) -> None:
         super().__init__(
             api_key="key",
-            secret_key="secret",
+            secret_key="secret",  # nosec # NOSONAR
             dry_run=dry_run,
             allow_env_dry_run_override=False,
         )
@@ -65,7 +65,7 @@ class RecordingClient(BingXClient):
 def test_trading_environment_reports_vst_when_demo_base_url() -> None:
     client = BingXClient(
         api_key="key",
-        secret_key="secret",
+        secret_key="secret",  # nosec # NOSONAR
         base_url=BINGX_REST_VST_BASE,
         dry_run=False,
         allow_env_dry_run_override=False,
@@ -76,7 +76,7 @@ def test_trading_environment_reports_vst_when_demo_base_url() -> None:
 
 class ConcurrentMapClient(BingXClient):
     def __init__(self) -> None:
-        super().__init__(api_key="key", secret_key="secret", dry_run=True)
+        super().__init__(api_key="key", secret_key="secret", dry_run=True)  # nosec # NOSONAR
         self.map_calls = 0
 
     async def fetch_perp_symbol_map(self) -> dict[str, str]:
@@ -96,7 +96,7 @@ class ConcurrentMapClient(BingXClient):
 
 class PaginatedKlineClient(BingXClient):
     def __init__(self) -> None:
-        super().__init__(api_key="key", secret_key="secret", dry_run=True)
+        super().__init__(api_key="key", secret_key="secret", dry_run=True)  # nosec # NOSONAR
         self.public_calls: list[tuple[str, dict[str, Any]]] = []
 
     async def _resolve_perp_symbol(self, display_name: str) -> str:

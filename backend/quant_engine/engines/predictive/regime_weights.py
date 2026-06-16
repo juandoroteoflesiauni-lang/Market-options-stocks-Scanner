@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/regime_weights.py
 Sector: Options / Regime-Based Weighting Engine
@@ -8,7 +9,6 @@ Theoretical basis:
     the active market volatility and trend regime (Bull Quiet, Bear Volatile, etc.).
 """
 
-from __future__ import annotations
 
 import logging
 import math

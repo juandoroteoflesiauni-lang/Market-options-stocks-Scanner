@@ -1,10 +1,10 @@
+from __future__ import annotations
 """
 Job: cada 30 min en horario de mercado US — calcula max pain (front expiry) y persiste en Redis.
 
 Ejecutar: python -m backend.tasks.max_pain_history_job
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging

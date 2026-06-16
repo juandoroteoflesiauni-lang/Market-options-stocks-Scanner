@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/domain/state.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -9,11 +11,9 @@ SYSTEM MANDATE: LONG-ONLY. No short signals. Signal ∈ {LONG, CASH, WATCH}.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from quantumbeta.domain.models import CEDEARRate, CMExtension, EntropyScore, FractalSignal

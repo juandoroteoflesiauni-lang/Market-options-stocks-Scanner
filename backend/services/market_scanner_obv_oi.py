@@ -1,17 +1,17 @@
+from __future__ import annotations
+from typing import Any
 """Market Scanner adapter for OBV-OI (volume × options OI delta fusion)."""
 
-from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import ScannerCustomization, ScannerIndicatorDefinition
-from backend.layer_2_quant_engine.math_core.obv_oi import (
+from backend.quant_engine.math.technical.obv_oi import (
     ObvOiFrame,
     last_obv_oi_frame,
     obv_oi_bias_from_frame,

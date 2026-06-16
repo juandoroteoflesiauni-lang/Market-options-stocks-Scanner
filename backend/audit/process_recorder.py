@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Process Recorder — captures full engine/indicator state at decision time.
 
 Central entry point for recording snapshots of the trading engine's internal
@@ -23,12 +25,10 @@ Usage
     )
 """
 
-from __future__ import annotations
 
 import asyncio
 import traceback
 from datetime import UTC, datetime
-from typing import Any
 
 from backend.audit.audit_complex_store import AuditComplexStore, ProcessSnapshotEntry
 from backend.audit.structured_logger import get_correlation_id, get_structured_logger
@@ -190,9 +190,47 @@ async def record_api_call(
     return call_id
 
 
+async def record_trade_result(
+    *,
+    module: str,
+    symbol: str,
+    pnl_pct: float,
+    pnl_usd: float,
+    exit_reason: str,
+    operation_id: str = "",
+    context: dict[str, Any] | None = None,
+) -> str:
+    """Persist a trade result (PnL) record to the audit_trade_results table."""
+    from backend.audit.audit_complex_store import TradeResultAuditEntry
+
+    store = await _get_store()
+
+    entry = TradeResultAuditEntry(
+        module=module,
+        symbol=symbol,
+        pnl_pct=pnl_pct,
+        pnl_usd=pnl_usd,
+        exit_reason=exit_reason,
+        operation_id=operation_id,
+        correlation_id=get_correlation_id() or "",
+        context=context or {},
+    )
+
+    trade_id = store.persist_trade_result(entry)
+    logger.info(
+        "Trade result recorded",
+        tags=["audit_trade_result", module],
+        symbol=symbol,
+        pnl_pct=pnl_pct,
+        exit_reason=exit_reason,
+    )
+    return trade_id
+
+
 __all__ = [
     "record_api_call",
     "record_error",
     "record_process_snapshot",
+    "record_trade_result",
     "set_process_recorder_store",
 ]

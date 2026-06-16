@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Any
 """Runtime indicator tier overrides when real tape/L2/options data is available."""
 
-from __future__ import annotations
 
 import threading
-from typing import Any
 
 from backend.domain.market_scanner_models import ScannerIndicatorSource, ScannerIndicatorStatus
 

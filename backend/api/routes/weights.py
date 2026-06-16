@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """API endpoints para gestión dinámica de pesos estratégicos del funnel.
 
 Permite consultar, actualizar y resetear los StrategyWeights en caliente.
@@ -5,9 +7,7 @@ Todos los endpoints afectan el comportamiento del pipeline en la siguiente
 iteración del funnel (no requiere reinicio).
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 from fastapi import APIRouter, HTTPException
 

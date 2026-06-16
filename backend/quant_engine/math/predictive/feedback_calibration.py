@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/feedback_calibration.py
 Sector: Options / Feedback & Calibration Engine
@@ -8,7 +9,6 @@ Theoretical basis:
     to adaptively tune Merton Jump-Diffusion or Heston parameters.
 """
 
-from __future__ import annotations
 
 import logging
 

@@ -1,10 +1,12 @@
+from __future__ import annotations
+from typing import Any, Protocol
 """BingX L2 → ``LOBSnapshot`` bridge between Layer 1 and Layer 3 (tecnico).
 
 The Layer 1 adapter (:mod:`backend.layer_1_data.datos.bingx_l2_adapter`) is
 deliberately pure and does not import from Layer 2+. This module performs the
 upward bridge: it takes a :class:`BingXL2AdapterResult` and produces either a
 :class:`LOBSnapshot` consumed by
-:func:`backend.layer_3_specialists.tecnico.lob_dynamics_engine.analyze_lob_dynamics`
+:func:`backend.quant_engine.engines.technical.lob_dynamics_engine.analyze_lob_dynamics`
 or an explicit unavailable :class:`LOBDynamicsAnalysis` payload.
 
 Funding-survival framing: when L2 is unavailable / empty / invalid we surface
@@ -12,7 +14,6 @@ Funding-survival framing: when L2 is unavailable / empty / invalid we surface
 the risk gate downstream can degrade or block — we never fabricate a snapshot.
 """
 
-from __future__ import annotations
 
 from backend.config.logger_setup import get_logger
 from backend.layer_1_data.datos.bingx_l2_adapter import (
@@ -20,7 +21,7 @@ from backend.layer_1_data.datos.bingx_l2_adapter import (
     BingXL2Metrics,
     fetch_bingx_l2_snapshot,
 )
-from backend.layer_3_specialists.tecnico.lob_dynamics_engine import (
+from backend.quant_engine.engines.technical.lob_dynamics_engine import (
     LOBConfig,
     LOBDynamicsAnalysis,
     LOBLevel,
@@ -39,11 +40,11 @@ DATA_QUALITY_SPREAD_PCT_WORST: float = 1.0  # spread ≥ 1.0% of mid → compone
 DATA_QUALITY_DEFAULT_DEPTH_TARGET: float = 1000.0  # bid_depth + ask_depth target
 
 
-class _OrderBookFetcherProto:
+class _OrderBookFetcherProto(Protocol):
     """Structural placeholder — duck-typed in the runtime signature below."""
 
-    async def fetch_order_book_perp(self, symbol: str, *, limit: int = 20) -> dict:  # type: ignore[type-arg]
-        raise NotImplementedError
+    async def fetch_order_book_perp(self, symbol: str, *, limit: int = 20) -> dict[str, Any]:  # type: ignore[type-arg]
+        ...
 
 
 def _compute_data_quality_score(
@@ -214,6 +215,27 @@ async def analyze_bingx_l2(
     )
 
 
+def order_book_dict_to_lob_analysis(
+    order_book: dict[str, Any],
+    *,
+    symbol: str = "",
+    market_type: str | None = "stock_perp",
+    config: LOBConfig | None = None,
+) -> LOBDynamicsAnalysis:
+    """Build LOB analysis from a BingX ``fetch_order_book`` payload."""
+    from backend.layer_1_data.datos.bingx_l2_adapter import build_l2_snapshot_from_bingx_depth
+
+    adapter_result = build_l2_snapshot_from_bingx_depth(
+        symbol or str(order_book.get("symbol") or ""),
+        order_book,
+        market_type=market_type,
+    )
+    snapshot = adapter_result_to_lob_snapshot(adapter_result)
+    if snapshot is None:
+        return _unavailable_analysis(adapter_result, config)
+    return analyze_lob_dynamics(snapshot=snapshot, config=config)
+
+
 __all__ = [
     "DATA_QUALITY_DEFAULT_DEPTH_TARGET",
     "DATA_QUALITY_SPREAD_PCT_BEST",
@@ -221,4 +243,5 @@ __all__ = [
     "_compute_data_quality_score",
     "adapter_result_to_lob_snapshot",
     "analyze_bingx_l2",
+    "order_book_dict_to_lob_analysis",
 ]

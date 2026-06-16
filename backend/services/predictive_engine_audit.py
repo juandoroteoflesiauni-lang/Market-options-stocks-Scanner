@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Institutional audit helpers for the Predictive module.
 
 The audit is intentionally static and dependency-light: it scans engine files
@@ -5,7 +7,6 @@ with AST instead of importing them, then compares discovered engines against the
 routes and adapters that feed `/predictive`.
 """
 
-from __future__ import annotations
 
 import ast
 import json
@@ -13,7 +14,6 @@ import re
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 ENGINE_DIR = Path("backend/layer_3_specialists/ia_probabilistico/engines")
 ROUTER_FILE = Path("backend/routers/probabilistic_router.py")

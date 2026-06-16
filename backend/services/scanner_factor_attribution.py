@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Deterministic factor attribution for scanner conviction scoring.
 
 Maps Barra exposures + Phase A indicators + Phase B modules to unified factor families,
 computes contribution percentages, and calculates institutional conviction_score.
 """
 
-from __future__ import annotations
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (

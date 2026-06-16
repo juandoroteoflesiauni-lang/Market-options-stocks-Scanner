@@ -1,13 +1,13 @@
+from __future__ import annotations
+from typing import TypeVar, Protocol, Any
 """Command Center payload assembler for the institutional home surface."""
 
-from __future__ import annotations
 
 import asyncio
 import math
 import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol, TypeVar, cast
 
 from backend.config.logger_setup import get_logger
 from backend.services.market_context_service import build_market_context_payload
@@ -635,13 +635,13 @@ async def _default_argentina_provider() -> dict[str, Any] | None:
 
 
 async def _default_options_provider(symbol: str) -> object:
-    from backend.routers.options_router import options_snapshot_service
+    from backend.api.routes.options_router import options_snapshot_service
 
     return await options_snapshot_service(symbol, None, 0.05)
 
 
 async def _default_thesis_provider(symbol: str) -> object:
-    from backend.routers.probabilistic_router import get_ai_thesis
+    from backend.api.routes.probabilistic_router import get_ai_thesis
 
     return await get_ai_thesis(symbol, include_snapshot=False)
 

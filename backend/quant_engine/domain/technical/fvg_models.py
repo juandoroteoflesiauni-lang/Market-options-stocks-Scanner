@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Contratos de Dominio para el Motor FVG (Fair Value Gap) — Sector Técnico.
 
 Define los tipos, estados y estructuras de datos para la detección y mitigación
 de Fair Value Gaps de forma determinista y JSON-safe.
 """
 
-from __future__ import annotations
 
 from enum import StrEnum
 

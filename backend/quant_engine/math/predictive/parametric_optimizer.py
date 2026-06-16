@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/parametric_optimizer.py
 Sector: IA / Probabilístico
@@ -7,7 +8,6 @@ Parametric Optimizer Engine — High-Fidelity Parallel Grid Search.
 Stateless engine for exhaustive parameter sweeps across backtest scenarios.
 """
 
-from __future__ import annotations
 
 import itertools
 import logging

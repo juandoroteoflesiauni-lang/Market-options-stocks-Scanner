@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MarketDataSettings(BaseSettings):
+    default_universe: list[str] = ["AAPL", "MSFT", "TSLA", "GOOGL", "META", "NVDA", "AMZN", "SPY", "NFLX", "AMD", "PLTR", "COIN"]
     """Configuration class for market data infrastructure and secrets.
 
     Automatically loads variables from the environment and the .env file.
@@ -34,6 +35,17 @@ class MarketDataSettings(BaseSettings):
     # Alpaca
     alpaca_api_key: SecretStr
     alpaca_api_secret: SecretStr
+    # Optional/secondary Alpaca config (data API + WS feed + endpoints).
+    # Declared explicitly (with safe defaults) so consumers resolve
+    # deterministically instead of relying on ``extra="allow"``.
+    alpaca_secret_key: SecretStr | None = None
+    alpaca_bars_feed: str = "iex"
+    alpaca_data_base_url: str = "https://data.alpaca.markets"
+    alpaca_trading_base_url: str = "https://paper-api.alpaca.markets"
+    alpaca_live_base_url: str = "https://api.alpaca.markets"
+    # "paper" (paper-api real, default) | "dry_run" (intercepted) | "live" (real money)
+    alpaca_trading_mode: str = "paper"
+    alpaca_paper_trading: bool = True
 
     # BingX API and Bot config
     bingx_api_key: SecretStr | None = None

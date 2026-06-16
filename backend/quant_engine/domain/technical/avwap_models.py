@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Contratos de Dominio para el Motor AVWAP (Anchored VWAP) — Sector Técnico.
 
 Define las clasificaciones de anclaje de Shannon, estados de equilibrio de Ortiz
 y las estructuras de datos para el análisis estadístico de bandas y stacks multi-temporal.
 """
 
-from __future__ import annotations
 
 from enum import Enum
 from typing import Final

@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Motor TPO Skewness — Sector Técnico.
 
 Build and classify a Time Price Opportunity (TPO) profile using
 Fisher-Pearson skewness and bimodal detection.
 """
 
-from __future__ import annotations
 
 import logging
 from math import floor, isfinite, sqrt

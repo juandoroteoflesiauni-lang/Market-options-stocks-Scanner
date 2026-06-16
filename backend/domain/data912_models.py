@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/domain/data912_models.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,7 +6,6 @@ Domain contracts for Data912 financial data (Sector: DATA).
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import datetime as _dt
 

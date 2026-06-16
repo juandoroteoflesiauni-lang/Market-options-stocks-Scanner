@@ -1,12 +1,12 @@
+from __future__ import annotations
+from typing import Protocol, Any
 """Market context payload builder for technical and dashboard surfaces."""
 
-from __future__ import annotations
 
 import asyncio
 import math
 from collections.abc import Awaitable
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol, cast
 
 from backend.config.logger_setup import get_logger
 

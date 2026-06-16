@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Bindings de APIs para inyección de datos del sector Fundamentales."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Final

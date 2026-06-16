@@ -107,6 +107,8 @@ _SYNTHETIC_STOCK_ROOTS: frozenset[str] = frozenset(
         "HOOD",
         "PLTR",
         "COIN",
+        "IREN",
+        "CRWV",
         "AMC",
         "GME",
         "RBLX",
@@ -490,12 +492,23 @@ class BingXClient:
 
         Uses a shared lazy cache (one HTTP round-trip per client lifetime). Raises
         ``KeyError`` if ``display_name`` is not found in the active contract list.
+        Accepts display names (``AAPL-USDT``) and internal API symbols
+        (``NCSKAAPL2USD-USDT``).
         """
         if self._contract_metadata_cache is None:
             async with self._contract_metadata_lock:
                 if self._contract_metadata_cache is None:
                     self._contract_metadata_cache = await self._load_contract_metadata()
-        return self._contract_metadata_cache[display_name]
+        cache = self._contract_metadata_cache
+        token = display_name.strip()
+        if token in cache:
+            return cache[token]
+        from backend.services.bingx_symbol_linker import display_name_from_bingx_symbol
+
+        resolved = display_name_from_bingx_symbol(token)
+        if resolved in cache:
+            return cache[resolved]
+        raise KeyError(token)
 
     async def _load_contract_metadata(self) -> dict[str, BingXContractMetadata]:
         payload = await self._public_get("/openApi/swap/v2/quote/contracts", {})
@@ -616,13 +629,8 @@ class BingXClient:
         *,
         limit: int = _DEFAULT_DEPTH_LIMIT,
     ) -> dict[str, Any]:
-        """Return perpetual futures order book depth."""
-        api_symbol = await self._resolve_perp_symbol(symbol.strip())
-        payload = await self._public_get(
-            "/openApi/swap/v2/quote/depth",
-            {"symbol": api_symbol, "limit": max(5, min(int(limit), 1_000))},
-        )
-        return _unwrap_data(payload)
+        """Return perpetual futures order book depth (normalized)."""
+        return await self.fetch_order_book(symbol, limit=limit)
 
     async def fetch_open_interest(self, symbol: str) -> dict[str, Any]:
         """Return perpetual open interest for ``symbol``."""
@@ -966,7 +974,14 @@ class BingXClient:
         if order.time_in_force is not None:
             params["timeInForce"] = order.time_in_force
         if order.reduce_only:
-            params["reduceOnly"] = "true"
+            omit_reduce_only = os.getenv("BINGX_OMIT_REDUCE_ONLY", "true").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            if not omit_reduce_only:
+                params["reduceOnly"] = "true"
         if order.stop_loss_price is not None:
             params["stopLoss"] = json.dumps(
                 {
@@ -1007,8 +1022,36 @@ class BingXClient:
                 error=str(exc),
             )
 
+        api_ok, api_err = _bingx_api_ok(payload)
+        if not api_ok:
+            logger.error(
+                "bingx_client.place_order_perp api_error symbol=%s code=%s",
+                order.symbol,
+                api_err,
+            )
+            return BingXOrderResponse(
+                ok=False,
+                dry_run=False,
+                symbol=order.symbol,
+                side=order.side,
+                order_type=order.order_type,
+                requested_qty=order.quantity,
+                requested_quote_qty=None,
+                price=order.price,
+                venue_order_id=None,
+                client_order_id=client_order_id,
+                raw=payload,
+                error=api_err,
+            )
+
         data = _unwrap_data(payload)
-        venue_order_id = str(data.get("orderId") or data.get("orderID") or "") or None
+        venue_order_id = _extract_order_id(data)
+        if not venue_order_id:
+            logger.warning(
+                "bingx_client.place_order_perp missing_order_id symbol=%s raw=%s",
+                order.symbol,
+                data,
+            )
         return BingXOrderResponse(
             ok=True,
             dry_run=False,
@@ -1349,6 +1392,28 @@ def _unwrap_data(payload: dict[str, Any]) -> dict[str, Any]:
     if isinstance(inner, list):
         return {"items": inner}
     return payload
+
+
+def _bingx_api_ok(payload: dict[str, Any]) -> tuple[bool, str]:
+    """Valida código de respuesta BingX (0 = éxito)."""
+    code = payload.get("code")
+    if code is not None and str(code) not in {"0", "00000"}:
+        msg = str(payload.get("msg") or payload.get("message") or code)
+        return False, msg
+    return True, ""
+
+
+def _extract_order_id(data: dict[str, Any]) -> str | None:
+    """Extrae orderId de respuestas swap/spot (varios formatos)."""
+    for key in ("orderId", "orderID"):
+        if data.get(key):
+            return str(data[key])
+    order = data.get("order")
+    if isinstance(order, dict):
+        for key in ("orderId", "orderID"):
+            if order.get(key):
+                return str(order[key])
+    return None
 
 
 def _extract_dict_list(payload: dict[str, Any]) -> list[dict[str, Any]]:

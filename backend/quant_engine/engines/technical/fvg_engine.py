@@ -1,34 +1,113 @@
-"""Motor de Detección FVG (Fair Value Gap) — Sector Técnico.
+from __future__ import annotations
+"""Fair Value Gap engine for the technical specialist.
 
-Porta el detector de FVG de TypeScript al backend Python manteniendo
-el ciclo de vida determinista sobre barras OHLCV cronológicas.
+The engine ports the TypeScript FVG detector into the Python backend and keeps
+the lifecycle logic deterministic over chronological OHLCV bars.
 """
 
-from __future__ import annotations
 
-import logging
+from enum import StrEnum
 from math import isfinite
 
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field
 
-from ...domain.technical.fvg_models import (
-    Candle,
-    FVGAnalysisOutput,
-    FVGConfig,
-    FVGEvent,
-    FVGStatus,
-    FVGType,
-    FVGZone,
-)
+from backend.config.logger_setup import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _REQUIRED_COLUMNS = ("open", "high", "low", "close")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# §1  FVGEngine — Motor Estático Puro
-# ─────────────────────────────────────────────────────────────────────────────
+class FVGType(StrEnum):
+    """Directional type of a Fair Value Gap."""
+
+    BULLISH = "Bullish"
+    BEARISH = "Bearish"
+
+
+class FVGStatus(StrEnum):
+    """Lifecycle state of an FVG zone."""
+
+    ACTIVE = "Active"
+    PARTIALLY_MITIGATED = "PartiallyMitigated"
+    FULLY_MITIGATED = "FullyMitigated"
+    INVALIDATED = "Invalidated"
+
+
+class Candle(BaseModel):
+    """OHLCV candle consumed by the FVG engine."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    timestamp: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float = 0.0
+
+
+class FVGZone(BaseModel):
+    """Fair Value Gap zone and its current mitigation cursor."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    creation_timestamp: str
+    type: FVGType
+    top_price: float
+    bottom_price: float
+    original_gap_size: float
+    current_mitigation_level: float
+    status: FVGStatus
+    mitigation_pct: float = 0.0
+    is_consequent_encroachment: bool = False
+    is_iofed: bool = False
+    mitigated_timestamp: str | None = None
+    mitigated_at_index: int | None = None
+
+
+class FVGConfig(BaseModel):
+    """Runtime knobs for FVG detection."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    min_gap_size: float | None = Field(default=None, ge=0)
+    max_active_fvgs: int = Field(default=100, ge=1)
+    tick_size: float | None = Field(default=None, gt=0)
+    mitigated_ttl_candles: int = Field(default=0, ge=0)
+
+
+class FVGEvent(BaseModel):
+    """Lifecycle event emitted by the engine."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    type: str
+    zone: FVGZone
+    candle: Candle
+
+
+class FVGAnalysisOutput(BaseModel):
+    """Compact JSON-safe output for the technical terminal."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    enabled: bool = True
+    ok: bool = True
+    error: str | None = None
+    active_count: int = 0
+    history_count: int = 0
+    bullish_active_count: int = 0
+    bearish_active_count: int = 0
+    partial_count: int = 0
+    consequent_encroachment_count: int = 0
+    iofed_count: int = 0
+    tick_size: float | None = None
+    min_gap_size: float | None = None
+    active_zones: tuple[FVGZone, ...] = ()
+    recent_events: tuple[FVGEvent, ...] = ()
 
 
 class FVGEngine:
@@ -251,11 +330,6 @@ class FVGEngine:
 
     def _emit(self: FVGEngine, event_type: str, zone: FVGZone, candle: Candle) -> None:
         self._events.append(FVGEvent(type=event_type, zone=zone, candle=candle))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# §2  ORCHESTRATION & UTILITY FUNCTIONS
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 def analyze_fvg_from_ohlcv(

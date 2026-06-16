@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 backend/engine/metrics/tail_risk.py
 Sector: Options / Tail Risk Engine
@@ -8,17 +10,17 @@ Theoretical basis:
     Purely stateless, synchronous, offline, and pandas-free.
 """
 
-from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 from pydantic import BaseModel, ConfigDict
-from scipy.interpolate import CubicSpline  # type: ignore[import-not-found, import-untyped]
-from scipy.stats import percentileofscore  # type: ignore[import-not-found, import-untyped]
+from scipy.interpolate import CubicSpline
+
+from scipy.stats import percentileofscore
+
 
 from backend.models.result import Result
 
@@ -28,7 +30,7 @@ type FloatArray = npt.NDArray[np.float64]
 
 # Soft import — engine remains functional if RND engine is absent
 try:
-    from backend.layer_3_specialists.ia_probabilistico.engines import (
+    from backend.quant_engine.engines.predictive import (
         risk_neutral_density_engine as _rnde,
     )
 

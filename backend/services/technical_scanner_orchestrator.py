@@ -1,8 +1,8 @@
+from __future__ import annotations
+from typing import Any
 """Phase B technical synthesis for Market Scanner candidates."""
 
-from __future__ import annotations
 
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (
@@ -283,7 +283,7 @@ def _timeframe_weight(
     return sum(weights) / len(weights) if weights else 1.0
 
 
-def _build_scanner_signal_payload(aggregated: dict, ticker: str, timeframe: str) -> dict:
+def _build_scanner_signal_payload(aggregated: dict, ticker: str, timeframe: str) -> dict[str, Any]:
     """
     Construye el payload del scanner con soporte SHORT.
     Añadir al final de synthesize_technical_signal_v2.

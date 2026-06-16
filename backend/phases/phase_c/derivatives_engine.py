@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Orquestador principal de Phase C — Derivatives Engine.
 
 Integra los motores de backend.quant_engine para análisis institucional:
@@ -13,10 +15,8 @@ Selecciona los Top 5 contratos basándose en un score compuesto multi-motor.
 Scoring delegado a backend.phases.phase_c.scoring.
 """
 
-from __future__ import annotations
 
 import logging
-from typing import Any
 
 import numpy as np
 

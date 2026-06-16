@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/ml_optimizer.py
 Sector: IA / Probabilístico
@@ -7,7 +8,6 @@ Machine Learning Optimizer for Fear & Greed Factor Weights.
 Stateless and vectorized implementations.
 """
 
-from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime

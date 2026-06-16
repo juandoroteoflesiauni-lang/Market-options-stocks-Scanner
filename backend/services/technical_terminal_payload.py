@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Ensamblado de payload para terminal técnico avanzado (gráfico + SMC + fractales).
 
 Este módulo orquesta el análisis técnico combinando:
@@ -16,12 +18,10 @@ Performance (HFT):
 - Permite concurrencia real en múltiples requests
 """
 
-from __future__ import annotations
 
 import os
 from datetime import UTC, datetime, timedelta
 from functools import partial
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -29,34 +29,35 @@ import pandas as pd
 from backend.config.logger_setup import get_logger
 from backend.domain.fmp_models import FMPHistoricalPrice
 from backend.domain.repositories.price_repository import PriceRepository
-from backend.layer_3_specialists.tecnico.candle_geometry_engine import (
+from backend.quant_engine.engines.technical.candle_geometry_engine import (
     analyze_candle_geometry_from_ohlcv,
 )
-from backend.layer_3_specialists.tecnico.fvg_engine import analyze_fvg_from_ohlcv
-from backend.layer_3_specialists.tecnico.hmm_engine import analyze_hmm_regime_from_ohlcv
-from backend.layer_3_specialists.tecnico.lob_dynamics_engine import unavailable_lob_dynamics_payload
-from backend.layer_3_specialists.tecnico.market_structure_engine import (
+from backend.quant_engine.engines.technical.fvg_engine import analyze_fvg_from_ohlcv
+from backend.quant_engine.engines.technical.hmm_engine import analyze_hmm_regime_from_ohlcv
+from backend.quant_engine.engines.technical.lob_dynamics_engine import unavailable_lob_dynamics_payload
+from backend.quant_engine.engines.technical.market_structure_engine import (
     analyze_market_structure_from_ohlcv,
 )
-from backend.layer_3_specialists.tecnico.ofi_engine import OFIEngine
-from backend.layer_3_specialists.tecnico.order_flow_delta_engine import (
+from backend.quant_engine.engines.technical.ofi_engine import OFIEngine
+from backend.quant_engine.engines.technical.order_flow_delta_engine import (
     analyze_order_flow_delta_from_ohlcv,
 )
-from backend.layer_3_specialists.tecnico.single_prints import (
+from backend.quant_engine.engines.technical.single_prints import (
     SinglePrintConfig,
     scan_single_prints_from_tpo_profile,
 )
-from backend.layer_3_specialists.tecnico.smc import SMCEngine
-from backend.layer_3_specialists.tecnico.smc_fractal_engine import SMCFractalEngine
-from backend.layer_3_specialists.tecnico.tpo_skewness import TPOSkewnessConfig, TPOSkewnessEngine
-from backend.layer_3_specialists.tecnico.volume import DeltaVolumeProfile
-from backend.layer_3_specialists.tecnico.volume_node_engine import analyze_volume_nodes_from_ohlcv
-from backend.layer_3_specialists.tecnico.volume_profile import VolumeProfileEngine
-from backend.layer_3_specialists.tecnico.vpoc_migration import VPOCMigrationEngine
-from backend.layer_3_specialists.tecnico.vsa import VSAEngine
-from backend.layer_3_specialists.tecnico.vsa_footprint_engine import VSAFootprintEngine
-from backend.layer_3_specialists.tecnico.vwap_engine import analyze_vwap_from_ohlcv
+from backend.quant_engine.engines.technical.smc import SMCEngine
+from backend.quant_engine.engines.technical.smc_fractal_engine import SMCFractalEngine
+from backend.quant_engine.engines.technical.tpo_skewness import TPOSkewnessConfig, TPOSkewnessEngine
+from backend.quant_engine.engines.technical.volume import DeltaVolumeProfile
+from backend.quant_engine.engines.technical.volume_node_engine import analyze_volume_nodes_from_ohlcv
+from backend.quant_engine.engines.technical.volume_profile import VolumeProfileEngine
+from backend.quant_engine.engines.technical.vpoc_migration import VPOCMigrationEngine
+from backend.quant_engine.engines.technical.vsa import VSAEngine
+from backend.quant_engine.engines.technical.vsa_footprint_engine import VSAFootprintEngine
+from backend.quant_engine.engines.technical.vwap_engine import analyze_vwap_from_ohlcv
 from backend.quant_engine.math.technical.technical import AVWAPMath, TechnicalMath
+from backend.services.equity_l2_feed_service import build_terminal_l2_blocks
 from backend.utils.async_executor import run_cpu_bound
 from backend.utils.numpy_pool import allocate_technical_arrays, release_technical_arrays
 
@@ -142,6 +143,16 @@ def _technical_flags() -> dict[str, bool]:
         "enable_lob_dynamics": _env_bool("TECHNICAL_ENABLE_LOB_DYNAMICS", default=True),
         "enable_hmm_engine": _env_bool("TECHNICAL_ENABLE_HMM_ENGINE", default=True),
         "enable_footprint_engine": _env_bool("TECHNICAL_ENABLE_FOOTPRINT_ENGINE", default=True),
+    }
+
+
+def technical_flags_l1_only() -> dict[str, bool]:
+    """Flags para Ruta 2: OHLCV clásico sin L2 ni order-flow delta."""
+    flags = _technical_flags()
+    return {
+        **flags,
+        "enable_order_flow_delta": False,
+        "enable_lob_dynamics": False,
     }
 
 
@@ -274,7 +285,7 @@ def _chart_times_from_df(df: pd.DataFrame, timeframe: str) -> list[str]:
 
 def _series_to_chart(
     dates: list[str],
-    arr: np.ndarray,
+    arr: np.ndarray[Any, Any],
 ) -> list[dict[str, Any]]:
     """Convierte array NumPy a formato para lightweight-charts."""
     out: list[dict[str, Any]] = []
@@ -289,11 +300,11 @@ def _series_to_chart(
 
 
 def _calculate_indicators_cpu_bound(
-    h: np.ndarray,
-    lo: np.ndarray,
-    c: np.ndarray,
-    v: np.ndarray,
-) -> dict[str, np.ndarray]:
+    h: np.ndarray[Any, Any],
+    lo: np.ndarray[Any, Any],
+    c: np.ndarray[Any, Any],
+    v: np.ndarray[Any, Any],
+) -> dict[str, np.ndarray[Any, Any]]:
     """Calcula indicadores técnicos en CPU (thread-safe).
 
     Esta función se ejecuta en un thread separado para no bloquear asyncio.
@@ -316,8 +327,8 @@ def _calculate_indicators_cpu_bound(
 
 
 def _calculate_indicators_with_pool(
-    tech_arrays: dict[str, np.ndarray],
-) -> dict[str, np.ndarray]:
+    tech_arrays: dict[str, np.ndarray[Any, Any]],
+) -> dict[str, np.ndarray[Any, Any]]:
     """Calcula indicadores usando arrays pre-asignados del pool.
 
     Esta función asume que los arrays ya están asignados y solo
@@ -811,6 +822,9 @@ async def _build_technical_payload_from_df(
             "error": "L2 order-book feed not configured",
         }
     }
+    optional_payload.update(build_terminal_l2_blocks(sym, flags))
+    if optional_payload.get("lob_dynamics", {}).get("ok"):
+        engine_status["lob_dynamics"] = _engine_status(True, True, None)
     heavy_df = _heavy_engine_frame(df, normalized_timeframe)
     optional_payload["engine_window"] = {
         "enabled": True,
@@ -1048,11 +1062,12 @@ async def build_technical_terminal_payload_from_candles(
     source: str = "generated_candles",
     last_candle_time: int | str | None = None,
     use_cpu_offload: bool = True,
+    engine_flags: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
     """Build the full technical terminal payload from already-generated OHLCV candles."""
     sym = symbol.upper().strip()
     normalized_timeframe = _normalize_timeframe(timeframe)
-    flags = _technical_flags()
+    flags = engine_flags or _technical_flags()
     engine_status = _initial_engine_status(flags)
     df = _df_from_generated_candles(candles)
     engine_status["data_provider"] = _engine_status(

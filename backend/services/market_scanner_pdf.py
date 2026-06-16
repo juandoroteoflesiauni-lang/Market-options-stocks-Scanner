@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Minimal PDF export for Market Scanner (desk print / audit)."""
 
-from __future__ import annotations
 
 import math
 from io import BytesIO

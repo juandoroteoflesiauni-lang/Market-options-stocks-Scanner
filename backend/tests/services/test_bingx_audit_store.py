@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Tests for BingXAuditStore — DuckDB-backed cycle audit persistence."""
 
-from __future__ import annotations
 
 import json
 from unittest.mock import MagicMock
@@ -15,14 +16,15 @@ def _store() -> BingXAuditStore:
 
 
 def _entry(**overrides: object) -> BingXAuditEntry:
-    defaults: dict = {
+    defaults: dict[str, Any] = {
         "started_at": "2026-05-21T00:00:00Z",
         "finished_at": "2026-05-21T00:01:00Z",
         "dry_run": True,
         "universe": ["BTC-USDT", "AAPL-USDT"],
     }
     defaults.update(overrides)
-    return BingXAuditEntry(**defaults)  # type: ignore[arg-type]
+    return BingXAuditEntry(**defaults)
+
 
 
 def _cycle_result_mock(*, dry_run: bool = True) -> MagicMock:

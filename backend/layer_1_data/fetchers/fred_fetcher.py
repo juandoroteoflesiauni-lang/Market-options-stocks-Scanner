@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """FRED API fetcher for macroeconomic data."""
 
-from __future__ import annotations
 
 import asyncio
 import contextlib
 import logging
-from typing import Any, cast
 
 from backend.config.settings import load_settings
 from backend.layer_1_data.fetchers.async_market_core import (

@@ -1,14 +1,14 @@
+from __future__ import annotations
+from typing import Any
 """Optional HTTP bridge from Market Scanner candidates to a Nautilus-style sidecar.
 
 The main runtime never imports NautilusTrader. This adapter only posts a
 sanitized, simulation-only payload to an explicitly configured sidecar URL.
 """
 
-from __future__ import annotations
 
 import os
 import time
-from typing import Any
 
 import httpx
 
@@ -105,7 +105,8 @@ def _normalize_sidecar_response(raw: object, started: float) -> ScannerExecution
     warnings = sanitized.get("warnings") if isinstance(sanitized.get("warnings"), list) else []
     metadata = sanitized.get("metadata") if isinstance(sanitized.get("metadata"), dict) else {}
     return ScannerExecutionSimResponse(
-        status=status,  # type: ignore[arg-type]
+        status=status,
+
         engine=str(sanitized.get("engine") or "nautilus_sidecar"),
         reason=str(sanitized.get("reason") or "completed"),
         error=sanitized.get("error") if isinstance(sanitized.get("error"), str) else None,

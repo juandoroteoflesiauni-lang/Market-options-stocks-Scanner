@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Monitor en tiempo real para Phase D.
 
 Consume ticks de Massive WebSocket para los 5 contratos seleccionados
@@ -5,14 +7,12 @@ por Phase C, los pasa al SignalEmitter para generar señales de ejecución,
 y publica las señales al EventBus y al frontend via broadcast.
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextlib
 import json
 import logging
 from decimal import Decimal
-from typing import Any
 
 import websockets
 

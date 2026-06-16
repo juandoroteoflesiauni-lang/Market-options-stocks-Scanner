@@ -1,13 +1,13 @@
+from __future__ import annotations
+from typing import Any
 """Fuse Phase-A technical metrics with news/sentiment/catalyst context (Scanner desk).
 
 Deterministic transforms only — no cross-layer specialist imports. Used by POST /fusion-enrich
 after the client merges scan rows with the context rail.
 """
 
-from __future__ import annotations
 
 import math
-from typing import Any
 
 
 def _finite(x: object) -> float | None:

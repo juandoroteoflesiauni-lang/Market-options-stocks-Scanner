@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Literal, Any
 """BingX production readiness check.
 
 Runs in-process checks against the live configuration to determine
@@ -23,7 +25,6 @@ Usage:
     python backend/scripts/bingx_production_check.py --symbols AAPL-USDT GOOGL-USDT
 """
 
-from __future__ import annotations
 
 import argparse
 import asyncio
@@ -32,7 +33,6 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
 
 if __package__ in {None, ""}:  # pragma: no cover — script execution shim
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))

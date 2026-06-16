@@ -1,14 +1,14 @@
+from __future__ import annotations
+from typing import Any
 """Motor Cuantitativo VSA (Volume Spread Analysis) — Sector Técnico.
 
 Implementa la lógica cuantitativa de Tom Williams para la detección de anomalías
 de volumen y precio, incluyendo absorción institucional y Weis Wave.
 """
 
-from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import SupportsFloat, SupportsIndex
 
 import numpy as np
 import pandas as pd
@@ -22,12 +22,9 @@ from ...domain.technical.vsa_models import (
     VSALabel,
     VSAResult,
 )
+from .vsa_forecast import VSAForecastEngine
 
 logger = logging.getLogger(__name__)
-
-# TODO: VSAForecastEngine debe ser inyectado como dependencia externa para mantener
-# el motor stateless. Actualmente se usa un stub nulo hasta que se conecte el
-# especialista IA en una fase posterior de integración.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # §0  CALIBRATED PARAMETERS
@@ -102,10 +99,9 @@ class VSAConfig:
 class VSAEngine:
     """Motor Cuantitativo de VSA."""
 
-    def __init__(self, config: VSAConfig | None = None) -> None:
+    def __init__(self, config: VSAConfig | None = None, forecast_engine: VSAForecastEngine | None = None) -> None:
         self.cfg = config or VSAConfig()
-        # TODO: Inyectar VSAForecastEngine como dependencia externa cuando esté disponible.
-        # self.forecast_eng = VSAForecastEngine()
+        self.forecast_eng = forecast_engine
 
     def analyze(
         self,
@@ -133,12 +129,25 @@ class VSAEngine:
             cvd_last = float(cvd_line[-1])
             cvd_slope = float(np.polyfit(np.arange(len(cvd_line[-5:])), cvd_line[-5:], 1)[0])
 
-            # TODO: Conectar con VSAForecastEngine cuando sea inyectado como dependencia.
             vfi_val: float = 0.0
             vfi_slope: float = 0.0
             is_forecast_climax: bool = False
             fs_support: float | None = None
             fs_resistance: float | None = None
+            
+            if self.forecast_eng:
+                try:
+                    ohlcv = df[["open", "high", "low", "close", "volume"]].to_numpy(dtype=np.float64)
+                    vfi_res = self.forecast_eng.calculate_vfi(ohlcv, period=14)
+                    if vfi_res.is_success and vfi_res.value:
+                        vfi_val = vfi_res.value.get("vfi", 0.0)
+                        vfi_slope = vfi_res.value.get("slope", 0.0)
+                        
+                    fp_res = self.forecast_eng.detect_footprint_clusters(ohlcv)
+                    if fp_res.is_success and fp_res.value:
+                        fs_support, fs_resistance = fp_res.value
+                except Exception as ex:
+                    logger.warning(f"VSAForecastEngine interaction failed: {ex}")
 
             signal, intercepted, recent_labels = _consolidate_signal(
                 df, self.cfg.consolidation_window, mfi_col
@@ -262,7 +271,7 @@ class VSAEngine:
         peaks = v[wave_ends]
         return bool(v[-1] > peaks[-5:].mean() * 1.5)
 
-    def _compute_cvd_approx(self, df: pd.DataFrame) -> np.ndarray:
+    def _compute_cvd_approx(self, df: pd.DataFrame) -> np.ndarray[Any, Any]:
         """Cálculo aproximado de CVD ante ausencia de TechnicalMath."""
         open_price = df["open"].values
         high = df["high"].values

@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Tests for backend/services/bingx_risk_desk.py."""
 
-from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -32,7 +33,7 @@ from backend.services.bingx_risk_desk import (
 
 
 def _policy(**overrides) -> BingXRiskDeskPolicy:
-    defaults: dict = {
+    defaults: dict[str, Any] = {
         "max_daily_loss_usdt": 5.0,
         "max_position_notional_usdt": 30.0,
         "max_open_positions": 3,
@@ -47,7 +48,7 @@ def _policy(**overrides) -> BingXRiskDeskPolicy:
 
 
 def _intent(**overrides) -> OrderIntent:
-    defaults: dict = {
+    defaults: dict[str, Any] = {
         "venue_symbol": "AAPL-USDT",
         "side": "BUY",
         "position_side": "LONG",
@@ -71,7 +72,7 @@ def _intent(**overrides) -> OrderIntent:
 
 
 def _meta(**kwargs) -> SimpleNamespace:
-    defaults: dict = {
+    defaults: dict[str, Any] = {
         "quantity_precision": 2,
         "price_precision": 2,
         "min_qty": 0.01,

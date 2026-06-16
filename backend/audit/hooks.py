@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Audit Hooks — lightweight integration points for capturing audit data.
 
 Provides helper functions that existing modules call to record:
@@ -27,10 +29,8 @@ Usage
     )
 """
 
-from __future__ import annotations
 
 import traceback
-from typing import Any
 
 from backend.audit.structured_logger import get_correlation_id, get_structured_logger
 
@@ -227,6 +227,45 @@ async def audit_error(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Trade Result Hook
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def audit_trade_result(
+    *,
+    module: str,
+    symbol: str,
+    pnl_pct: float,
+    pnl_usd: float,
+    exit_reason: str,
+    operation_id: str = "",
+    context: dict[str, Any] | None = None,
+) -> str | None:
+    """Record a trade result to the audit store.
+
+    Returns the trade_id or ``None`` if recording failed.
+    """
+    try:
+        from backend.audit.audit_complex_store import TradeResultAuditEntry
+
+        store = _get_store()
+        entry = TradeResultAuditEntry(
+            module=module,
+            symbol=symbol,
+            pnl_pct=pnl_pct,
+            pnl_usd=pnl_usd,
+            exit_reason=exit_reason,
+            operation_id=operation_id,
+            correlation_id=get_correlation_id() or "",
+            context=context or {},
+        )
+        result = store.persist_trade_result(entry)
+        return str(result) if result is not None else None
+    except Exception:
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # BingX-specific helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -390,6 +429,51 @@ async def audit_bingx_decision(
     )
 
 
+async def audit_alpaca_cycle(result: Any, *, operation_id: str = "") -> list[str | None]:
+    """Audita cada par análisis/decisión del ciclo Alpaca en Audit Complex."""
+    snapshot_ids: list[str | None] = []
+    analyses = getattr(result, "analyses", ()) or ()
+    decisions = getattr(result, "decisions", ()) or ()
+    by_symbol = {getattr(d, "symbol", ""): d for d in decisions}
+    for analysis in analyses:
+        symbol = str(getattr(analysis, "symbol", "UNKNOWN"))
+        decision = by_symbol.get(symbol)
+        try:
+            indicators = {
+                "volume_z_score": getattr(analysis, "volume_z_score", None),
+                "macd_histogram": getattr(analysis, "macd_histogram", None),
+                "close_position_in_range": getattr(analysis, "close_position_in_range", None),
+                "relative_strength": getattr(analysis, "relative_strength", None),
+                "technical_payload": getattr(analysis, "technical_payload", None),
+                "options_confluence": getattr(analysis, "options_confluence", None),
+                "route": getattr(analysis, "route", None),
+            }
+            decisions_payload = (
+                decision.model_dump(mode="json") if hasattr(decision, "model_dump") else decision
+            )
+            sid = await audit_decision_snapshot(
+                module="alpaca",
+                symbol=symbol,
+                indicators=indicators,
+                market_data={"latest_close": getattr(analysis, "latest_close", None)},
+                decisions={"decision": decisions_payload},
+                operation_id=operation_id,
+            )
+            snapshot_ids.append(sid)
+        except Exception as exc:
+            logger.warning("audit_alpaca_cycle.failed symbol=%s error=%s", symbol, exc)
+    try:
+        await audit_decision_snapshot(
+            module="alpaca",
+            symbol="_CYCLE",
+            indicators={"cycle_summary": result.to_dict() if hasattr(result, "to_dict") else {}},
+            operation_id=operation_id,
+        )
+    except Exception:
+        pass
+    return snapshot_ids
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Scanner-specific helpers
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -464,12 +548,14 @@ async def audit_scanner_result(
 
 
 __all__ = [
+    "audit_alpaca_cycle",
     "audit_api_call",
     "audit_bingx_decision",
     "audit_decision_snapshot",
     "audit_decision_snapshot_sync",
     "audit_error",
     "audit_scanner_result",
+    "audit_trade_result",
     "extract_bingx_decision_data",
     "extract_bingx_indicators",
     "extract_bingx_market_data",

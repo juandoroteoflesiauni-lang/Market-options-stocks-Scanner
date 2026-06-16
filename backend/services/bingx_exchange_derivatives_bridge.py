@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Protocol, Any
 """Bridge public crypto derivatives data into the BingX Bot analysis contract."""
 
-from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Protocol
 
 from backend.config.logger_setup import get_logger
 from backend.layer_1_data.datos.exchange_derivatives_client import (

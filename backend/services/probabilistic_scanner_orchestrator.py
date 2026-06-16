@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Local probabilistic synthesis for Market Scanner Phase B candidates."""
 
-from __future__ import annotations
 
 import os
 import time
@@ -8,7 +9,6 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (
@@ -568,7 +568,7 @@ def _select_motors(config: ScannerConfig) -> list[str]:
     return [m for m in motors if m in _MOTOR_REGISTRY]
 
 
-def _fetch_market_data(symbol: str) -> dict:
+def _fetch_market_data(symbol: str) -> dict[str, Any]:
     """
     Fetch the once-per-symbol data bundle. Default returns empty dict; tests
     monkeypatch this. Production wiring is layered in by the caller.
@@ -656,7 +656,7 @@ def _maybe_meta_learner_blend(
         return None
 
 
-def _final_signal_from_fusion(fusion: dict, meta_proba: dict | None) -> dict:
+def _final_signal_from_fusion(fusion: dict, meta_proba: dict | None) -> dict[str, Any]:
     """Compose flat scanner-facing payload from fusion + optional meta proba."""
     base_signal = float(fusion.get("signal", 0.0))
     confidence = float(fusion.get("confidence", 0.0))
@@ -694,7 +694,7 @@ def scan_symbol_full(
     symbol: str,
     config: ScannerConfig | None = None,
     market_data: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """
     Run the full probabilistic pipeline for a single symbol.
 

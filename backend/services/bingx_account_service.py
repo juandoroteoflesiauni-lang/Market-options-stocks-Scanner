@@ -1,12 +1,12 @@
+from __future__ import annotations
+from typing import Protocol, Any
 """BingX account-state aggregation for the bot service and router."""
 
-from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Protocol
 
 from backend.config.logger_setup import get_logger
 from backend.layer_1_data.datos.bingx_client import BingXClient, is_perp_symbol
@@ -133,7 +133,7 @@ class BingXAccountService:
                     pnl_val = fill.get("realizedProfit") or fill.get("realizedPnl") or 0.0
                     with contextlib.suppress(ValueError, TypeError):
                         total_pnl += float(pnl_val)
-        logger.info("bingx_account.reconciled_daily_pnl total_pnl=%.4f", total_pnl)
+        logger.debug("bingx_account.reconciled_daily_pnl total_pnl=%.4f", total_pnl)
         return total_pnl
 
     async def get_account_state(self) -> BingXAccountState:
@@ -291,7 +291,7 @@ def _nullable_float(payload: dict[str, Any], *keys: str) -> float | None:
         if value in (None, ""):
             continue
         try:
-            return float(value)
+            return float(value)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             continue
     return None

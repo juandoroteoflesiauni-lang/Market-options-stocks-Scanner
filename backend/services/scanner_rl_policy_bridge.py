@@ -1,16 +1,16 @@
+from __future__ import annotations
+from typing import Any
 """Experimental bridge for offline Scanner RL policy scores.
 
 The policy file is produced outside this runtime. This bridge only exposes the
 score as research evidence; it never trains models and never authorizes trades.
 """
 
-from __future__ import annotations
 
 import json
 import math
 import os
 from pathlib import Path
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 

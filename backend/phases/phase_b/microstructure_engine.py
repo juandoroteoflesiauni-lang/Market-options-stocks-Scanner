@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Phase B — Microstructure Engine.
 
 Enriches MarketSnapshots from Phase A with microstructure metrics:
@@ -11,7 +12,6 @@ Architecture:
   - Uses quant engines from backend.quant_engine, never calls external APIs.
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging
@@ -115,6 +115,7 @@ def _enrich_single(snapshot: MarketSnapshot) -> EnrichedSnapshot | None:
             daily_change_pct=snapshot.daily_change_pct,
             avg_volume=snapshot.avg_volume,
             high_priority=snapshot.high_priority,
+            universe_type=snapshot.universe_type,
             ofi_score=ofi_score,
             smc_direction=smc_direction,
             smc_weight=smc_weight,
@@ -198,6 +199,7 @@ class MicrostructureEngine:
             volume=snapshot.volume,
             exchange_timestamp=snapshot.exchange_timestamp,
             data_lineage=snapshot.data_lineage,
+            universe_type=snapshot.universe_type,
         )
 
     def shutdown(self) -> None:

@@ -1,0 +1,17 @@
+omni_engine:
+  enabled_layers:
+    - technical
+    - predictive
+    - options
+    # R1 enrichment (L2 BingX + 5m intraday + 8 hybrid engines) feeds technical/options via input_builder
+  fusion_mode: weighted_hierarchical
+  min_global_confidence: 0.42
+  weights:
+    technical: 0.30
+    predictive: 0.30
+    options: 0.40
+  disagreement_penalty: 0.15
+  veto_rules:
+    - tail_risk_critical
+    - chain_liquidity_poor
+    - symbol_not_in_route1_universe

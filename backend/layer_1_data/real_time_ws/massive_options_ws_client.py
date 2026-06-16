@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Massive / Polygon-style options WebSocket (quotes).
 
 Uses the same JSON ``action`` / ``params`` handshake as ``MassiveWSClient``
@@ -7,13 +9,11 @@ If the upstream URL or plan does not match, the coroutine exits cleanly after
 logging — callers should not treat absence of messages as fatal.
 """
 
-from __future__ import annotations
 
 import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 import websockets
 from websockets.exceptions import ConnectionClosed

@@ -1,10 +1,10 @@
+from __future__ import annotations
 """
 backend/engine/metrics/matrix_ops.py
 Sector 1: Operaciones Base y Matrices (Probabilistic Math Engine)
 [ARCH-1, PD-4]
 """
 
-from __future__ import annotations
 
 from typing import TypeAlias
 

@@ -1,0 +1,11 @@
+universe:
+  source: alpaca_route1
+  enforce_route1_only: true
+  dte_min: 3
+  dte_max: 45
+  min_open_interest: 100
+  min_daily_volume: 25
+  allowed_order_types:
+    - limit
+  trade_sessions:
+    - regular

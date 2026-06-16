@@ -1,0 +1,35 @@
+{
+  "calibrated_at": "2026-06-15T20:03:57.840438+00:00",
+  "calibrator_path": "C:\\dev\\deep-funnel-station\\backend\\data\\alpaca_r1_engine_calibrators.joblib",
+  "classic_weight": 0.6,
+  "entry_threshold": 0.55,
+  "family_weights": {
+    "momentum": 0.3333333333333333,
+    "structure": 0.3333333333333333,
+    "volume": 0.3333333333333333
+  },
+  "metrics": {
+    "engine": "simple",
+    "n_samples": 928,
+    "n_trades": 0,
+    "profit_factor": null,
+    "sharpe": null,
+    "total_return_pct": null,
+    "win_rate": null
+  },
+  "notes": [],
+  "options_weight": 0.4,
+  "symbols": [
+    "MSFT",
+    "TSLA",
+    "AAPL",
+    "GOOGL",
+    "META",
+    "NVDA",
+    "SPY",
+    "QQQ",
+    "IREN",
+    "CRWV",
+    "AMZN"
+  ]
+}

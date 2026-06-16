@@ -1,7 +1,7 @@
+from typing import Any
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 from backend.models.market_snapshot import DataLineage, MarketSnapshot
 

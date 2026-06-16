@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Any
 """Options / GEX module backtester (placeholder: signal vs returns)."""
 
-from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
 
 from backend.backtesting.base import (
     BacktestConfig,

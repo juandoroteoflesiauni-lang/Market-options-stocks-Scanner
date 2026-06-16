@@ -1,3 +1,4 @@
+from __future__ import annotations
 """outcome_updater.py
 ======================
 Periodic task that backfills realised outcomes for past predictions.
@@ -21,7 +22,6 @@ Horizons of 10 days are accepted but no-op silently because the schema only
 has 1d / 5d outcome columns.
 """
 
-from __future__ import annotations
 
 import asyncio
 import sys

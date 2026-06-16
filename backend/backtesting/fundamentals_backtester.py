@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Fundamental factor backtester (placeholder using composite quality score)."""
 
-from __future__ import annotations
 
 from collections.abc import Sequence
 

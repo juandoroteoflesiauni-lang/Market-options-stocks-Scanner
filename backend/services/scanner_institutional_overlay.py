@@ -1,14 +1,14 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Build institutional overlay payloads for market scanner rows (application service)."""
 
-from __future__ import annotations
 
 import math
-from typing import Any, Literal
 
 import numpy as np
 
 from backend.domain.market_scanner_models import GexPressureLevel, ScannerInstitutionalOverlay
-from backend.layer_2_quant_engine.math_core.vpin_proxy import compute_ofi_proxy, compute_vpin_proxy
+from backend.quant_engine.math.technical.vpin_proxy import compute_ofi_proxy, compute_vpin_proxy
 
 
 def _as_dict(value: object) -> dict[str, Any]:
@@ -236,7 +236,7 @@ def correlation_matrix_from_sparklines(
 ) -> dict[str, Any] | None:
     """Pearson correlation of log-return sequences from row sparklines."""
     leaders = rows[:max_symbols]
-    series_list: list[np.ndarray] = []
+    series_list: list[np.ndarray[Any, Any]] = []
     symbols: list[str] = []
     for row in leaders:
         sym = str(getattr(row, "symbol", "") or "")

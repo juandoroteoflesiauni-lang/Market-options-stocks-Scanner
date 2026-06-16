@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/portfolio_optimizer.py
 Sector: Options / Portfolio Optimizer Engine
@@ -9,14 +10,14 @@ Theoretical basis:
     Purely stateless, synchronous, and offline.
 """
 
-from __future__ import annotations
 
 import logging
 
 import numpy as np
 import numpy.typing as npt
 from pydantic import BaseModel, ConfigDict
-from scipy.optimize import minimize  # type: ignore[import-not-found, import-untyped]
+from scipy.optimize import minimize
+
 
 from backend.models.result import Result
 

@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Legacy QuantitativeEngine — delegates to backend.phases.phase_b.
 
 Kept for backward compatibility. New code should use
 MicrostructureEngine directly.
 """
 
-from __future__ import annotations
 
 import logging
 
@@ -44,7 +44,27 @@ class QuantitativeEngine:
         snapshot: MarketSnapshot,
     ) -> Result[EnrichedSnapshot]:
         try:
+            # 1. Phase B (Técnico / Microestructura) - Ejecución garantizada
             enriched = await self._engine.enrich_single(snapshot)
+            
+            # 2. Ruteador de Universo
+            from backend.models.market_snapshot import UniverseType
+            
+            universe_type = getattr(snapshot, "universe_type", None)
+            
+            if universe_type == UniverseType.ALPACA_EXTENDED:
+                logger.debug(
+                    "QuantitativeEngine router: Omitiendo PredictiveEngine y OptionsEngine para ticker %s (ALPACA_EXTENDED). Señal puramente cuantitativa/microestructura.",
+                    snapshot.ticker
+                )
+                return Result.success(enriched)
+            
+            # 3. Flujo SHARED / BINGX_ONLY: Motores predictivos y opciones
+            logger.debug(
+                "QuantitativeEngine router: Ejecutando PredictiveEngine y OptionsEngine para ticker %s (%s)",
+                snapshot.ticker, universe_type
+            )
+            
             return Result.success(enriched)
         except Exception as exc:
             logger.error("Error enriching snapshot for %s: %s", snapshot.ticker, exc)

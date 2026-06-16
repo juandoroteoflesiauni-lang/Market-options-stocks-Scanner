@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Correlation ID Middleware — propagates a unique request ID through all logs.
 
 Every incoming HTTP request receives a UUID correlation ID that is:
@@ -6,7 +7,6 @@ Every incoming HTTP request receives a UUID correlation ID that is:
 * Available to all downstream services via ``get_correlation_id()``.
 """
 
-from __future__ import annotations
 
 import uuid
 

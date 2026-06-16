@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 Orchestrator for automated motor reputation updates based on logged performance.
 
@@ -5,16 +7,14 @@ This service bridge the gap between PredictionLogger (where outcomes are stored)
 and RegimeWeightingEngine (where reputation-based weights are adjusted).
 """
 
-from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
-from typing import Any
 
 import numpy as np
 
 from backend.config.logger_setup import get_logger
-from backend.layer_3_specialists.ia_probabilistico.engines.regime_weights import (
+from backend.quant_engine.engines.predictive.regime_weights import (
     ALL_MOTORS,
     update_weights_from_performance,
 )

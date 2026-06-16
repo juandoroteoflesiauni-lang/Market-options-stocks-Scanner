@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Hard Vetoes — cortocircuitos de cómputo para Phase A.
 
 Los hard vetoes se evalúan ANTES del PhaseAGlobalFilter para evitar
@@ -8,7 +9,6 @@ Cada veto retorna HardVetoResult.vetoed=True + razón — el ticker
 nunca entra al filtro global, liberando al worker pool en milisegundos.
 """
 
-from __future__ import annotations
 
 from backend.models.hard_veto import HardVetoResult, VetoType
 from backend.models.market_snapshot import MarketSnapshot

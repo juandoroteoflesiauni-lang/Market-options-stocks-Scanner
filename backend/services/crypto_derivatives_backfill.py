@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Public Binance USD-M derivatives snapshots for Funding Lab BTC checks."""
 
-from __future__ import annotations
 
 import json
 import math
@@ -8,7 +9,6 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 import httpx
 

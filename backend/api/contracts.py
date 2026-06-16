@@ -1,10 +1,10 @@
+from __future__ import annotations
 """API response contracts for the Deep Funnel Station frontend.
 
 All monetary values are serialized as strings (never float) to prevent
 floating-point drift — per PD-2 and Wall Street precision standards.
 """
 
-from __future__ import annotations
 
 from typing import Literal
 

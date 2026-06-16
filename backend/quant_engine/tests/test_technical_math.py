@@ -49,7 +49,7 @@ from quant_engine.math.technical.vsa_math import (
 )
 
 
-def test_technical_math_basic():
+def test_technical_math_basic() -> None:
     # Test SMA
     close = np.array([10.0, 11.0, 12.0, 13.0, 14.0])
     sma = TechnicalMath.sma(close, n=3)
@@ -107,7 +107,7 @@ def test_technical_math_basic():
     assert len(entropy) == 5
 
 
-def test_avwap_math():
+def test_avwap_math() -> None:
     high = np.array([11.0, 12.0, 13.0, 14.0, 15.0])
     low = np.array([9.0, 10.0, 11.0, 12.0, 13.0])
     close = np.array([10.0, 11.0, 12.0, 13.0, 14.0])
@@ -119,7 +119,7 @@ def test_avwap_math():
     assert not np.isnan(std_dev[2])
 
 
-def test_smc_math():
+def test_smc_math() -> None:
     high = np.array([11.0, 12.0, 13.0, 14.0, 15.0])
     low = np.array([9.0, 10.0, 11.0, 12.0, 13.0])
     close = np.array([10.0, 11.0, 12.0, 13.0, 14.0])
@@ -158,7 +158,7 @@ def test_smc_math():
     assert ote_top is not None or ote_top is None
 
 
-def test_vsa_math():
+def test_vsa_math() -> None:
     high = np.array([11.0, 12.0, 13.0, 14.0, 15.0])
     low = np.array([9.0, 10.0, 11.0, 12.0, 13.0])
     close = np.array([10.0, 11.0, 12.0, 13.0, 14.0])
@@ -190,7 +190,7 @@ def test_vsa_math():
     assert len(cvd) == 5
 
 
-def test_tpo_math():
+def test_tpo_math() -> None:
     prices = np.array([10.0, 10.5, 11.0, 11.5, 12.0])
     tpo_counts = np.array([1, 2, 5, 2, 1])
     mean, sigma, skewness, poc = compute_tpo_stats(prices, tpo_counts)
@@ -214,7 +214,7 @@ def test_tpo_math():
     assert len(p) > 0
 
 
-def test_lob_math():
+def test_lob_math() -> None:
     bid_quantities = np.array([10.0, 5.0, 2.0])
     ask_quantities = np.array([8.0, 6.0, 4.0])
     rho = compute_depth_imbalance(bid_quantities, ask_quantities)
@@ -247,7 +247,7 @@ def test_lob_math():
     assert len(r_ctr) == 3
 
 
-def test_hmm_math():
+def test_hmm_math() -> None:
     values = np.array([1.0, 2.0, 3.0])
     lse = log_sum_exp(values)
     assert lse > 3.0

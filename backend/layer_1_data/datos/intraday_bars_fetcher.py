@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Intraday OHLCV Bars Fetcher — QuantumAnalyzer Layer 1.
 
 Fetches tick-aggregated OHLCV data (candlestick bars) for multiple timeframes
@@ -7,12 +9,10 @@ Massive/Polygon mirror keys (tertiary fallback).
 Supported intervals: 1s, 5m, 15m, 30m, 1h, 4h, 1d (1s vía Polygon/Massive REST; Alpaca no expone 1s).
 """
 
-from __future__ import annotations
 
 import math
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -380,6 +380,46 @@ def _fetch_alpaca_bars(
         return None
 
 
+def _resolve_fmp_keys(cfg: Config) -> list[str]:
+    """Lista ordenada y deduplicada de API keys FMP candidatas.
+
+    Se prueban múltiples dominios de key (market/technical/quotes/statements/etf/global)
+    porque alguna puede estar revocada y responder HTTP 401. El llamador itera hasta
+    que una autentique con datos, evitando que una sola key muerta inutilice FMP.
+    """
+    raw: list[Any] = [
+        getattr(cfg, "fmp_key_market", None),
+        getattr(cfg, "fmp_key_technical", None),
+        getattr(cfg, "fmp_key_quotes", None),
+        getattr(cfg, "fmp_key_statements", None),
+        getattr(cfg, "fmp_key_etf", None),
+        getattr(cfg, "fmp_api_key", None),
+        os.getenv("FMP_API_KEY", ""),
+    ]
+    keys: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        if item is None:
+            continue
+        value = item.get_secret_value() if hasattr(item, "get_secret_value") else str(item)
+        value = value.strip()
+        if value and value not in seen:
+            seen.add(value)
+            keys.append(value)
+    return keys
+
+
+def _fetch_fmp_bars_multi(
+    symbol: str, interval: str, keys: list[str], max_bars: int
+) -> list[dict[str, Any]] | None:
+    """Intenta cada key FMP hasta obtener velas (salta las keys revocadas)."""
+    for key in keys:
+        bars = _fetch_fmp_bars(symbol, interval, key, max_bars=max_bars)
+        if bars:
+            return bars
+    return None
+
+
 def fetch_intraday_bars(
     symbol: str,
     interval: str = "5m",
@@ -413,37 +453,51 @@ def fetch_intraday_bars(
 
     cfg = settings or load_settings()
     sym = symbol.upper().strip()
-    fmp_key = (
-        getattr(cfg, "fmp_key_market", None)
-        or getattr(cfg, "fmp_key_technical", None)
-        or getattr(cfg, "fmp_api_key", None)
-        or os.getenv("FMP_API_KEY", "")
+    from backend.hub.market_data_ttl_cache import (
+        get_intraday_bars,
+        intraday_cache_key,
+        put_intraday_bars,
     )
+
+    cache_key = intraday_cache_key(
+        sym,
+        interval,
+        max_bars=max_bars,
+        lookback_days=lookback_days,
+        accept_stale=accept_stale_current_session,
+    )
+    cached = get_intraday_bars(cache_key)
+    if cached is not None:
+        logger.debug("intraday_bars: cache_hit symbol=%s interval=%s", sym, interval)
+        return cached
+
+    def _cache_and_return(payload: dict[str, Any]) -> dict[str, Any]:
+        if payload.get("bars"):
+            put_intraday_bars(cache_key, payload)
+        return payload
+
+    fmp_keys = _resolve_fmp_keys(cfg)
     scanner_provider = str(
         getattr(cfg, "market_scanner_data_provider", "fmp_enterprise") or ""
     ).lower()
-    prefer_fmp = (
-        accept_stale_current_session
-        and bool(getattr(cfg, "market_scanner_fmp_primary", True))
+    # FMP Enterprise primero: sus keys sirven la sesión en curso, mientras que las
+    # claves de Polygon/Massive/Alpaca pueden devolver history rezagada según el plan.
+    prefer_fmp = accept_stale_current_session or (
+        bool(getattr(cfg, "market_scanner_fmp_primary", True))
         and scanner_provider == "fmp_enterprise"
     )
 
-    if prefer_fmp and fmp_key:
-        bars = _fetch_fmp_bars(
-            sym,
-            interval,
-            fmp_key,
-            max_bars=max_bars or 1000,
-        )
+    if prefer_fmp and fmp_keys:
+        bars = _fetch_fmp_bars_multi(sym, interval, fmp_keys, max_bars or 1000)
         if bars:
             logger.info("intraday_bars: %d bars %s/%s via FMP Enterprise", len(bars), sym, interval)
-            return {
+            return _cache_and_return({
                 "bars": bars,
                 "interval": interval,
                 "source": "fmp_enterprise",
                 "count": len(bars),
                 "error": None,
-            }
+            })
 
     # ── 1. Polygon primary key ────────────────────────────────────────────────
     polygon_key = os.getenv("POLYGON_KEY", "") or getattr(cfg, "polygon_key", "") or ""
@@ -454,13 +508,13 @@ def fetch_intraday_bars(
         if bars:
             src = f"polygon_primary@{host_used}" if host_used else "polygon_primary"
             logger.info("intraday_bars: %d bars %s/%s via %s", len(bars), sym, interval, src)
-            return {
+            return _cache_and_return({
                 "bars": bars,
                 "interval": interval,
                 "source": src,
                 "count": len(bars),
                 "error": None,
-            }
+            })
 
     # ── 2. Alpaca secondary ───────────────────────────────────────────────────
     alpaca_key = os.getenv("ALPACA_API_KEY", "") or getattr(cfg, "alpaca_api_key", "") or ""
@@ -480,31 +534,26 @@ def fetch_intraday_bars(
         )
         if bars:
             logger.info("intraday_bars: %d bars %s/%s via Alpaca", len(bars), sym, interval)
-            return {
+            return _cache_and_return({
                 "bars": bars,
                 "interval": interval,
                 "source": "alpaca",
                 "count": len(bars),
                 "error": None,
-            }
+            })
 
     # ── 3. FMP Enterprise/Fallback ───────────────────────────────────────────
-    if fmp_key and not prefer_fmp:
-        bars = _fetch_fmp_bars(
-            sym,
-            interval,
-            fmp_key,
-            max_bars=max_bars or 1000,
-        )
+    if fmp_keys and not prefer_fmp:
+        bars = _fetch_fmp_bars_multi(sym, interval, fmp_keys, max_bars or 1000)
         if bars:
             logger.info("intraday_bars: %d bars %s/%s via FMP", len(bars), sym, interval)
-            return {
+            return _cache_and_return({
                 "bars": bars,
                 "interval": interval,
                 "source": "fmp",
                 "count": len(bars),
                 "error": None,
-            }
+            })
 
     # ── 4. Massive/Polygon mirror keys ────────────────────────────────────────
     keys = _massive_key_bindings(cfg)
@@ -515,13 +564,13 @@ def fetch_intraday_bars(
         if bars:
             src = f"massive_{label}@{host_used}" if host_used else f"massive_{label}"
             logger.info("intraday_bars: %d bars %s/%s via %s", len(bars), sym, interval, src)
-            return {
+            return _cache_and_return({
                 "bars": bars,
                 "interval": interval,
                 "source": src,
                 "count": len(bars),
                 "error": None,
-            }
+            })
 
     logger.warning("intraday_bars: all sources failed for %s/%s", sym, interval)
     return {

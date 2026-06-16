@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Adaptador de datos de opciones para motores de backend/quant_engine.
 
 Convierte OptionChainSnapshot y OptionContract al formato numpy 2D
 que esperan los motores matemáticos existentes.
 """
 
-from __future__ import annotations
 
 import numpy as np
 import numpy.typing as npt

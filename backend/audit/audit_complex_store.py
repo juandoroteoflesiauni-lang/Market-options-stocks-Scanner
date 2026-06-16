@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Audit Complex Store — DuckDB-backed unified audit subsystem.
 
 Extends the existing BingXAuditStore with four new tables for comprehensive
@@ -22,7 +24,6 @@ Design notes
   locks.  In-memory stores keep a single persistent connection.
 """
 
-from __future__ import annotations
 
 import json
 import uuid
@@ -31,7 +32,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import duckdb
 
@@ -116,11 +116,27 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 )
 """
 
+_DDL_TRADE_RESULTS = """
+CREATE TABLE IF NOT EXISTS audit_trade_results (
+    trade_id        VARCHAR PRIMARY KEY,
+    timestamp       VARCHAR NOT NULL,
+    module          VARCHAR NOT NULL,
+    symbol          VARCHAR NOT NULL,
+    operation_id    VARCHAR DEFAULT '',
+    correlation_id  VARCHAR DEFAULT '',
+    pnl_pct         DOUBLE NOT NULL,
+    pnl_usd         DOUBLE NOT NULL,
+    exit_reason     VARCHAR NOT NULL,
+    context         VARCHAR DEFAULT '{}'
+)
+"""
+
 _ALL_DDLS: list[str] = [
     _DDL_API_CALLS,
     _DDL_PROCESS_SNAPSHOTS,
     _DDL_ERRORS,
     _DDL_LOGS,
+    _DDL_TRADE_RESULTS,
 ]
 
 
@@ -295,6 +311,39 @@ class LogAuditEntry:
             json.dumps(self.context_data, default=str),
             self.stack_trace,
             json.dumps(self.tags),
+        )
+
+
+# ── Trade Result Entry ───────────────────────────────────────────────────────
+
+
+@dataclass
+class TradeResultAuditEntry:
+    """Trade result record (PnL at exit)."""
+
+    module: str
+    symbol: str
+    pnl_pct: float
+    pnl_usd: float
+    exit_reason: str
+    operation_id: str = ""
+    correlation_id: str = ""
+    context: dict[str, Any] = field(default_factory=dict)
+    trade_id: str = field(default_factory=lambda: _new_id("trd_"))
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def to_row(self) -> tuple[Any, ...]:
+        return (
+            self.trade_id,
+            self.timestamp,
+            self.module,
+            self.symbol,
+            self.operation_id,
+            self.correlation_id,
+            self.pnl_pct,
+            self.pnl_usd,
+            self.exit_reason,
+            json.dumps(self.context, default=str),
         )
 
 
@@ -924,6 +973,71 @@ class AuditComplexStore:
             return int(row[0]) if row else 0
 
     # ══════════════════════════════════════════════════════════════════════════
+    # TRADE RESULTS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def persist_trade_result(self, entry: TradeResultAuditEntry) -> str:
+        with self._connect() as con:
+            con.execute(
+                """
+                INSERT OR REPLACE INTO audit_trade_results
+                    (trade_id, timestamp, module, symbol, operation_id,
+                     correlation_id, pnl_pct, pnl_usd, exit_reason, context)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+                """,
+                entry.to_row(),
+            )
+        return entry.trade_id
+
+    def list_trade_results(
+        self,
+        *,
+        module: str | None = None,
+        symbol: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if module:
+            clauses.append("module = ?")
+            params.append(module)
+        if symbol:
+            clauses.append("symbol = ?")
+            params.append(symbol)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        limit = max(1, min(int(limit), 2000))
+        params.append(limit)
+
+        with self._connect() as con:
+            rows = con.execute(
+                f"""
+                SELECT trade_id, timestamp, module, symbol, operation_id,
+                       correlation_id, pnl_pct, pnl_usd, exit_reason, context
+                FROM audit_trade_results
+                {where}
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+
+        return [
+            {
+                "trade_id": r[0],
+                "timestamp": r[1],
+                "module": r[2],
+                "symbol": r[3],
+                "operation_id": r[4],
+                "correlation_id": r[5],
+                "pnl_pct": r[6],
+                "pnl_usd": r[7],
+                "exit_reason": r[8],
+                "context": json.loads(r[9]) if r[9] else {},
+            }
+            for r in rows
+        ]
+
+    # ══════════════════════════════════════════════════════════════════════════
     # CROSS-TABLE QUERIES
     # ══════════════════════════════════════════════════════════════════════════
 
@@ -967,4 +1081,5 @@ __all__ = [
     "ErrorAuditEntry",
     "LogAuditEntry",
     "ProcessSnapshotEntry",
+    "TradeResultAuditEntry",
 ]

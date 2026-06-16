@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import TypeVar, Any
 """Thread pool executor para operaciones CPU-bound en asyncio.
 
 Este módulo proporciona un executor global para mover cálculos pesados
@@ -19,14 +21,12 @@ async def handler():
 ```
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -109,10 +109,7 @@ async def run_cpu_bound(
     target_executor = executor or get_executor()
 
     # Crear partial con argumentos
-    if args:
-        wrapped_func = partial(func, *args)
-    else:
-        wrapped_func = func
+    wrapped_func = partial(func, *args) if args else func
 
     try:
         # Ejecutar en thread pool
@@ -127,9 +124,9 @@ async def run_cpu_bound(
 
         return result
 
-    except TimeoutError:
+    except TimeoutError as err:
         logger.error(f"CPU-bound operation timed out after {timeout}s: {func.__name__}")
-        raise TimeoutError(f"CPU-bound operation timed out after {timeout}s")
+        raise TimeoutError(f"CPU-bound operation timed out after {timeout}s") from err
     except Exception as e:
         logger.exception(f"Error in CPU-bound operation {func.__name__}: {e}")
         raise
@@ -181,7 +178,8 @@ async def run_multiple_cpu_bound(
         if isinstance(result, Exception):
             logger.error(f"Task {i} failed: {result}")
 
-    return results  # type: ignore
+    return results
+
 
 
 # Context manager para shutdown automático

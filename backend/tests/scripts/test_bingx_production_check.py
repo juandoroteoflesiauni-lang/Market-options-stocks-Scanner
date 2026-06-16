@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Any
 """Tests for bingx_production_check individual checks and run_checks orchestrator."""
 
-from __future__ import annotations
 
 import asyncio
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -121,7 +121,7 @@ def test_check_providers_options_missing_is_fail() -> None:
 
 
 def test_check_providers_never_expose_key_values() -> None:
-    secret = "supersecretkey12345"
+    secret = "supersecretkey12345"  # nosec # NOSONAR
     env = {"BINGX_API_KEY": secret, "FMP_API_KEY": "another_secret"}
     results = check_providers(env)
     combined = " ".join(r.detail for r in results)

@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Integration tests for Audit Complex REST router."""
 
-from __future__ import annotations
 
 import pytest
 from fastapi import FastAPI
@@ -13,7 +13,7 @@ from backend.audit.audit_complex_store import (
     LogAuditEntry,
     ProcessSnapshotEntry,
 )
-from backend.routers.audit_complex_router import configure_audit_complex_store, router
+from backend.api.routes.audit_complex_router import configure_audit_complex_store, router
 
 
 @pytest.fixture

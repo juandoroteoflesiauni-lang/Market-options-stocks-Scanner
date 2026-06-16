@@ -1,17 +1,17 @@
+from __future__ import annotations
+from typing import Any
 """Local paper-trading validation for FTMO Funding Lab.
 
 The simulator consumes Playbook-approved trade intents and persisted provider
 bars. It never connects to a broker and never imports the BingX Bot.
 """
 
-from __future__ import annotations
 
 import json
 import sqlite3
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.services.ftmo_playbook_audit_service import FTMOPlaybookAuditService

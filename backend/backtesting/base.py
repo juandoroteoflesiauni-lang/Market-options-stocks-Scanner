@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """Shared backtesting primitives (pure math / deterministic simulation)."""
 
-from __future__ import annotations
 
 import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass

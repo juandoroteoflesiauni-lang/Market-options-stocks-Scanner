@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Tests for ``bingx_predictive_bridge`` — predictive cascade for BingX.
 
 Coverage:
@@ -10,10 +12,8 @@ Coverage:
 - JSON safety end-to-end
 """
 
-from __future__ import annotations
 
 import json
-from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest

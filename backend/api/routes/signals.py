@@ -1,7 +1,7 @@
+from typing import Any
 """Signals endpoint — Phase D execution signals (REST + WebSocket)."""
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel

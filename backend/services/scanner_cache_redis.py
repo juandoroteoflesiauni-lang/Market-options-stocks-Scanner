@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import Any
 """Optional Redis read-through cache for Market Scanner live prices."""
 
-from __future__ import annotations
 
 import json
 import os
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 

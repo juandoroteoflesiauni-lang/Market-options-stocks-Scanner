@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Institutional key broker for Massive/Polygon REST usage.
 
 The registry owns key capability, cooldown, and safe diagnostics. It never exposes raw
@@ -5,7 +6,6 @@ API keys and it gives Layer 1 fetchers a deterministic shortlist instead of lett
 each caller try every configured credential against every endpoint.
 """
 
-from __future__ import annotations
 
 import os
 import threading

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """motor_health_monitor.py
 ==========================
 Circuit-breaker layer for every motor in the probabilistic pipeline.
@@ -20,7 +22,6 @@ Public API
 - check_system_health(breaker)          alerting helper
 """
 
-from __future__ import annotations
 
 import functools
 import threading
@@ -31,7 +32,6 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 

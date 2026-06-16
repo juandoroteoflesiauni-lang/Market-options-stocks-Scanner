@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """High-conviction heuristic confirmation for Funding Lab.
 
 The original side provider contract is preserved, but the decision is now a
@@ -5,9 +7,7 @@ deterministic rules gate derived from the real-data filters that outperformed
 the small Meta-Learner experiment.
 """
 
-from __future__ import annotations
 
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 

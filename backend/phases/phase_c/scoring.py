@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Phase C — Scoring module for derivatives engine.
 
 All scoring functions are stateless and receive configuration via
@@ -7,10 +9,8 @@ testable, and easy to reason about.
 Engine scores are normalised to [0, 100].
 """
 
-from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 
 from backend.config.phase_thresholds import get_active_weights
 from backend.models.enriched_snapshot import EnrichedSnapshot

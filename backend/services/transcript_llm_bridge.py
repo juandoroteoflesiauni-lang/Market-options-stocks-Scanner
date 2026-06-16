@@ -1,9 +1,9 @@
+from __future__ import annotations
 """Default LLM bridge for transcript analysis (Layer 4) used from application services."""
 
-from __future__ import annotations
 
 from backend.config.logger_setup import get_logger
-from backend.layer_4_orchestration.ai_core.agent_manager import AgentManager
+from backend.services.ai_core.agent_manager import AgentManager
 
 logger = get_logger(__name__)
 

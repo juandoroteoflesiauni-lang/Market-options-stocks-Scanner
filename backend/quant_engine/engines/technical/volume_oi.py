@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/volume_oi.py
 Sector: Options / Volume & OI Dynamics Engine
@@ -9,7 +10,6 @@ Theoretical basis:
     TURCOMAT, 15(2), 140-146.
 """
 
-from __future__ import annotations
 
 import logging
 from enum import Enum

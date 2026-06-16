@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 from backend.services.bot.bingx_bot_types import *
+from backend.layer_1_data.datos.bingx_client import BingXPerpOrderRequest
 
 """Mixin class for BingX Bot Exits."""
 
 import math
+from datetime import UTC, datetime
 from collections.abc import Mapping
 
 from backend.config.logger_setup import get_logger
 
 logger = get_logger(__name__)
+
+
+def _float_or_none(value: object) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
 
 from typing import TYPE_CHECKING
 
@@ -151,6 +161,8 @@ class BingXBotExitsMixin:
         position_side: str,
         quantity: float,
         reason: str,
+        pnl_pct: float | None = None,
+        pnl_usd: float | None = None,
     ) -> BingXOrderResponse | None:
         qty = await self._round_position_qty(symbol, quantity)
         if qty <= 0:
@@ -168,16 +180,31 @@ class BingXBotExitsMixin:
             qty,
             reason,
         )
-        return await self._client.place_order_perp(
+        resp = await self._client.place_order_perp(
             BingXPerpOrderRequest(
                 symbol=symbol,
-                side=close_side,  # type: ignore[arg-type]
-                position_side=position_side,  # type: ignore[arg-type]
+                side=close_side,
+
+                position_side=position_side,
+
                 order_type="MARKET",
                 quantity=qty,
                 reduce_only=True,
             )
         )
+        if resp.ok and pnl_pct is not None and pnl_usd is not None:
+            from backend.audit.process_recorder import record_trade_result
+            try:
+                await record_trade_result(
+                    module="bingx",
+                    symbol=symbol,
+                    pnl_pct=pnl_pct,
+                    pnl_usd=pnl_usd,
+                    exit_reason=reason,
+                )
+            except Exception as exc:
+                logger.error("bingx_bot.audit_trade_result_failed symbol=%s error=%s", symbol, exc)
+        return resp
 
     async def _place_full_close(
         self,
@@ -186,12 +213,16 @@ class BingXBotExitsMixin:
         position_side: str,
         quantity: float,
         reason: str,
+        pnl_pct: float | None = None,
+        pnl_usd: float | None = None,
     ) -> BingXOrderResponse | None:
         response = await self._place_reduce_market(
             symbol=symbol,
             position_side=position_side,
             quantity=abs(quantity),
             reason=reason,
+            pnl_pct=pnl_pct,
+            pnl_usd=pnl_usd,
         )
         if response is not None and response.ok:
             self._clear_exit_tracking(symbol)
@@ -216,6 +247,8 @@ class BingXBotExitsMixin:
         analysis: BingXCandidateAnalysis,
         spot_price: float,
         remaining_size: float,
+        pnl_pct: float | None = None,
+        pnl_usd: float | None = None,
     ) -> list[BingXOrderResponse]:
         executions: list[BingXOrderResponse] = []
         close_resp = await self._place_full_close(
@@ -223,6 +256,8 @@ class BingXBotExitsMixin:
             position_side="LONG",
             quantity=remaining_size,
             reason="fade_and_flip_close_long",
+            pnl_pct=pnl_pct,
+            pnl_usd=pnl_usd,
         )
         if close_resp is not None:
             executions.append(close_resp)
@@ -275,6 +310,8 @@ class BingXBotExitsMixin:
             return target
         if not open_symbols:
             return target
+        from backend.services.bingx_bot_service import _synthetic_stock_symbols
+
         merged = _synthetic_stock_symbols((*target, *open_symbols))
         extra = sorted(set(merged) - set(target))
         if extra:
@@ -328,6 +365,7 @@ class BingXBotExitsMixin:
             if cycle_analyses is not None:
                 analysis = cycle_analyses.get(symbol)
             if analysis is None:
+                from backend.services.bingx_bot_service import build_candidate_analysis
                 try:
                     analysis = await build_candidate_analysis(
                         symbol,
@@ -360,6 +398,17 @@ class BingXBotExitsMixin:
                 if (hasattr(pos, "current_price") and pos.current_price is not None)
                 else pos.mark_price
             )
+
+            pnl_pct = None
+            pnl_usd = None
+            if current_spot is not None and pos.entry_price > 0:
+                pnl_pct = self._compute_unrealized_pnl_pct(
+                    side=pos.side,
+                    entry_price=pos.entry_price,
+                    spot_price=current_spot,
+                )
+                if pnl_pct is not None:
+                    pnl_usd = (pnl_pct / 100.0) * (pos.entry_price * position_size)
 
             # ── Structural Stop Loss (Ruptura de Zona) ───────────────────────
             if current_spot is not None and analysis is not None:
@@ -413,6 +462,8 @@ class BingXBotExitsMixin:
                             position_side=pos.side,
                             quantity=position_size,
                             reason="support_zone_broken",
+                            pnl_pct=pnl_pct,
+                            pnl_usd=pnl_usd,
                         )
                         if close_resp is not None:
                             executions.append(close_resp)
@@ -437,6 +488,8 @@ class BingXBotExitsMixin:
                             position_side=pos.side,
                             quantity=position_size,
                             reason="resistance_zone_broken",
+                            pnl_pct=pnl_pct,
+                            pnl_usd=pnl_usd,
                         )
                         if close_resp is not None:
                             executions.append(close_resp)
@@ -481,13 +534,7 @@ class BingXBotExitsMixin:
             self._conviction_scores[symbol] = round(conv_score, 4)
             self._exit_reasons[symbol] = reasons
 
-            pnl_pct = None
-            if current_spot is not None and pos.entry_price > 0:
-                pnl_pct = self._compute_unrealized_pnl_pct(
-                    side=pos.side,
-                    entry_price=pos.entry_price,
-                    spot_price=current_spot,
-                )
+
 
             # ── GEX Wall Proximity Exit ──────────────────────────────────────
             if current_spot is not None:
@@ -503,11 +550,14 @@ class BingXBotExitsMixin:
                             call_wall,
                             distance_pct,
                         )
+                        trim_usd = (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
                         resp = await self._place_reduce_market(
                             symbol=symbol,
                             position_side=pos.side,
                             quantity=trim_qty,
                             reason="gex_wall_proximity_close",
+                            pnl_pct=pnl_pct,
+                            pnl_usd=trim_usd,
                         )
                         if resp is not None:
                             executions.append(resp)
@@ -524,11 +574,14 @@ class BingXBotExitsMixin:
                             put_wall,
                             distance_pct,
                         )
+                        trim_usd = (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
                         resp = await self._place_reduce_market(
                             symbol=symbol,
                             position_side=pos.side,
                             quantity=trim_qty,
                             reason="gex_wall_proximity_close",
+                            pnl_pct=pnl_pct,
+                            pnl_usd=trim_usd,
                         )
                         if resp is not None:
                             executions.append(resp)
@@ -553,11 +606,14 @@ class BingXBotExitsMixin:
                     pnl_pct,
                     shadow_delta,
                 )
+                trim_usd = (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
                 resp = await self._place_reduce_market(
                     symbol=symbol,
                     position_side=pos.side,
                     quantity=trim_qty,
                     reason="shadow_delta_reversal_hedge",
+                    pnl_pct=pnl_pct,
+                    pnl_usd=trim_usd,
                 )
                 if resp is not None:
                     executions.append(resp)
@@ -601,6 +657,8 @@ class BingXBotExitsMixin:
                     analysis=analysis,
                     spot_price=current_spot,
                     remaining_size=position_size,
+                    pnl_pct=pnl_pct,
+                    pnl_usd=pnl_usd,
                 )
                 executions.extend(flip_execs)
                 continue
@@ -619,6 +677,8 @@ class BingXBotExitsMixin:
                     position_side=pos.side,
                     quantity=position_size,
                     reason="structural_exit",
+                    pnl_pct=pnl_pct,
+                    pnl_usd=pnl_usd,
                 )
                 if close_resp is not None:
                     executions.append(close_resp)
@@ -634,11 +694,14 @@ class BingXBotExitsMixin:
 
             if not state.half_tp_done:
                 half_qty = remaining * PARAMETRIC_HALF_EXIT_RATIO
+                trim_usd = (pnl_pct / 100.0) * (pos.entry_price * half_qty) if pnl_pct else None
                 resp = await self._place_reduce_market(
                     symbol=symbol,
                     position_side=pos.side,
                     quantity=half_qty,
                     reason="parametric_half_tp_3pct",
+                    pnl_pct=pnl_pct,
+                    pnl_usd=trim_usd,
                 )
                 if resp is not None:
                     executions.append(resp)
@@ -655,6 +718,7 @@ class BingXBotExitsMixin:
             while state.last_adaptive_milestone < milestone:
                 state.last_adaptive_milestone += 1
                 trim_qty = remaining * trim_ratio
+                trim_usd = (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
                 resp = await self._place_reduce_market(
                     symbol=symbol,
                     position_side=pos.side,
@@ -663,6 +727,8 @@ class BingXBotExitsMixin:
                         f"parametric_step_{state.last_adaptive_milestone}_"
                         f"{'trend' if trim_ratio == PARAMETRIC_STRONG_CONFLUENCE_TRIM_RATIO else 'fatigue'}"
                     ),
+                    pnl_pct=pnl_pct,
+                    pnl_usd=trim_usd,
                 )
                 if resp is not None:
                     executions.append(resp)

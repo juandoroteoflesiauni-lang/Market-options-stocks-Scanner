@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Any
 """Barra-style factor loadings and exposure limits for Scanner portfolio risk (Point 6)."""
 
-from __future__ import annotations
 
 import math
-from typing import Any
 
 from backend.domain.market_scanner_models import MarketScannerRow, ScannerRiskStackFactorLimits
 

@@ -1,6 +1,6 @@
+from typing import Any
 import logging
 import time
-from typing import Any
 
 import httpx
 
@@ -17,6 +17,7 @@ from backend.hub.rate_limiter import rate_limiter
 from backend.models.market_snapshot import MarketSnapshot
 from backend.models.option_contract import OptionChainSnapshot
 from backend.models.result import Result
+from backend.services.alpaca_universe_fetcher import get_universe_type_for_ticker
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,7 @@ class MarketDataHub:
                 self._fmp_breaker.record_success()
 
                 snapshot = self._fmp_normalizer.normalize(raw_data, start_ns)
+                snapshot = snapshot.model_copy(update={"universe_type": get_universe_type_for_ticker(ticker)})
                 return Result.success(snapshot)
             except Exception as exc:
                 self._fmp_breaker.record_failure()
@@ -183,6 +185,7 @@ class MarketDataHub:
                 self._alpaca_breaker.record_success()
 
                 snapshot = self._alpaca_normalizer.normalize(raw_data, start_ns)
+                snapshot = snapshot.model_copy(update={"universe_type": get_universe_type_for_ticker(ticker)})
                 return Result.success(snapshot)
             except Exception as exc:
                 self._alpaca_breaker.record_failure()

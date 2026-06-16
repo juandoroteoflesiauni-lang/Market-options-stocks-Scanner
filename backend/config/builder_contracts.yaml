@@ -1,0 +1,125 @@
+# MFFU Builder Plan — futures contract catalog (CME specs, revisable)
+# tick_size / tick_value sourced from CME contract specs; verify before production.
+
+defaults:
+  max_minis: 4
+  max_micros: 40
+  revisable: true
+
+contracts:
+  ES:
+    tick_size: 0.25
+    tick_value: 12.50
+    is_micro: false
+    mini_equivalent: 1.0
+    paired_symbol: MES
+  MES:
+    tick_size: 0.25
+    tick_value: 1.25
+    is_micro: true
+    mini_equivalent: 0.1
+    paired_symbol: ES
+  NQ:
+    tick_size: 0.25
+    tick_value: 5.00
+    is_micro: false
+    mini_equivalent: 1.0
+    paired_symbol: MNQ
+  MNQ:
+    tick_size: 0.25
+    tick_value: 0.50
+    is_micro: true
+    mini_equivalent: 0.1
+    paired_symbol: NQ
+  GC:
+    tick_size: 0.10
+    tick_value: 10.00
+    is_micro: false
+    mini_equivalent: 1.0
+    paired_symbol: MGC
+  MGC:
+    tick_size: 0.10
+    tick_value: 1.00
+    is_micro: true
+    mini_equivalent: 0.1
+    paired_symbol: GC
+  CL:
+    tick_size: 0.01
+    tick_value: 10.00
+    is_micro: false
+    mini_equivalent: 1.0
+    paired_symbol: MCL
+  MCL:
+    tick_size: 0.01
+    tick_value: 1.00
+    is_micro: true
+    mini_equivalent: 0.1
+    paired_symbol: CL
+  RTY:
+    tick_size: 0.10
+    tick_value: 5.00
+    is_micro: false
+    mini_equivalent: 1.0
+    paired_symbol: M2K
+  M2K:
+    tick_size: 0.10
+    tick_value: 0.50
+    is_micro: true
+    mini_equivalent: 0.1
+    paired_symbol: RTY
+  YM:
+    tick_size: 1.00
+    tick_value: 5.00
+    is_micro: false
+    mini_equivalent: 1.0
+    paired_symbol: MYM
+  MYM:
+    tick_size: 1.00
+    tick_value: 0.50
+    is_micro: true
+    mini_equivalent: 0.1
+    paired_symbol: YM
+  SI:
+    tick_size: 0.005
+    tick_value: 25.00
+    is_micro: false
+    mini_equivalent: 1.0
+    paired_symbol: SIL
+  SIL:
+    tick_size: 0.005
+    tick_value: 5.00
+    is_micro: true
+    mini_equivalent: 0.1
+    paired_symbol: SI
+
+aliases:
+  ES: ES
+  MES: MES
+  NQ: NQ
+  MNQ: MNQ
+  GC: GC
+  MGC: MGC
+  CL: CL
+  MCL: MCL
+  RTY: RTY
+  M2K: M2K
+  YM: YM
+  MYM: MYM
+  SI: SI
+  SIL: SIL
+  US100.CASH: NQ
+  US100CASH: NQ
+  US100.CASHCFD: NQ
+  US100: NQ
+  NAS100: NQ
+  NDX: NQ
+  QQQ: NQ
+  NQ=F: NQ
+  XAUUSD: GC
+  XAU/USD: GC
+  XAUUSD=X: GC
+  GC=F: GC
+  XAGUSD: SI
+  XAG/USD: SI
+  XAGUSD=X: SI
+  SI=F: SI

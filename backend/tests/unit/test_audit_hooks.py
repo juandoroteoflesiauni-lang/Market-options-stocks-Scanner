@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for audit hook functions."""
 
-from __future__ import annotations
 
 from unittest.mock import MagicMock
 

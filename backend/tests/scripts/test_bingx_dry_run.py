@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Unit tests for bingx_dry_run._summarize() and --persist flag."""
 
-from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch

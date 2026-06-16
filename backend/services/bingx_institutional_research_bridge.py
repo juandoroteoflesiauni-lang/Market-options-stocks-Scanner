@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING, Literal, Any
 """Institutional Research Bridge — BingX decision-engine desk vocabulary.
 
 Defines the *Institutional Research Snapshot*: a single, JSON-safe container
@@ -32,10 +34,8 @@ Design rules
   when serialised.
 """
 
-from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     pass
@@ -107,6 +107,7 @@ from backend.services.research.bingx_research_options import _fetch_options_gex_
 from backend.services.research.bingx_research_predictive import _fetch_predictive_desk
 from backend.services.research.bingx_research_technical import _project_technical_desk
 from backend.services.research.research_types import *
+from backend.services.research.research_types import _now_iso
 
 
 async def fetch_institutional_snapshot(

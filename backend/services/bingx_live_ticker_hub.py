@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """BingX live ticker hub — fan-out venue WebSocket ticks to dashboard clients.
 
 Maintains in-memory account + position state seeded from REST, then mutates on:
@@ -8,7 +10,6 @@ Broadcast payloads mirror ``monitoring_service`` mirror fields so the React
 dashboard can render tick-by-tick without waiting for the bot analytic cycle.
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextlib
@@ -16,7 +17,6 @@ import json
 import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
 
 from fastapi import WebSocket
 

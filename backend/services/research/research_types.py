@@ -1,13 +1,13 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING, Literal, Any
 
 import math
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from backend.layer_3_specialists.ia_probabilistico.domain.probabilistic_models import (
+    from backend.domain.probabilistic_models import (
         PredictiveOptionsBundleReport,
     )
 
@@ -15,7 +15,10 @@ from backend.config.logger_setup import get_logger
 
 logger = get_logger(__name__)
 
-_DB_PATH: Path = Path(__file__).resolve().parent.parent.parent / "data" / "predictions.db"
+from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB, PREDICTIONS_DB
+
+_DB_PATH: Path = PREDICTIONS_DB
+_OPTIONS_GEX_DB_PATH: Path = OPTIONS_GEX_SNAPSHOTS_DB
 _DUCKDB_PATH: Path = (
     Path(__file__).resolve().parent.parent.parent.parent / "data" / "quantum_analyzer.duckdb"
 )
@@ -217,7 +220,7 @@ class InstitutionalResearchSnapshot:
 
     This is the object that the decision engine and risk-desk consumers read.
     It is designed to be *directly* convertible to
-    :class:`~backend.layer_3_specialists.ia_probabilistico.domain.probabilistic_models.PredictiveOptionsBundleReport`
+    :class:`~backend.domain.probabilistic_models.PredictiveOptionsBundleReport`
     via :meth:`to_bundle_report`, which will be implemented in Phase 2 once
     the real desk fetchers are wired.
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Núcleo matemático de LOB (Limit Order Book) Dynamics — Sector Técnico.
 
 Funciones puras numpy para cálculo de desequilibrio de book, ratios
@@ -8,7 +10,6 @@ Restricciones:
 - Toda división regularizada con _EPS = 1e-12.
 """
 
-from __future__ import annotations
 
 from math import inf, isfinite
 
@@ -28,8 +29,8 @@ _DEFAULT_DEPTH_LEVELS: int = 5
 
 
 def compute_depth_imbalance(
-    bid_quantities: np.ndarray,
-    ask_quantities: np.ndarray,
+    bid_quantities: np.ndarray[Any, Any],
+    ask_quantities: np.ndarray[Any, Any],
 ) -> float:
     """Calcula el ratio de desequilibrio de profundidad del libro.
 
@@ -113,11 +114,11 @@ def classify_spoofing(
 
 
 def compute_ofi(
-    bid_price: np.ndarray,
-    bid_size: np.ndarray,
-    ask_price: np.ndarray,
-    ask_size: np.ndarray,
-) -> np.ndarray:
+    bid_price: np.ndarray[Any, Any],
+    bid_size: np.ndarray[Any, Any],
+    ask_price: np.ndarray[Any, Any],
+    ask_size: np.ndarray[Any, Any],
+) -> np.ndarray[Any, Any]:
     """Order Flow Imbalance (OFI) vectorizado sobre series de snapshots.
 
     OFI_t = ΔQ_bid - ΔQ_ask  donde el delta se calcula al nivel de mejor precio.
@@ -129,7 +130,7 @@ def compute_ofi(
 
     Returns
     -------
-    ofi : ndarray shape (n,), primer elemento es 0.0.
+    ofi : np.ndarray[Any, Any] shape (n,), primer elemento es 0.0.
     """
     bp = np.asarray(bid_price, dtype=np.float64)
     bs = np.asarray(bid_size, dtype=np.float64)
@@ -151,23 +152,23 @@ def compute_ofi(
 
 
 def compute_queue_imbalance(
-    bid_sizes: np.ndarray,
-    ask_sizes: np.ndarray,
+    bid_sizes: np.ndarray[Any, Any],
+    ask_sizes: np.ndarray[Any, Any],
     depth: int = _DEFAULT_DEPTH_LEVELS,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Queue Imbalance por timestep sobre los primeros `depth` niveles.
 
     QI_t = (Σ Q_bid_k - Σ Q_ask_k) / (Σ Q_bid_k + Σ Q_ask_k)
 
     Parameters
     ----------
-    bid_sizes : ndarray shape (n, depth) o (n, m).
-    ask_sizes : ndarray shape (n, depth) o (n, m).
+    bid_sizes : np.ndarray[Any, Any] shape (n, depth) o (n, m).
+    ask_sizes : np.ndarray[Any, Any] shape (n, depth) o (n, m).
     depth     : número de niveles a considerar.
 
     Returns
     -------
-    qi : ndarray shape (n,) en [-1, 1].
+    qi : np.ndarray[Any, Any] shape (n,) en [-1, 1].
     """
     bids = np.asarray(bid_sizes, dtype=np.float64)
     asks = np.asarray(ask_sizes, dtype=np.float64)
@@ -188,11 +189,11 @@ def compute_queue_imbalance(
 
 
 def rolling_ctr(
-    timestamps: np.ndarray,
-    cancelled: np.ndarray,
-    traded: np.ndarray,
+    timestamps: np.ndarray[Any, Any],
+    cancelled: np.ndarray[Any, Any],
+    traded: np.ndarray[Any, Any],
     window_ms: int,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """CTR calculado sobre una ventana deslizante temporal.
 
     Parameters
@@ -204,7 +205,7 @@ def rolling_ctr(
 
     Returns
     -------
-    ctr : ndarray float64, shape (n,). inf donde traded == 0.
+    ctr : np.ndarray[Any, Any] float64, shape (n,). inf donde traded == 0.
     """
     timestamps = np.asarray(timestamps, dtype=np.int64)
     cancelled = np.asarray(cancelled, dtype=np.float64)

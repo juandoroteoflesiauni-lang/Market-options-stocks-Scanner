@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Local JSON repository for ThesisSnapshot records."""
 
-from __future__ import annotations
 
 import json
 import os

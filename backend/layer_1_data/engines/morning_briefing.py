@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/layer_1_data/engines/morning_briefing.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,7 +6,6 @@ Morning Briefing Engine — Institutional Prompt Generation & Parsing (Sector: D
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import json
 import textwrap

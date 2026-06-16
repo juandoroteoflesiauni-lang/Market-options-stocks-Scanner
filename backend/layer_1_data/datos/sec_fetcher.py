@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import Any
 """Fetcher de SEC API (sec-api.io) para filings e insider activity."""
 
-from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 logger = logging.getLogger("backend.layer_1_data.datos.sec_fetcher")
 
@@ -42,7 +42,8 @@ class SECFetcher:
 
         if _REQUESTS_AVAILABLE and self._key:
             try:
-                sess = _requests.Session()  # type: ignore[attr-defined]
+                sess = _requests.Session()
+
                 sess.headers.update({"Content-Type": "application/json"})
                 self._session = sess
                 logger.debug("SECFetcher: session initialised (key=%.8s…)", self._key)
@@ -145,7 +146,8 @@ class SECFetcher:
         url = f"{_SEC_API_BASE}{endpoint}"
         params = {"token": self._key}
         try:
-            resp = self._session.post(url, json=payload, params=params, timeout=15)  # type: ignore[attr-defined]
+            resp = self._session.post(url, json=payload, params=params, timeout=15)
+
             if resp.status_code == 200:
                 return resp.json()
             logger.warning(
@@ -165,7 +167,8 @@ class SECFetcher:
             params = {}
         params["token"] = self._key
         try:
-            resp = self._session.get(url, params=params, timeout=15)  # type: ignore[attr-defined]
+            resp = self._session.get(url, params=params, timeout=15)
+
             if resp.status_code == 200:
                 return resp.json()
             logger.warning(

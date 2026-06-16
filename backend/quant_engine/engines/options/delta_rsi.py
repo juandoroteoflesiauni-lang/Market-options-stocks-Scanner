@@ -1,3 +1,4 @@
+from typing import Any
 """
 Delta-RSI — RSI calculado sobre flujo de derivados (opciones)
 ═════════════════════════════════════════════════════════════
@@ -30,6 +31,9 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 import pandas_ta as ta
+import logging
+logger = logging.getLogger(__name__)
+
 
 warnings.filterwarnings("ignore")
 
@@ -491,7 +495,7 @@ class DeltaRSIEngine:
         self,
         candle: CandleBar,
         flow: OptionsFlow | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Procesa una vela de 1m con su flujo de opciones del mismo minuto.
         """
@@ -596,7 +600,7 @@ class DeltaRSIEngine:
         self._history.append(result)
         return result
 
-    def _empty_row(self, candle: CandleBar, iv_atm: float, net_gex: float) -> dict:
+    def _empty_row(self, candle: CandleBar, iv_atm: float, net_gex: float) -> dict[str, Any]:
         """Fila vacía durante el período de inicialización."""
         return {
             "timestamp": candle.timestamp,
@@ -764,9 +768,9 @@ def run_delta_rsi_pipeline(
     """
     Retorna (df_principal, df_divergencias).
     """
-    print(f"\n{'═'*64}")
-    print(f"  DELTA-RSI ENGINE  |  {ticker}  |  {n} velas 1m")
-    print(f"{'═'*64}")
+    logger.info(f"\n{'═'*64}")
+    logger.info(f"  DELTA-RSI ENGINE  |  {ticker}  |  {n} velas 1m")
+    logger.info(f"{'═'*64}")
 
     candles, flows = generate_demo_data(ticker, n)
 
@@ -796,59 +800,59 @@ def run_delta_rsi_pipeline(
 
 def _print_report(df: pd.DataFrame, div_df: pd.DataFrame, ticker: str):
     last = df.iloc[-1]
-    print(f"\n── Resumen Delta-RSI {ticker} ──────────────────────────")
-    print(f"  Precio final       : ${last['close']:.2f}")
-    print(f"  Delta-RSI final    : {last['delta_rsi']:.2f}")
-    print(f"  Línea señal        : {last['signal_line']:.2f}")
-    print(f"  Histograma         : {last['histogram']:.4f}")
-    print(f"  RSI clásico final  : {last['classic_rsi']:.2f}")
-    print(f"  Divergencia actual : {last['delta_rsi'] - last['classic_rsi']:+.2f} pts")
-    print(f"  Zona institucional : {last['zone']}")
-    print(f"  EMA Gain           : {last['ema_gain']:,.0f}")
-    print(f"  EMA Loss           : {last['ema_loss']:,.0f}")
-    print(f"  Flujo neto         : {last['net_flow']:+,.0f}")
+    logger.info(f"\n── Resumen Delta-RSI {ticker} ──────────────────────────")
+    logger.info(f"  Precio final       : ${last['close']:.2f}")
+    logger.info(f"  Delta-RSI final    : {last['delta_rsi']:.2f}")
+    logger.info(f"  Línea señal        : {last['signal_line']:.2f}")
+    logger.info(f"  Histograma         : {last['histogram']:.4f}")
+    logger.info(f"  RSI clásico final  : {last['classic_rsi']:.2f}")
+    logger.info(f"  Divergencia actual : {last['delta_rsi'] - last['classic_rsi']:+.2f} pts")
+    logger.info(f"  Zona institucional : {last['zone']}")
+    logger.info(f"  EMA Gain           : {last['ema_gain']:,.0f}")
+    logger.info(f"  EMA Loss           : {last['ema_loss']:,.0f}")
+    logger.info(f"  Flujo neto         : {last['net_flow']:+,.0f}")
 
-    print("\n── Distribución de zonas ──")
-    print(df["zone"].value_counts().to_string())
+    logger.info("\n── Distribución de zonas ──")
+    logger.info(df["zone"].value_counts().to_string())
 
-    print("\n── Distribución de señales ──")
-    print(df["signal"].value_counts().to_string())
+    logger.info("\n── Distribución de señales ──")
+    logger.info(df["signal"].value_counts().to_string())
 
     # Señales fuertes
     strong = df[df["strength"] >= 2]
-    print(f"\n── Señales fuerza ≥ 2 ({len(strong)} eventos) ──")
+    logger.info(f"\n── Señales fuerza ≥ 2 ({len(strong)} eventos) ──")
     if not strong.empty:
         cols = ["close", "delta_rsi", "classic_rsi", "histogram", "zone", "signal", "strength"]
-        print(strong[cols].tail(10).to_string())
+        logger.info(strong[cols].tail(10).to_string())
 
     # Divergencias detectadas
-    print(f"\n── Divergencias detectadas: {len(div_df)} ──")
+    logger.info(f"\n── Divergencias detectadas: {len(div_df)} ──")
     if not div_df.empty:
-        print(
+        logger.info(
             div_df[
                 ["timestamp", "type", "price_val", "rsi_val", "strength_label", "confirmed"]
             ].to_string()
         )
 
         # Resumen por tipo
-        print("\n── Conteo por tipo de divergencia ──")
-        print(div_df["type"].value_counts().to_string())
+        logger.info("\n── Conteo por tipo de divergencia ──")
+        logger.info(div_df["type"].value_counts().to_string())
         strong_divs = div_df[div_df["strength"] >= 2]
         confirmed_divs = div_df[div_df["confirmed"] == True]
-        print(f"  Divergencias fuertes (≥2)  : {len(strong_divs)}")
-        print(f"  Divergencias confirmadas   : {len(confirmed_divs)}")
+        logger.info(f"  Divergencias fuertes (≥2)  : {len(strong_divs)}")
+        logger.info(f"  Divergencias confirmadas   : {len(confirmed_divs)}")
 
     # Correlación Delta-RSI vs RSI clásico
     corr = df["delta_rsi"].corr(df["classic_rsi"])
-    print(f"\n── Correlación Delta-RSI / RSI clásico : {corr:.4f}")
-    print("   (< 0.7 = señales independientes, > 0.7 = redundantes)")
+    logger.info(f"\n── Correlación Delta-RSI / RSI clásico : {corr:.4f}")
+    logger.info("   (< 0.7 = señales independientes, > 0.7 = redundantes)")
 
     # Estadísticas de sweeps
-    print("\n── Estadísticas de sweeps ──")
-    print(f"  Sweeps totales     : {df['sweep_count'].sum():.0f}")
-    print(f"  Sweeps promedio/m  : {df['sweep_count'].mean():.2f}")
-    print(f"  Minutos con ≥3 sw  : {(df['sweep_count'] >= 3).sum()}")
-    print(f"\n{'═'*64}")
+    logger.info("\n── Estadísticas de sweeps ──")
+    logger.info(f"  Sweeps totales     : {df['sweep_count'].sum():.0f}")
+    logger.info(f"  Sweeps promedio/m  : {df['sweep_count'].mean():.2f}")
+    logger.info(f"  Minutos con ≥3 sw  : {(df['sweep_count'] >= 3).sum()}")
+    logger.info(f"\n{'═'*64}")
 
 
 # ─────────────────────────────────────────────
@@ -931,7 +935,7 @@ class DeltaRSILive:
     def on_signal(self, result: dict):
         p = self.SIGNAL_PRIORITY.get(result["signal"], 0)
         if p >= 2:
-            print(
+            logger.info(
                 f"[{result['timestamp']}] {self.ticker:5s} | "
                 f"P{p} {result['signal']:24s} | "
                 f"${result['close']:.2f} | "
@@ -945,7 +949,7 @@ class DeltaRSILive:
             return
         confirmed = div_df[div_df["confirmed"] == True]
         for _, row in confirmed.iterrows():
-            print(
+            logger.info(
                 f"[DIVERGENCIA] {self.ticker} | "
                 f"{row['type']:16s} | "
                 f"Fuerza: {row['strength_label']:6s} | "
@@ -970,19 +974,19 @@ if __name__ == "__main__":
             div_df.to_csv(f"/tmp/divergencias_{ticker.lower()}.csv")
 
     # Resumen cross-ticker de divergencias
-    print(f"\n{'═'*64}")
-    print("  RESUMEN CROSS-TICKER DE DIVERGENCIAS")
-    print(f"{'═'*64}")
+    logger.info(f"\n{'═'*64}")
+    logger.info("  RESUMEN CROSS-TICKER DE DIVERGENCIAS")
+    logger.info(f"{'═'*64}")
     for ticker, div_df in all_divs.items():
         if div_df.empty:
-            print(f"  {ticker:5s}: sin divergencias detectadas")
+            logger.info(f"  {ticker:5s}: sin divergencias detectadas")
         else:
             strong = div_df[div_df["strength"] >= 2]
             conf = div_df[div_df["confirmed"] == True]
-            print(
+            logger.info(
                 f"  {ticker:5s}: {len(div_df):2d} total | "
                 f"{len(strong):2d} fuertes | "
                 f"{len(conf):2d} confirmadas"
             )
 
-    print("\n✓ Delta-RSI completado para los 5 proxies BingX.")
+    logger.info("\n✓ Delta-RSI completado para los 5 proxies BingX.")

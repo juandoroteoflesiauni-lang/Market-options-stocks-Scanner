@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Motor de Derivados y Superficies de Volatilidad — Sector Opciones/GEX.
 
 Implementa la parametrización SVI (Gatheral), extracción de densidades de
@@ -5,7 +6,6 @@ riesgo-neutral (Breeden-Litzenberger) y el motor de exposición de dealers
 (GEX, VEX, CEX) para análisis institucional.
 """
 
-from __future__ import annotations
 
 import math
 from typing import Literal
@@ -13,7 +13,8 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from scipy.optimize import minimize  # type: ignore[import-untyped]
+from scipy.optimize import minimize
+
 
 from .bsm import BlackScholesPricer
 
@@ -152,7 +153,8 @@ class VolatilitySurfaceMath:
             fn = getattr(np, "trapezoid", None)
             if fn is not None:
                 return float(fn(y, x=x))
-            return float(np.trapz(y, x))  # type: ignore[attr-defined]
+            return float(np.trapz(y, x))
+
 
         F, T = params.forward, params.tte
         disc = math.exp(-r * T)

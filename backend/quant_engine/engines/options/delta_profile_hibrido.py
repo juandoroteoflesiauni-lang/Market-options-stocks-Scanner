@@ -1,5 +1,5 @@
-from collections import deque
 from typing import Any
+from collections import deque
 
 import numpy as np
 import pandas as pd

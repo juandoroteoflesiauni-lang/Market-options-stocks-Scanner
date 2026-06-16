@@ -1,54 +1,78 @@
-"""Motor de Inferencia HMM (Hidden Markov Model) — Sector Técnico.
-
-Implementa un filtro forward en log-space para un HMM Gaussiano multivariante.
-Procesa observaciones de mercado OHLCV y devuelve estimaciones online de régimen.
-"""
-
 from __future__ import annotations
+from typing import Any
+"""Continuous-observation HMM regime engine for the technical specialist."""
 
-import logging
+
 from math import exp, isfinite, log
 
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, ConfigDict
 
-from ...domain.technical.hmm_models import (
-    HMMAnalysisOutput,
-    HMMParameters,
-    HMMRegimeResult,
-    MarketObservation,
-)
+from backend.config.logger_setup import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _REQUIRED_COLUMNS = ("close", "volume")
 _MIN_OBSERVATIONS = 25
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# §1  PRIVATE EMISSION CACHE (interno al motor)
-# ─────────────────────────────────────────────────────────────────────────────
+class MarketObservation(BaseModel):
+    """Single market observation represented as a feature vector."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    timestamp: str
+    features: tuple[float, ...]
 
 
-class _EmissionCache:
-    """Pre-computed Gaussian emission constants per state (mutable, internal)."""
+class HMMParameters(BaseModel):
+    """Pre-trained HMM parameters for multivariate Gaussian emissions."""
 
-    __slots__ = ("inverse_covariance", "log_norm_const", "mean")
+    model_config = ConfigDict(frozen=True, extra="ignore")
 
-    def __init__(
-        self,
-        mean: np.ndarray,
-        inverse_covariance: np.ndarray,
-        log_norm_const: float,
-    ) -> None:
-        self.mean = mean
-        self.inverse_covariance = inverse_covariance
-        self.log_norm_const = log_norm_const
+    states: int
+    transition_matrix: tuple[tuple[float, ...], ...]
+    emission_means: tuple[tuple[float, ...], ...]
+    emission_covariances: tuple[tuple[tuple[float, ...], ...], ...]
+    initial_probabilities: tuple[float, ...]
+    state_labels: tuple[str, ...] = ()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# §2  HMMInferenceEngine
-# ─────────────────────────────────────────────────────────────────────────────
+class HMMRegimeResult(BaseModel):
+    """Online filtered regime estimate."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    timestamp: str
+    current_state: int
+    current_label: str
+    state_probabilities: tuple[float, ...]
+    transition_risk: float
+    regime_signal: str
+
+
+class HMMAnalysisOutput(BaseModel):
+    """Compact HMM block suitable for technical API payloads."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    ok: bool = True
+    error: str | None = None
+    current_state: int = -1
+    current_label: str = "UNKNOWN"
+    state_probabilities: tuple[float, ...] = ()
+    transition_risk: float = 1.0
+    regime_signal: str = "CRITICAL"
+    history: tuple[HMMRegimeResult, ...] = ()
+
+
+class _EmissionCache(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="ignore", arbitrary_types_allowed=True)
+
+    mean: np.ndarray[Any, Any]
+    inverse_covariance: np.ndarray[Any, Any]
+    log_norm_const: float
 
 
 class HMMInferenceEngine:
@@ -142,7 +166,7 @@ class HMMInferenceEngine:
 
     def _log_emission_probability(
         self: HMMInferenceEngine,
-        features: np.ndarray,
+        features: np.ndarray[Any, Any],
         state: int,
     ) -> float:
         cache = self._emissions[state]
@@ -203,19 +227,14 @@ class HMMInferenceEngine:
         return params
 
     @staticmethod
-    def _to_log_matrix(values: tuple[tuple[float, ...], ...]) -> np.ndarray:
+    def _to_log_matrix(values: tuple[tuple[float, ...], ...]) -> np.ndarray[Any, Any]:
         matrix = np.asarray(values, dtype=np.float64)
         return np.where(matrix > 0, np.log(matrix), -np.inf)
 
     @staticmethod
-    def _to_log_vector(values: tuple[float, ...]) -> np.ndarray:
+    def _to_log_vector(values: tuple[float, ...]) -> np.ndarray[Any, Any]:
         vector = np.asarray(values, dtype=np.float64)
         return np.where(vector > 0, np.log(vector), -np.inf)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# §3  FACTORY & ORCHESTRATION FUNCTIONS
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 def default_hmm_parameters() -> HMMParameters:
@@ -280,11 +299,6 @@ def build_ohlcv_observations(df: pd.DataFrame) -> tuple[MarketObservation, ...]:
     return tuple(observations)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# §4  PRIVATE HELPERS
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 def _validate_ohlcv_frame(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         raise ValueError("Empty DataFrame")
@@ -331,14 +345,14 @@ def _observation_timestamp(date_value: object) -> str:
         return str(date_value)[:32] if date_value else ""
 
 
-def _log_sum_exp(values: np.ndarray) -> float:
+def _log_sum_exp(values: np.ndarray[Any, Any]) -> float:
     max_value = float(np.max(values))
     if not isfinite(max_value):
         return -np.inf
     return max_value + log(sum(exp(float(value - max_value)) for value in values))
 
 
-def _normalised_entropy(probabilities: np.ndarray) -> float:
+def _normalised_entropy(probabilities: np.ndarray[Any, Any]) -> float:
     clean = np.clip(probabilities, 1e-12, 1.0)
     entropy = -float(np.sum(clean * np.log(clean)))
     return entropy / log(len(clean)) if len(clean) > 1 else 0.0

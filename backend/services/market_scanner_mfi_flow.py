@@ -1,17 +1,17 @@
+from __future__ import annotations
+from typing import Any
 """Market Scanner adapter for MFI-Flow (MFI × normalized options premium flow)."""
 
-from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import ScannerCustomization, ScannerIndicatorDefinition
-from backend.layer_2_quant_engine.math_core.mfi_flow import (
+from backend.quant_engine.math.technical.mfi_flow import (
     MfiFlowFrame,
     last_mfi_flow_frame,
     mfi_flow_bias_from_frame,
@@ -19,7 +19,7 @@ from backend.layer_2_quant_engine.math_core.mfi_flow import (
     obv_mfi_double_conviction_active,
     run_mfi_flow_pipeline,
 )
-from backend.layer_3_specialists.opciones_gex.options_flow_signal import OptionsFlowSignalEngine
+from backend.quant_engine.engines.options.options_flow_signal import OptionsFlowSignalEngine
 from backend.services.market_scanner_obv_oi import (
     ObvOiScannerResult,
     _bars_to_price_frame,

@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Contratos de Dominio para el Motor TPO (Time Price Opportunity) Skewness — Sector Técnico.
 
 Define las enumeraciones, perfiles, niveles de precio, señales y configuraciones
 para la clasificación de la forma del perfil y asimetría de distribución.
 """
 
-from __future__ import annotations
 
 from enum import StrEnum
 

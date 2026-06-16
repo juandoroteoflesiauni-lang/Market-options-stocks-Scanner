@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/fear_greed.py
 Sector: IA / Probabilístico
@@ -7,7 +8,6 @@ Fear & Greed Engine — Multi-Factor Market Sentiment Index.
 Stateless and synchronous implementation.
 """
 
-from __future__ import annotations
 
 import logging
 import math

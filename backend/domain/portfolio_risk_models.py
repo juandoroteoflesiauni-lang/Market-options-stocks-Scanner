@@ -1,8 +1,8 @@
+from __future__ import annotations
+from typing import Literal, Any
 """Portfolio and prop-firm risk models for the Management desk."""
 
-from __future__ import annotations
 
-from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 

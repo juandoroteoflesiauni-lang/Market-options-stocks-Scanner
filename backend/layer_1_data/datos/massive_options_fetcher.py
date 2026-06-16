@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Protocol, Any
 """Opciones vía REST Massive / Polygon (compatible).
 
 Intenta `GET /v3/snapshot/options/{underlying}` con cada clave Massive definida en
@@ -7,13 +9,11 @@ La salida se normaliza al shape que consume `options_router._parse_finnhub_chain
 (Finnhub `stock/option-chain`).
 """
 
-from __future__ import annotations
 
 import json
 import math
 import threading
 from datetime import UTC, date, datetime
-from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
@@ -568,16 +568,37 @@ def try_massive_option_chain(
     Returns:
         (payload_finnhub_shape, fuente, meta) — meta incluye massive_contracts, massive_pages, maybe_truncated.
     """
+    sym = symbol.upper().strip()
+    use_chain_cache = expiry is None
+    if use_chain_cache:
+        from backend.hub.market_data_ttl_cache import (
+            get_massive_options_chain,
+            put_massive_options_chain,
+        )
+
+        cached = get_massive_options_chain(sym)
+        if cached is not None:
+            shaped, src, meta = cached
+            if shaped is None:
+                return None, "", {}
+            return shaped, src, meta
+
+    def _store(result: tuple[dict[str, Any] | None, str, dict[str, Any]]) -> tuple[
+        dict[str, Any] | None, str, dict[str, Any]
+    ]:
+        if use_chain_cache:
+            from backend.hub.market_data_ttl_cache import put_massive_options_chain
+
+            put_massive_options_chain(sym, result)
+        return result
+
     cfg = settings or load_settings()
     hosts = _rest_hosts(cfg)
-    # Orden fijo OPTIONS_PRIMARY → SECONDARY → OPTIONS (sin RR): evita “ganar” una clave
-    # que trae cadena completa pero sin precio de subyacente (spot fallback 100 en router).
     keys = _keys_for_options_snapshot(cfg)
     if not keys:
         logger.info("massive_options: no Massive API keys in env — skip REST fallback")
-        return None, "", {}
+        return _store((None, "", {}))
 
-    sym = symbol.upper().strip()
     fallback: tuple[dict[str, Any], str, dict[str, Any]] | None = None
     for host in hosts:
         for label, api_key in keys:
@@ -600,7 +621,7 @@ def try_massive_option_chain(
                             src,
                             n,
                         )
-                        return shaped, src, meta
+                        return _store((shaped, src, meta))
                     logger.info(
                         "massive_options: cadena %s (%d) sin spot de subyacente en payload — "
                         "siguiente clave/host",
@@ -623,9 +644,9 @@ def try_massive_option_chain(
             sym,
             src_fb,
         )
-        return sh, src_fb, meta_fb
+        return _store((sh, src_fb, meta_fb))
     logger.warning("massive_options: all Massive hosts/keys failed for %s", sym)
-    return None, "", {}
+    return _store((None, "", {}))
 
 
 def fetch_option_chain_raw(
@@ -662,7 +683,7 @@ def probe_options_key_access(
 
     Uso:
         from backend.layer_1_data.datos.massive_options_fetcher import probe_options_key_access
-        print(probe_options_key_access())
+        logger.info(probe_options_key_access())
     """
     cfg = settings or load_settings()
     sym = symbol.upper().strip()

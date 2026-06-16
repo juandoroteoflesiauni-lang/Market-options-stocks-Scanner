@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Fase 2: factor × regime forward-return performance store.
 
 Persists, on each scan, one open outcome row per ``(symbol, factor_key, scan_id)``
@@ -14,7 +16,6 @@ composite primary key. Re-running the same scan never duplicates rows and never
 deletes history.
 """
 
-from __future__ import annotations
 
 import math
 import os
@@ -23,7 +24,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import DeskRegimeLabel, FactorRegimeStat

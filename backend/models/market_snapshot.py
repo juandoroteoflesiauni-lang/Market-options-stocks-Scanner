@@ -1,15 +1,22 @@
+from __future__ import annotations
 """Módulo del modelo de datos de mercado alineado con FINOS.
 
 Define los esquemas inmutables de Pydantic v2 para MarketSnapshot y DataLineage,
 los cuales sirven como el contrato de datos común a lo largo del pipeline del funnel.
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class UniverseType(str, Enum):
+    """Define a qué universo pertenece el activo para enrutarlo en el pipeline."""
+    SHARED = "SHARED"
+    ALPACA_EXTENDED = "ALPACA_EXTENDED"
 
 
 class DataLineage(BaseModel):
@@ -59,6 +66,7 @@ class MarketSnapshot(BaseModel):
     daily_change_pct: float = Field(default=0.0)
     avg_volume: int = Field(default=0, ge=0)
     high_priority: bool = Field(default=False)
+    universe_type: UniverseType = Field(default=UniverseType.SHARED)
 
     @field_validator("ticker")
     @classmethod

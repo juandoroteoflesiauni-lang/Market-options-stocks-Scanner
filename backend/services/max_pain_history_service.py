@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """
 Persistencia temporal de max pain (front expiry) para serie dinámica.
 
@@ -5,14 +7,12 @@ Almacén: Redis LIST ``qa:options:max_pain_hist:{SYMBOL}`` (LPUSH + LTRIM).
 Sin Redis: lecturas vacías y el job solo registra warning (modo dev).
 """
 
-from __future__ import annotations
 
 import functools
 import json
 import logging
 import os
 from datetime import UTC, datetime
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ async def compute_and_store_front_max_pain(
     import asyncio
 
     from backend.layer_1_data.datos.massive_options_fetcher import fetch_option_chain_raw
-    from backend.routers.options_router import _build_gex_levels, _parse_finnhub_chain, _safe_float
+    from backend.api.routes.options_router import _build_gex_levels, _parse_finnhub_chain, _safe_float
 
     sym = symbol.upper().strip()
     loop = asyncio.get_event_loop()

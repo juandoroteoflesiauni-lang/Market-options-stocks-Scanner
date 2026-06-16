@@ -1,3 +1,4 @@
+from typing import Any
 """
 backend/services/notification_service.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -7,7 +8,6 @@ Supports internal logging, and can be extended for Telegram/Slack/Webhooks.
 """
 
 from enum import Enum
-from typing import Any
 
 try:
     from config.logger_setup import get_logger

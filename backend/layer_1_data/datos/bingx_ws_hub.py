@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Persistent BingX market WebSocket hub.
 
 Layer 1 owns venue I/O only. Consumers can subscribe to public channels and
@@ -5,13 +7,12 @@ receive decoded payloads or 1-second trade micro-bars without handling socket
 lifecycles directly.
 """
 
-from __future__ import annotations
 
 import json
+import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import asdict, dataclass
-from typing import Any
 
 try:  # pragma: no cover - import shim for optional runtime dependency.
     import websockets
@@ -21,7 +22,11 @@ except ImportError:  # pragma: no cover
     ConnectionClosed = Exception  # type: ignore[assignment,misc]
 
 from backend.config.logger_setup import get_logger
-from backend.layer_1_data.datos.bingx_client import BINGX_WS_MARKET_URL, _decode_ws_frame
+from backend.layer_1_data.datos.bingx_client import (
+    BINGX_WS_MARKET_URL,
+    _decode_ws_frame,
+    _parse_depth_levels,
+)
 
 logger = get_logger(__name__)
 
@@ -159,6 +164,115 @@ class BingXWebSocketHub:
                     yield bar
         for bar in aggregator.flush():
             yield bar
+
+    async def stream_depth(
+        self,
+        symbol: str,
+        *,
+        depth_level: int = 20,
+        max_messages: int | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield normalized order-book dicts from ``{symbol}@depth{N}`` frames."""
+        suffix = f"depth{max(5, min(int(depth_level), 100))}"
+        async for payload in self.stream_channel(symbol, suffix, max_messages=max_messages):
+            book = parse_depth_ws_frame(payload)
+            if book is not None:
+                yield book
+
+    async def stream_trades(
+        self,
+        symbol: str,
+        *,
+        max_messages: int | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        async for payload in self.stream_channel(symbol, "trade", max_messages=max_messages):
+            for trade in _extract_trades(payload):
+                yield trade
+
+    async def stream_book_ticker(
+        self,
+        symbol: str,
+        *,
+        max_messages: int | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        async for payload in self.stream_channel(symbol, "bookTicker", max_messages=max_messages):
+            row = _extract_book_ticker(payload)
+            if row is not None:
+                yield row
+
+
+async def probe_ws_channel(
+    hub: BingXWebSocketHub,
+    symbol: str,
+    channel_suffix: str,
+) -> bool:
+    """Return True if BingX streams usable payloads on the public channel."""
+    try:
+        async for payload in hub.stream_channel(symbol, channel_suffix, max_messages=3):
+            code = payload.get("code")
+            if code not in (None, 0, "0"):
+                return False
+            if channel_suffix.startswith("depth") and parse_depth_ws_frame(payload) is not None:
+                return True
+            if channel_suffix == "trade" and _extract_trades(payload):
+                return True
+            if channel_suffix == "bookTicker" and _extract_book_ticker(payload) is not None:
+                return True
+    except Exception as exc:
+        logger.debug(
+            "bingx_ws_hub.probe_failed symbol=%s channel=%s error=%s",
+            symbol,
+            channel_suffix,
+            str(exc)[:120],
+        )
+    return False
+
+
+def parse_depth_ws_frame(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Normalize a BingX ``@depth`` WebSocket frame to REST-compatible book dict."""
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return None
+    parsed_bids = _parse_depth_levels(data.get("bids"))
+    parsed_asks = _parse_depth_levels(data.get("asks"))
+    if not parsed_bids or not parsed_asks:
+        return None
+    data_type = str(payload.get("dataType") or "")
+    symbol = data_type.split("@", 1)[0] if "@" in data_type else ""
+    ts = int(payload.get("timestamp") or time.time() * 1000)
+    return {
+        "symbol": symbol,
+        "bids": data.get("bids", []),
+        "asks": data.get("asks", []),
+        "parsed_bids": parsed_bids,
+        "parsed_asks": parsed_asks,
+        "timestamp_ms": ts,
+        "source": "bingx_ws_depth",
+        "last_update_id": data.get("lastUpdateId"),
+    }
+
+
+def _extract_book_ticker(payload: dict[str, Any]) -> dict[str, Any] | None:
+    data = payload.get("data", payload)
+    if not isinstance(data, dict):
+        return None
+    symbol = str(data.get("s") or data.get("symbol") or "").strip()
+    bid_px = _as_float(data.get("b") or data.get("bidPrice"))
+    bid_qty = _as_float(data.get("B") or data.get("bidQty"))
+    ask_px = _as_float(data.get("a") or data.get("askPrice"))
+    ask_qty = _as_float(data.get("A") or data.get("askQty"))
+    if not symbol or bid_px is None or ask_px is None:
+        return None
+    ts = int(data.get("T") or data.get("time") or payload.get("timestamp") or time.time() * 1000)
+    return {
+        "symbol": symbol,
+        "best_bid_price": bid_px,
+        "best_bid_size": bid_qty or 0.0,
+        "best_ask_price": ask_px,
+        "best_ask_size": ask_qty or 0.0,
+        "timestamp_ms": ts,
+        "source": "bingx_ws_book_ticker",
+    }
 
 
 def _extract_trades(payload: dict[str, Any]) -> list[dict[str, Any]]:

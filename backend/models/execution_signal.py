@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Modelo de señales de ejecución para Phase D.
 
 Define el esquema Pydantic v2 frozen para ExecutionSignal,
 la señal que se emite al frontend cuando se detecta una oportunidad de ejecución.
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal

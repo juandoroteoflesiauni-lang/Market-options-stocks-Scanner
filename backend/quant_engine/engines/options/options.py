@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Orquestador de Análisis de Opciones — Sector Opciones/GEX.
 
 El OptionsEngine consolida la lógica de superficies de volatilidad y exposición
@@ -5,7 +6,6 @@ para generar resultados de confluencia (MIC Ready). Coordina el cálculo de GEX,
 VEX, CEX, Max Pain e identificación de niveles clave (Walls y ZGL).
 """
 
-from __future__ import annotations
 
 import math
 

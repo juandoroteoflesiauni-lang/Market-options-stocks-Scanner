@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Market Breadth Tracker — contador atómico en memoria del SuperTrend Regime.
 
 Mientras Scanner.scan_universe() procesa miles de tickers, este tracker
@@ -5,7 +6,6 @@ acumula cuántos están en régimen alcista (bullish) vs bajista (bearish)
 según el SuperTrend, y expone la proporción en endpoints de la API.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime

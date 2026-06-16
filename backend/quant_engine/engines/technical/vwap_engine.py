@@ -1,15 +1,16 @@
-"""Motor VWAP incremental con bandas de desviación estándar ponderada por volumen."""
-
 from __future__ import annotations
+"""Incremental VWAP engine with volume-weighted standard deviation bands."""
 
-import logging
+
 from dataclasses import dataclass
 from math import isfinite, sqrt
 
 import pandas as pd
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+from backend.config.logger_setup import get_logger
+
+logger = get_logger(__name__)
 
 
 class VWAPBands(BaseModel):
@@ -88,11 +89,11 @@ class _EngineState:
 class VWAPEngine:
     """O(1) incremental VWAP calculator using weighted variance identity."""
 
-    def __init__(self, config: VWAPConfig | None = None) -> None:
+    def __init__(self: VWAPEngine, config: VWAPConfig | None = None) -> None:
         self.config = config or VWAPConfig()
         self._state = _EngineState()
 
-    def update(self, point: PricePoint, index: int | None = None) -> VWAPUpdateResult:
+    def update(self: VWAPEngine, point: PricePoint, index: int | None = None) -> VWAPUpdateResult:
         """Incorporate one price point and return the updated snapshot."""
         session_reset = False
         if not self._is_valid_point(point):
@@ -114,12 +115,12 @@ class VWAPEngine:
             snapshot=self.get_snapshot(), skipped=False, session_reset=session_reset
         )
 
-    def process_batch(self, points: list[PricePoint]) -> list[VWAPUpdateResult]:
+    def process_batch(self: VWAPEngine, points: list[PricePoint]) -> list[VWAPUpdateResult]:
         """Process points in timestamp order where timestamps are available."""
-        sorted_points = sorted(points, key=lambda p: p.timestamp or "")
-        return [self.update(p, idx) for idx, p in enumerate(sorted_points)]
+        sorted_points = sorted(points, key=lambda point: point.timestamp or "")
+        return [self.update(point, idx) for idx, point in enumerate(sorted_points)]
 
-    def get_snapshot(self) -> VWAPSnapshot:
+    def get_snapshot(self: VWAPEngine) -> VWAPSnapshot:
         """Return the current snapshot without mutating engine state."""
         vwap = self._compute_vwap()
         sd = self._compute_standard_deviation(vwap)
@@ -136,7 +137,7 @@ class VWAPEngine:
             tick_count=self._state.tick_count,
         )
 
-    def reset(self, session_start_index: int | None = None) -> None:
+    def reset(self: VWAPEngine, session_start_index: int | None = None) -> None:
         """Reset all accumulators for a new session."""
         self._state = _EngineState(session_start_index=session_start_index)
 
@@ -161,19 +162,19 @@ class VWAPEngine:
                     index=idx,
                 )
                 if not result.skipped:
-                    s = result.snapshot
+                    snapshot = result.snapshot
                     history.append(
                         {
-                            "time": s.last_timestamp,
-                            "vwap": s.current_vwap,
-                            "standard_deviation": s.standard_deviation,
-                            "upper1": s.bands.upper1,
-                            "upper2": s.bands.upper2,
-                            "upper3": s.bands.upper3,
-                            "lower1": s.bands.lower1,
-                            "lower2": s.bands.lower2,
-                            "lower3": s.bands.lower3,
-                            "tick_count": s.tick_count,
+                            "time": snapshot.last_timestamp,
+                            "vwap": snapshot.current_vwap,
+                            "standard_deviation": snapshot.standard_deviation,
+                            "upper1": snapshot.bands.upper1,
+                            "upper2": snapshot.bands.upper2,
+                            "upper3": snapshot.bands.upper3,
+                            "lower1": snapshot.bands.lower1,
+                            "lower2": snapshot.bands.lower2,
+                            "lower3": snapshot.bands.lower3,
+                            "tick_count": snapshot.tick_count,
                         }
                     )
 
@@ -197,28 +198,31 @@ class VWAPEngine:
             logger.exception("VWAP analysis failed")
             return VWAPAnalysisOutput(ok=False, error=str(exc))
 
-    def _compute_vwap(self) -> float:
-        return 0.0 if self._state.sum_volume <= 0 else self._state.sum_pv / self._state.sum_volume
+    def _compute_vwap(self: VWAPEngine) -> float:
+        if self._state.sum_volume <= 0:
+            return 0.0
+        return self._state.sum_pv / self._state.sum_volume
 
-    def _compute_standard_deviation(self, vwap: float) -> float:
+    def _compute_standard_deviation(self: VWAPEngine, vwap: float) -> float:
         if self._state.sum_volume <= 0:
             return 0.0
         mean_of_squares = self._state.sum_pv2 / self._state.sum_volume
-        return sqrt(max(0.0, mean_of_squares - vwap * vwap))
+        variance = mean_of_squares - vwap * vwap
+        return sqrt(max(0.0, variance))
 
-    def _compute_bands(self, vwap: float, sd: float) -> VWAPBands:
+    def _compute_bands(self: VWAPEngine, vwap: float, sd: float) -> VWAPBands:
         m1, m2, m3 = self.config.band_multipliers
-        p = self.config.precision
+        precision = self.config.precision
         return VWAPBands(
-            upper3=round(vwap + m3 * sd, p),
-            upper2=round(vwap + m2 * sd, p),
-            upper1=round(vwap + m1 * sd, p),
-            lower1=round(vwap - m1 * sd, p),
-            lower2=round(vwap - m2 * sd, p),
-            lower3=round(vwap - m3 * sd, p),
+            upper3=round(vwap + m3 * sd, precision),
+            upper2=round(vwap + m2 * sd, precision),
+            upper1=round(vwap + m1 * sd, precision),
+            lower1=round(vwap - m1 * sd, precision),
+            lower2=round(vwap - m2 * sd, precision),
+            lower3=round(vwap - m3 * sd, precision),
         )
 
-    def _should_auto_reset(self, incoming_index: int | None) -> bool:
+    def _should_auto_reset(self: VWAPEngine, incoming_index: int | None) -> bool:
         duration = self.config.session_duration_points
         start = self._state.session_start_index
         if duration is None or start is None or incoming_index is None:
@@ -238,27 +242,40 @@ class VWAPEngine:
 class VWAPService:
     """Small multi-symbol manager for batch or streaming VWAP updates."""
 
-    def __init__(self, config: VWAPConfig | None = None) -> None:
+    def __init__(self: VWAPService, config: VWAPConfig | None = None) -> None:
         self.config = config or VWAPConfig()
         self._engines: dict[str, VWAPEngine] = {}
 
-    def feed(self, symbol: str, point: PricePoint) -> VWAPUpdateResult:
-        return self._get_or_create_engine(symbol).update(point)
+    def feed(self: VWAPService, symbol: str, point: PricePoint) -> VWAPUpdateResult:
+        """Feed one symbol-specific point."""
+        engine = self._get_or_create_engine(symbol)
+        return engine.update(point)
 
-    def feed_batch(self, symbol: str, points: list[PricePoint]) -> list[VWAPUpdateResult]:
-        return self._get_or_create_engine(symbol).process_batch(points)
+    def feed_batch(
+        self: VWAPService, symbol: str, points: list[PricePoint]
+    ) -> list[VWAPUpdateResult]:
+        """Feed multiple points for one symbol."""
+        engine = self._get_or_create_engine(symbol)
+        return engine.process_batch(points)
 
-    def get_snapshot(self, symbol: str) -> VWAPSnapshot | None:
+    def get_snapshot(self: VWAPService, symbol: str) -> VWAPSnapshot | None:
+        """Return a symbol snapshot if the engine was initialized."""
         engine = self._engines.get(symbol.upper())
         return engine.get_snapshot() if engine else None
 
-    def reset_session(self, symbol: str) -> None:
+    def reset_session(self: VWAPService, symbol: str) -> None:
+        """Reset a symbol-specific engine."""
         self._get_or_create_engine(symbol).reset()
 
-    def get_active_symbols(self) -> list[str]:
-        return [s for s, e in self._engines.items() if e.get_snapshot().tick_count > 0]
+    def get_active_symbols(self: VWAPService) -> list[str]:
+        """List symbols with at least one processed point."""
+        return [
+            symbol
+            for symbol, engine in self._engines.items()
+            if engine.get_snapshot().tick_count > 0
+        ]
 
-    def _get_or_create_engine(self, symbol: str) -> VWAPEngine:
+    def _get_or_create_engine(self: VWAPService, symbol: str) -> VWAPEngine:
         key = symbol.upper().strip()
         if key not in self._engines:
             self._engines[key] = VWAPEngine(self.config)
@@ -275,12 +292,13 @@ def _validate_ohlcv_frame(df: pd.DataFrame) -> pd.DataFrame:
     missing = sorted(required - set(df.columns))
     if missing:
         raise ValueError(f"Missing OHLCV columns: {', '.join(missing)}")
+
     frame = df.reset_index(drop=True).copy() if "date" in df.columns else df.copy()
     if "date" not in frame.columns:
         frame["date"] = pd.to_datetime(frame.index)
     frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
-    for col in required:
-        frame[col] = pd.to_numeric(frame[col], errors="coerce")
+    for column in required:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
     frame = frame.dropna(subset=["date", "high", "low", "close", "volume"])
     frame = frame[
         (frame["volume"] > 0) & (frame["high"] > 0) & (frame["low"] > 0) & (frame["close"] > 0)

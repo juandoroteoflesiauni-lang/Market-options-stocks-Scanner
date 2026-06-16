@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Async client para Financial Modeling Prep (FMP)."""
 
-from __future__ import annotations
 
 import asyncio
 import json
@@ -8,7 +9,6 @@ import logging
 import os
 import time
 from types import SimpleNamespace
-from typing import Any
 
 logger = logging.getLogger("backend.layer_1_data.datos.fmp_client")
 

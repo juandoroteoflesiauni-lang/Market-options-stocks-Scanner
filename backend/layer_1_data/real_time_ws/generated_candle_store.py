@@ -1,11 +1,11 @@
+from __future__ import annotations
+from typing import Any
 """In-memory store for generated chart candles shared by REST, WS and technical views."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from threading import RLock
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 

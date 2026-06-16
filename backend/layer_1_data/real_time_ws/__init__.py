@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Utilidades de inyección de datos en tiempo real."""
 
-from __future__ import annotations
 
 from .fundamentales_api_adapter import (
     ApiSourceBinding,

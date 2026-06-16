@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/squeeze_ignition.py
 Sector: IA / Probabilístico
@@ -7,7 +8,6 @@ Squeeze Ignition Engine — Gamma/Short Squeeze vulnerability and ignition detec
 Stateless and Pydantic-based implementation.
 """
 
-from __future__ import annotations
 
 import logging
 import math

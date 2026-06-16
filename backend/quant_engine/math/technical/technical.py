@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Núcleo Matemático de Indicadores Técnicos — Sector Técnico.
 
 Proporciona una librería de funciones matemáticas vectorizadas de alta performance
@@ -5,7 +7,6 @@ utilizando exclusivamente NumPy. Incluye indicadores clásicos, osciladores,
 volatilidad, algoritmos institucionales y primitivas para Anchored VWAP.
 """
 
-from __future__ import annotations
 
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
@@ -19,19 +20,19 @@ _EPS: float = 1e-12
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _f64(a: np.ndarray) -> np.ndarray:
+def _f64(a: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Garantiza un array float64 contiguo en memoria C."""
     return np.ascontiguousarray(a, dtype=np.float64)
 
 
-def _nan_full(n: int) -> np.ndarray:
+def _nan_full(n: int) -> np.ndarray[Any, Any]:
     """Retorna un array de NaN float64 de longitud n."""
     out = np.empty(n, dtype=np.float64)
     out[:] = np.nan
     return out
 
 
-def _rolling_window(a: np.ndarray, w: int) -> np.ndarray:
+def _rolling_window(a: np.ndarray[Any, Any], w: int) -> np.ndarray[Any, Any]:
     """Crea una vista 2D de ventanas deslizantes sobre un array 1D (zero-copy)."""
     if len(a) < w:
         return np.empty((0, w), dtype=np.float64)
@@ -48,12 +49,12 @@ def _rolling_window(a: np.ndarray, w: int) -> np.ndarray:
 class TechnicalMath:
     """Librería de indicadores técnicos vectorizados — sin estado.
 
-    Todas las entradas se convierten automáticamente a np.ndarray float64.
-    Todas las salidas son np.ndarray float64 de la misma longitud que la entrada.
+    Todas las entradas se convierten automáticamente a np.ndarray[Any, Any] float64.
+    Todas las salidas son np.ndarray[Any, Any] float64 de la misma longitud que la entrada.
     """
 
     @staticmethod
-    def sma(close: np.ndarray, n: int = 10) -> np.ndarray:
+    def sma(close: np.ndarray[Any, Any], n: int = 10) -> np.ndarray[Any, Any]:
         """Media Móvil Simple (Simple Moving Average) — O(N) vía cumsum."""
         c = _f64(close)
         N = len(c)
@@ -66,7 +67,7 @@ class TechnicalMath:
         return out
 
     @staticmethod
-    def ema(close: np.ndarray, n: int = 12) -> np.ndarray:
+    def ema(close: np.ndarray[Any, Any], n: int = 12) -> np.ndarray[Any, Any]:
         """Media Móvil Exponencial (EMA) — Maneja NaNs iniciales."""
         c = _f64(close)
         N = len(c)
@@ -90,7 +91,7 @@ class TechnicalMath:
         return out
 
     @staticmethod
-    def smma(close: np.ndarray, n: int = 14, offset: int = 0) -> np.ndarray:
+    def smma(close: np.ndarray[Any, Any], n: int = 14, offset: int = 0) -> np.ndarray[Any, Any]:
         """Media Móvil Suavizada de Wilder (SMMA / Smoothed MA)."""
         c = _f64(close)
         N = len(c)
@@ -109,7 +110,7 @@ class TechnicalMath:
         return out
 
     @staticmethod
-    def rsi(close: np.ndarray, n: int = 14) -> np.ndarray:
+    def rsi(close: np.ndarray[Any, Any], n: int = 14) -> np.ndarray[Any, Any]:
         """Relative Strength Index (RSI) corregido estilo Wilder."""
         c = _f64(close)
         N = len(c)
@@ -129,7 +130,7 @@ class TechnicalMath:
         return out
 
     @staticmethod
-    def rsi_hist(close: np.ndarray, n: int = 14, lookback: int = 5) -> np.ndarray:
+    def rsi_hist(close: np.ndarray[Any, Any], n: int = 14, lookback: int = 5) -> np.ndarray[Any, Any]:
         """RSI Histogram/Slope — Mide el momentum del RSI."""
         rsi = TechnicalMath.rsi(close, n)
         N = len(rsi)
@@ -142,11 +143,11 @@ class TechnicalMath:
 
     @staticmethod
     def macd(
-        close: np.ndarray,
+        close: np.ndarray[Any, Any],
         fast: int = 12,
         slow: int = 26,
         signal: int = 9,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """Moving Average Convergence Divergence (MACD)."""
         ema_fast = TechnicalMath.ema(close, fast)
         ema_slow = TechnicalMath.ema(close, slow)
@@ -157,11 +158,11 @@ class TechnicalMath:
 
     @staticmethod
     def atr(
-        close: np.ndarray,
-        high: np.ndarray,
-        low: np.ndarray,
+        close: np.ndarray[Any, Any],
+        high: np.ndarray[Any, Any],
+        low: np.ndarray[Any, Any],
         n: int = 14,
-    ) -> np.ndarray:
+    ) -> np.ndarray[Any, Any]:
         """Average True Range (ATR) de Wilder."""
         c, h, lo = _f64(close), _f64(high), _f64(low)
         N = len(c)
@@ -181,10 +182,10 @@ class TechnicalMath:
 
     @staticmethod
     def bollinger(
-        close: np.ndarray,
+        close: np.ndarray[Any, Any],
         n: int = 20,
         k: float = 2.0,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """Bandas de Bollinger vectorizadas."""
         c = _f64(close)
         N = len(c)
@@ -200,10 +201,10 @@ class TechnicalMath:
 
     @staticmethod
     def bbp(
-        close: np.ndarray,
+        close: np.ndarray[Any, Any],
         n: int = 20,
         k: float = 2.0,
-    ) -> np.ndarray:
+    ) -> np.ndarray[Any, Any]:
         """Bollinger Band %B (Posición relativa)."""
         c = _f64(close)
         N = len(c)
@@ -217,12 +218,12 @@ class TechnicalMath:
 
     @staticmethod
     def supertrend(
-        close: np.ndarray,
-        high: np.ndarray,
-        low: np.ndarray,
+        close: np.ndarray[Any, Any],
+        high: np.ndarray[Any, Any],
+        low: np.ndarray[Any, Any],
         n: int = 10,
         multiplier: float = 3.0,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """SuperTrend Indicator."""
         c, h, lo = _f64(close), _f64(high), _f64(low)
         N = len(c)
@@ -271,11 +272,11 @@ class TechnicalMath:
 
     @staticmethod
     def vwap(
-        high: np.ndarray,
-        low: np.ndarray,
-        close: np.ndarray,
-        volume: np.ndarray,
-    ) -> np.ndarray:
+        high: np.ndarray[Any, Any],
+        low: np.ndarray[Any, Any],
+        close: np.ndarray[Any, Any],
+        volume: np.ndarray[Any, Any],
+    ) -> np.ndarray[Any, Any]:
         """Volume Weighted Average Price (VWAP) — Acumulativa por sesión/ventana."""
         h, lo, c, v = _f64(high), _f64(low), _f64(close), _f64(volume)
         tp = (h + lo + c) / 3.0
@@ -286,18 +287,18 @@ class TechnicalMath:
 
     @staticmethod
     def ema_clusters(
-        close: np.ndarray,
+        close: np.ndarray[Any, Any],
         periods: list[int] = [9, 21, 50, 200],
-    ) -> dict[int, np.ndarray]:
+    ) -> dict[int, np.ndarray[Any, Any]]:
         """Calcula un cluster de EMAs para análisis de colimación."""
         return {p: TechnicalMath.ema(close, p) for p in periods}
 
     @staticmethod
     def shannon_entropy(
-        data: np.ndarray,
+        data: np.ndarray[Any, Any],
         n: int = 20,
         bins: int = 10,
-    ) -> np.ndarray:
+    ) -> np.ndarray[Any, Any]:
         """Rolling Shannon Entropy — Mide la aleatoriedad/complejidad del mercado."""
         d = _f64(data)
         N = len(d)
@@ -323,12 +324,12 @@ class AVWAPMath:
 
     @staticmethod
     def compute_anchored(
-        high: np.ndarray,
-        low: np.ndarray,
-        close: np.ndarray,
-        volume: np.ndarray,
+        high: np.ndarray[Any, Any],
+        low: np.ndarray[Any, Any],
+        close: np.ndarray[Any, Any],
+        volume: np.ndarray[Any, Any],
         anchor_idx: int = 0,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """Calcula el AVWAP y la desviación estándar ponderada desde un anclaje."""
         n = len(high)
         avwap, std_dev = np.full(n, np.nan), np.full(n, np.nan)

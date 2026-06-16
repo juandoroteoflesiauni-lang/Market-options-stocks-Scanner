@@ -1,10 +1,10 @@
+from __future__ import annotations
+from typing import Any
 """Additive thesis snapshot contracts that wrap ThesisV2 metadata."""
 
-from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import Field, field_validator, model_validator

@@ -1,9 +1,110 @@
+import asyncio
+import contextlib
+import math
+from collections.abc import Awaitable, Callable, Iterable
+from dataclasses import asdict, replace
+from datetime import UTC, datetime
+from typing import Any, Literal
+
+from backend.config.logger_setup import get_logger
+from backend.domain.market_scanner_models import (
+    MarketScannerFilters,
+    MarketScannerRequest,
+    ScannerCustomization,
+)
+from backend.layer_1_data.datos.bingx_client import (
+    VALID_KLINE_INTERVAL,
+    BingXClient,
+    BingXKline,
+    BingXOrderResponse,
+)
+from backend.layer_1_data.datos.bingx_ws_hub import BingXWebSocketHub
+from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
+from backend.services.bingx_account_service import BingXAccountService
+from backend.services.bingx_candidate_analysis import (
+    BingXCandidateAnalysis,
+    BingXL2Block,
+    BingXOptionsBlock,
+    BingXPredictiveBlock,
+    BingXTechnicalBlock,
+    BingXUnderlyingBlock,
+    BingXVenueBlock,
+    build_candidate_analysis,
+)
+from backend.services.bingx_decision_engine import BingXDecision
+from backend.services.bingx_l2_integration import analyze_bingx_l2
+from backend.services.bingx_risk_desk import (
+    BingXRiskDesk,
+    BingXRiskDeskPolicy,
+    OrderIntent,
+    RiskDeskDecision,
+)
+from backend.services.bingx_symbol_linker import (
+    classify_underlying,
+    is_ncsk_vst_stock_perp_symbol,
+    underlying_from_bingx_symbol,
+)
+from backend.services.bingx_universe import BingXUniverseService
 from backend.services.bot.bingx_bot_execution_mixin import BingXBotExecutionMixin
 from backend.services.bot.bingx_bot_exits_mixin import BingXBotExitsMixin
 from backend.services.bot.bingx_bot_filter_mixin import BingXBotFilterMixin
 from backend.services.bot.bingx_bot_risk_mixin import BingXBotRiskMixin
 from backend.services.bot.bingx_bot_scanner_mixin import BingXBotScannerMixin
-from backend.services.bot.bingx_bot_types import *
+from backend.services.bot.bingx_bot_types import (
+    DEFAULT_HEURISTIC_PROB_FLOOR,
+    DEFAULT_HORIZON,
+    DEFAULT_KLINES_PER_SYMBOL,
+    DEFAULT_MIN_BARS_FOR_SIGNAL,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SCANNER_MIN_SCORE,
+    DEFAULT_UNIVERSE,
+    DEFAULT_VOLUME_Z_THRESHOLD,
+    REASON_FLAT_RANGE,
+    REASON_HEURISTIC_LOW_PROB,
+    REASON_INSUFFICIENT_BARS,
+    REASON_L2_DEPTH_TOO_THIN,
+    REASON_L2_IMBALANCE_EXTREME,
+    REASON_L2_SPREAD_TOO_WIDE,
+    REASON_L2_UNAVAILABLE,
+    REASON_LEVERAGE_CAP,
+    REASON_META_BLOCK,
+    REASON_META_LOW_PROB,
+    REASON_NO_VENUE_PRICE,
+    REASON_NO_VOLUME_SPIKE,
+    REASON_RISK_BUDGET_EXHAUSTED,
+    SCANNER_CONFIRMATION_MODULES,
+    SCANNER_CONFIRMATION_TIMEFRAMES,
+    BingXCycleResult,
+    BingXMarketSnapshot,
+    BingXOrderPlan,
+    BingXRiskPolicy,
+    BingXSignal,
+    ExecutionQualityPolicy,
+    FilterDecision,
+    MetaLearnerProvider,
+    _ParametricExitState,
+)
+from backend.services.funding_lab_scanner_confirmation import ScannerConfirmationService
+from backend.services.market_scanner_service import MarketScannerService
+from backend.services.scanner_funding_gate import (
+    REASON_SCANNER_CONFIDENCE_TOO_LOW,
+    REASON_SCANNER_DAILY_OPPOSES,
+    REASON_SCANNER_INTRADAY_NOT_ALIGNED,
+    REASON_SCANNER_PHASE_B_MISSING,
+    REASON_SCANNER_SCORE_TOO_LOW,
+    REASON_SCANNER_TREND_MISALIGNED,
+    REASON_SCANNER_UNAVAILABLE,
+    REASON_SCANNER_VETO_PRESENT,
+)
+from backend.services.trade_journal_service import (
+    TradeJournalEntry,
+    _utc_iso_now,
+    init_trade_journal_table,
+    persist_trade_execution,
+    persist_trade_execution_jsonl,
+)
+
+logger = get_logger(__name__)
 
 
 class BingXBotService(
@@ -19,6 +120,7 @@ class BingXBotService(
         self,
         client: BingXClient | None = None,
         *,
+        avwap_engine: Any | None = None,
         universe: Iterable[str] | None = None,
         risk_policy: BingXRiskPolicy | None = None,
         meta_learner_provider: MetaLearnerProvider | None = None,
@@ -49,11 +151,12 @@ class BingXBotService(
         self._risk_policy: BingXRiskPolicy = risk_policy or BingXRiskPolicy()
         self._meta_provider: MetaLearnerProvider | None = meta_learner_provider
         self._scan_interval: VALID_KLINE_INTERVAL = scan_interval
-        self._klines_per_symbol: int = max(DEFAULT_MIN_BARS_FOR_SIGNAL, int(klines_per_symbol))
-        self._volume_z_threshold: float = float(volume_z_threshold)
-        self._heuristic_prob_floor: float = float(heuristic_prob_floor)
+        self._klines_per_symbol: int = max(DEFAULT_MIN_BARS_FOR_SIGNAL, klines_per_symbol)
+        self._volume_z_threshold: float = volume_z_threshold
+        self._heuristic_prob_floor: float = heuristic_prob_floor
         self._scanner: ScannerConfirmationService = scanner_service or MarketScannerService()
-        self._scanner_min_score: float = float(scanner_min_score)
+        self._avwap_engine = avwap_engine
+        self._scanner_min_score: float = scanner_min_score
         self._horizon: str = horizon
         self._universe_service = universe_service or BingXUniverseService(client=self._client)
         self._account_service = account_service or BingXAccountService(
@@ -255,13 +358,14 @@ class BingXBotService(
                 total_pnl = 0.0
                 found = False
                 for fill in fills:
-                    if str(fill.get("orderId")) == str(venue_order_id):
+                    if str(fill.get("orderId")) == venue_order_id:
                         pnl_val = fill.get("realizedProfit") or fill.get("realizedPnl") or 0.0
                         total_pnl += float(pnl_val)
                         found = True
                 if found:
                     logger.info(
-                        "bingx_bot.reconciled_pnl symbol=%s order_id=%s realized_pnl=%.4f attempt=%d",
+                        "bingx_bot.reconciled_pnl symbol=%s order_id=%s "
+                        "realized_pnl=%.4f attempt=%d",
                         symbol,
                         venue_order_id,
                         total_pnl,
@@ -279,7 +383,8 @@ class BingXBotService(
                 )
                 await asyncio.sleep(0.5)
         logger.info(
-            "bingx_bot.pnl_reconciliation_zero symbol=%s order_id=%s (no matching fills with PnL found)",
+            "bingx_bot.pnl_reconciliation_zero symbol=%s order_id=%s "
+            "(no matching fills with PnL found)",
             symbol,
             venue_order_id,
         )
@@ -498,9 +603,9 @@ class BingXBotService(
             payload = {}
 
         ms = payload.get("market_structure")
-        active_pools = []
-        if isinstance(ms, dict):
-            active_pools = ms.get("active_pools") or []
+        active_pools: list[Any] = []
+        if isinstance(ms, dict) and isinstance(ms.get("active_pools"), list):
+            active_pools = ms["active_pools"]
 
         swing_lows = []
         swing_highs = []
@@ -561,8 +666,10 @@ class BingXBotService(
 
     def check_order_flow_pressure(self, direction: str, analysis: BingXCandidateAnalysis) -> bool:
         """Check if Order Flow Delta/L2 confirms pressure opposing the position:
-        - For LONG: Sell pressure (vendedora masiva) -> delta_bias is BEARISH, or imbalance_rho < 0.
-        - For SHORT: Buy pressure (compradora masiva) -> delta_bias is BULLISH, or imbalance_rho > 0.
+        - For LONG: Sell pressure (vendedora masiva) -> delta_bias is BEARISH,
+          or imbalance_rho < 0.
+        - For SHORT: Buy pressure (compradora masiva) -> delta_bias is BULLISH,
+          or imbalance_rho > 0.
         """
         venue_tech = analysis.technical.venue_technical if analysis.technical else None
         if not isinstance(venue_tech, dict):
@@ -593,11 +700,90 @@ class BingXBotService(
         self,
         symbols: Iterable[str] | None = None,
         customization: ScannerCustomization | None = None,
+        *,
+        cycle_mode: str = "slow",
+    ) -> BingXCycleResult:
+        """Run one cycle. ``fast`` monitors open positions; ``slow`` full scan."""
+        if cycle_mode == "fast":
+            return await self._run_fast_cycle()
+        return await self._run_full_cycle(symbols=symbols, customization=customization)
+
+    async def _run_fast_cycle(self) -> BingXCycleResult:
+        """Fast loop: sync positions + exits on open symbols only."""
+        started_at = _utc_iso_now()
+        try:
+            venue_positions = await self._client.fetch_perp_positions()
+            self._risk_desk.sync_open_positions_from_venue(venue_positions)
+            open_symbols = tuple(
+                str(p.get("symbol", "")).strip()
+                for p in venue_positions
+                if isinstance(p, dict) and float(p.get("positionAmt") or 0) != 0.0
+            )
+        except Exception as exc:
+            logger.warning("bingx_bot.fast_position_sync_failed error=%s", exc)
+            open_symbols = ()
+
+        if not open_symbols:
+            logger.info("bingx_bot.fast_cycle_skipped reason=no_open_positions")
+            return BingXCycleResult(
+                started_at=started_at,
+                finished_at=_utc_iso_now(),
+                universe=(),
+                snapshots=(),
+                signals=(),
+                decisions=(),
+                plans=(),
+                executions=(),
+                dry_run=self.dry_run,
+                trading_environment=self.trading_environment,
+                blocked_reasons={"_cycle": ["fast_no_open_positions"]},
+            )
+
+        target = _synthetic_stock_symbols(open_symbols)
+        analyses = tuple(
+            self._hydrate_analysis_value_area(a)
+            for a in await self._candidate_analyses_for_symbols(target)
+        )
+        cycle_analyses_by_symbol = {a.venue_symbol: a for a in analyses}
+        exit_executions = await self.evaluate_dynamic_exits(
+            cycle_analyses=cycle_analyses_by_symbol
+        )
+        logger.info(
+            "bingx_bot.fast_cycle_finished symbols=%d exits=%d",
+            len(target),
+            len(exit_executions),
+        )
+        return BingXCycleResult(
+            started_at=started_at,
+            finished_at=_utc_iso_now(),
+            universe=target,
+            snapshots=(),
+            signals=(),
+            decisions=(),
+            plans=(),
+            executions=tuple(exit_executions),
+            dry_run=self.dry_run,
+            trading_environment=self.trading_environment,
+            analyses=analyses,
+            blocked_reasons={"_cycle": ["fast_monitor_only"]},
+        )
+
+    async def _run_full_cycle(
+        self,
+        symbols: Iterable[str] | None = None,
+        customization: ScannerCustomization | None = None,
     ) -> BingXCycleResult:
         """Run the production Analysis -> Decision -> Risk -> Execute pipeline once."""
         started_at = _utc_iso_now()
         cycle_id = _new_execution_cycle_id()
         target = _synthetic_stock_symbols(tuple(symbols)) if symbols else self._universe
+
+        # Reconciliar posiciones reales del exchange antes de decidir
+        try:
+            venue_positions = await self._client.fetch_perp_positions()
+            self._risk_desk.sync_open_positions_from_venue(venue_positions)
+        except Exception as exc:
+            logger.warning("bingx_bot.position_sync_failed error=%s", exc)
 
         # Fetch dynamic notional based on real available balance (1% per trade)
         dynamic_notional = await self._get_dynamic_notional()
@@ -704,7 +890,7 @@ class BingXBotService(
                 errs = getattr(analysis, "errors", {})
                 if errs:
                     for source, msg in errs.items():
-                        try:
+                        with contextlib.suppress(RuntimeError):
                             asyncio.get_event_loop().create_task(
                                 audit_error(
                                     module="bingx",
@@ -714,8 +900,6 @@ class BingXBotService(
                                     context={"symbol": sym, "source": source},
                                 )
                             )
-                        except RuntimeError:
-                            pass
         except Exception:
             pass
 
@@ -930,8 +1114,10 @@ class BingXBotService(
         cached = getattr(self._universe_service, "_cached", None)
         if cached:
             for instrument in cached:
-                if instrument.symbol == symbol:
-                    return instrument.market_type
+                if getattr(instrument, "symbol", None) == symbol:
+                    market_type = getattr(instrument, "market_type", None)
+                    if isinstance(market_type, str):
+                        return market_type
         root = underlying_from_bingx_symbol(symbol).upper()
         if not root:
             return None
@@ -981,7 +1167,7 @@ def _evaluate_l2_execution_quality(
     if spread is not None:
         mid = lob_analysis.mid_price
         spread_pct = (
-            (spread / mid * 100.0) if (mid is not None and mid > 0.0) else max(0.0, float(spread))
+            (spread / mid * 100.0) if (mid is not None and mid > 0.0) else max(0.0, spread)
         )
         if spread_pct > policy.max_spread_pct:
             reasons.append(REASON_L2_SPREAD_TOO_WIDE)
@@ -1000,7 +1186,7 @@ def _evaluate_l2_execution_quality(
     if (
         policy.max_imbalance_abs is not None
         and lob_analysis.result is not None
-        and abs(float(lob_analysis.result.imbalance_rho)) > float(policy.max_imbalance_abs)
+        and abs(lob_analysis.result.imbalance_rho) > policy.max_imbalance_abs
     ):
         reasons.append(REASON_L2_IMBALANCE_EXTREME)
 
@@ -1193,7 +1379,7 @@ def _signal_from_engine_decision(
     snapshot: BingXMarketSnapshot,
     horizon: str,
 ) -> BingXSignal:
-    direction: Literal[LONG, SHORT, FLAT]
+    direction: Literal["LONG", "SHORT", "FLAT"]
     direction = decision.direction if decision.direction in {"LONG", "SHORT"} else "FLAT"
     return BingXSignal(
         symbol=analysis.venue_symbol,
@@ -1525,16 +1711,16 @@ def _ohlcv_dataframe_for_value_area(analysis: BingXCandidateAnalysis) -> Any | N
 
 
 def _compute_value_area_from_ohlcv(ohlcv_df: Any) -> tuple[float | None, float | None]:
-    from backend.layer_3_specialists.tecnico.volume_profile import VolumeProfileEngine
+    from backend.quant_engine.engines.technical.volume_profile import VolumeProfileEngine
 
     if ohlcv_df is None or getattr(ohlcv_df, "empty", True):
         return None, None
     if len(ohlcv_df) < _MIN_VALUE_AREA_BARS:
         return None, None
     vp = VolumeProfileEngine.calculate(ohlcv_df)
-    if not vp.ok or float(vp.val) <= 0 or float(vp.vah) <= float(vp.val):
+    if not vp.ok or vp.val <= 0 or vp.vah <= vp.val:
         return None, None
-    return float(vp.val), float(vp.vah)
+    return vp.val, vp.vah
 
 
 def _inject_value_area_into_analysis(
@@ -1547,8 +1733,10 @@ def _inject_value_area_into_analysis(
     venue_tech = technical.venue_technical if technical else None
     if not isinstance(venue_tech, dict):
         venue_tech = {"status": "available", "payload": {}}
-    payload = dict(venue_tech.get("payload") or {})
-    vp = dict(payload.get("volume_profile") or {})
+    payload_raw = venue_tech.get("payload")
+    payload = dict(payload_raw) if isinstance(payload_raw, dict) else {}
+    vp_raw = payload.get("volume_profile")
+    vp = dict(vp_raw) if isinstance(vp_raw, dict) else {}
     vp.update(
         {
             "ok": True,
@@ -1663,6 +1851,8 @@ def _reference_price_from_analysis(analysis: BingXCandidateAnalysis) -> float | 
         ta.get("close"),
         analysis.venue.klines[-1].get("close") if analysis.venue.klines else None,
     ):
+        if value is None:
+            continue
         try:
             price = float(value)
         except (TypeError, ValueError):
@@ -1676,6 +1866,8 @@ def _spread_fraction_from_analysis(analysis: BingXCandidateAnalysis) -> float | 
     lob = analysis.l2.lob_analysis or {}
     spread = lob.get("spread")
     mid_price = lob.get("mid_price")
+    if spread is None or mid_price is None:
+        return None
     try:
         spread_f = float(spread)
     except (TypeError, ValueError):
@@ -1721,7 +1913,7 @@ def _blocked_reasons(
     risk_decisions: tuple[RiskDeskDecision, ...],
     analyses: tuple[BingXCandidateAnalysis, ...],
 ) -> dict[str, list[str]]:
-    out: dict[str, list[str]] = {}
+    out: dict[str, tuple[str, ...]] = {}
     intent_symbols = {d.intent.venue_symbol for d in risk_decisions}
     for analysis, decision in zip(analyses, engine_decisions, strict=True):
         reasons: list[str] = list(decision.reason_codes)

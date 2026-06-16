@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/layer_1_data/fetchers/argentina_datos_fetcher.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,7 +6,6 @@ ArgentinaDatos — Public connector for Argentine financial macro data.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import datetime as _dt
 import json

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/domain/morning_briefing_models.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,7 +6,6 @@ Domain models for Morning Briefing and Macro Sentiment.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum

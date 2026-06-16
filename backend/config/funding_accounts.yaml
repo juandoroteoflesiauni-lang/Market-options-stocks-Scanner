@@ -1,0 +1,30 @@
+accounts:
+  - id: "ftmo_phase_1"
+    name: "FTMO $100k Challenge"
+    phase: "challenge"
+    initial_capital: 100000.0
+    current_equity: 100000.0
+    start_of_day_balance: 100000.0
+    preset:
+      name: "FTMO Normal"
+      drawdown_type: "static"
+      daily_loss_pct: 5.0
+      max_loss_pct: 10.0
+      profit_target_pct: 10.0
+      risk_per_trade_pct: 0.5
+      min_trading_days: 4
+
+  - id: "topstep_step_1"
+    name: "TopStep 50k Combine"
+    phase: "challenge"
+    initial_capital: 50000.0
+    current_equity: 50000.0
+    start_of_day_balance: 50000.0
+    preset:
+      name: "TopStep 50k"
+      drawdown_type: "trailing_eod"
+      daily_loss_amount: 1000.0
+      max_loss_amount: 2000.0
+      profit_target_pct: 6.0
+      risk_per_trade_pct: 0.25
+      max_contracts: 5

@@ -89,7 +89,8 @@ async def test_build_exchange_derivatives_bridge_crypto_collects_sources() -> No
         "deribit_public_derivatives",
     )
     payload = result.to_dict()
-    assert payload["metrics"]["avg_mark_iv"] == pytest.approx(0.52)  # type: ignore[index]
+    assert payload["metrics"]["avg_mark_iv"] == pytest.approx(0.52)
+
 
 
 async def test_build_exchange_derivatives_bridge_non_crypto_unavailable_without_fetch() -> None:

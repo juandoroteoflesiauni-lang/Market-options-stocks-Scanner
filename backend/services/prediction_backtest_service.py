@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Backtest V1 over the institutional prediction SQLite dataset."""
 
-from __future__ import annotations
 
 import json
 import math
@@ -8,7 +9,6 @@ import os
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 from backend.backtesting.base import SimpleEquityCurve
 from backend.services.cfd_friction_simulator import apply_cfd_friction

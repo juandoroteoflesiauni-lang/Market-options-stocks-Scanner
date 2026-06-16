@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Options/GEX synthesis for Market Scanner Phase B candidates."""
 
-from __future__ import annotations
 
 import math
 

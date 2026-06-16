@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.layer_1_data.datos.bingx_client import BingXKline
-from backend.routers.bingx_bot_router import configure_audit_store, configure_service, router
+from backend.api.routes.bingx_bot_router import configure_audit_store, configure_service, router
 from backend.services.bingx_audit_store import BingXAuditStore
 from backend.services.bingx_bot_service import BingXMarketSnapshot
 
@@ -76,7 +76,7 @@ def _stub_exchange_derivatives(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     )
     mocked = AsyncMock(return_value=result)
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.build_exchange_derivatives_bridge",
+        "backend.api.routes.bingx_bot_router.build_exchange_derivatives_bridge",
         mocked,
     )
     return mocked
@@ -217,7 +217,7 @@ def test_analysis_endpoint_returns_klines_and_ta(monkeypatch) -> None:
     ) -> tuple[None, dict[str, object], None]:
         return None, {}, None
 
-    monkeypatch.setattr("backend.routers.bingx_bot_router._fetch_options_metrics", _no_options)
+    monkeypatch.setattr("backend.api.routes.bingx_bot_router._fetch_options_metrics", _no_options)
 
     response = _client().get("/api/v1/bingx-bot/analysis/AAPL-USDT?interval=5m")
     assert response.status_code == 200
@@ -345,7 +345,7 @@ def test_get_analysis_returns_options_metrics_for_stock_perp(monkeypatch) -> Non
         )
 
     monkeypatch.setattr(
-        "backend.routers.options_router.options_snapshot_service",
+        "backend.api.routes.options_router.options_snapshot_service",
         _options_snapshot,
     )
     svc.fetch_klines_for_analysis = _fetch
@@ -458,11 +458,11 @@ def test_get_analysis_returns_options_metrics_for_stock_index_perp(monkeypatch) 
     # SPX must classify as stock_index_perp for the bridge proxy path to fire.
     # Force-classify in case the universe policy maps it differently.
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.classify_underlying",
+        "backend.api.routes.bingx_bot_router.classify_underlying",
         lambda symbol: "stock_index_perp",
     )
     monkeypatch.setattr(
-        "backend.routers.options_router.options_snapshot_service",
+        "backend.api.routes.options_router.options_snapshot_service",
         _options_snapshot,
     )
     svc.fetch_klines_for_analysis = _fetch
@@ -568,7 +568,7 @@ def test_get_analysis_rejects_crypto_exchange_derivatives(monkeypatch) -> None:
     )
     bridge_mock = AsyncMock(return_value=derivatives_result)
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.build_exchange_derivatives_bridge",
+        "backend.api.routes.bingx_bot_router.build_exchange_derivatives_bridge",
         bridge_mock,
     )
 
@@ -611,7 +611,7 @@ def test_analysis_endpoint_returns_options_gex_metrics(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(
-        "backend.routers.options_router.options_snapshot_service",
+        "backend.api.routes.options_router.options_snapshot_service",
         _options_snapshot,
     )
     svc.fetch_klines_for_analysis = _fetch
@@ -778,7 +778,7 @@ def test_analysis_endpoint_stock_perp_routes_underlying_to_options(monkeypatch) 
         )
 
     monkeypatch.setattr(
-        "backend.routers.options_router.options_snapshot_service",
+        "backend.api.routes.options_router.options_snapshot_service",
         _options_snapshot,
     )
 
@@ -789,11 +789,11 @@ def test_analysis_endpoint_stock_perp_routes_underlying_to_options(monkeypatch) 
         return {"ok": False, "reason": "no_equity_data_source", "ticker": ticker}
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService.snapshot",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService.snapshot",
         _fake_ta_snapshot,
     )
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.equity_probabilistic_summary",
+        "backend.api.routes.bingx_bot_router.equity_probabilistic_summary",
         _fake_prob_summary,
     )
     svc.fetch_klines_for_analysis = _fetch
@@ -853,7 +853,7 @@ def test_analysis_endpoint_options_engine_failure_returns_200_with_error(monkeyp
         raise RuntimeError("upstream provider down")
 
     monkeypatch.setattr(
-        "backend.routers.options_router.options_snapshot_service",
+        "backend.api.routes.options_router.options_snapshot_service",
         _broken_options,
     )
     svc.fetch_klines_for_analysis = _fetch
@@ -906,7 +906,7 @@ def test_analysis_underlying_ta_populated_when_equity_source_available(monkeypat
             }
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService",
         _StubSnapshotService,
     )
 
@@ -948,7 +948,7 @@ def test_analysis_underlying_ta_unavailable_when_equity_source_fails(monkeypatch
             }
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService",
         _UnavailableSnapshotService,
     )
 
@@ -985,7 +985,7 @@ def test_analysis_probabilistic_populated_for_stock_perp(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.equity_probabilistic_summary",
+        "backend.api.routes.bingx_bot_router.equity_probabilistic_summary",
         _stub_probabilistic,
     )
 
@@ -1109,18 +1109,18 @@ def _equity_engine_stubs(monkeypatch) -> None:
         return {"ok": False, "reason": "no_equity_data_source", "ticker": ticker}
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService.snapshot",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService.snapshot",
         _fake_ta_snapshot,
     )
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.equity_probabilistic_summary",
+        "backend.api.routes.bingx_bot_router.equity_probabilistic_summary",
         _fake_prob_summary,
     )
 
 
 def test_analysis_l2_active_for_stock_perp_when_lob_ok(monkeypatch) -> None:
     """Stock perp with ok=True L2 → lob_status=active, source tagged, quality surfaced."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     svc = MagicMock()
     klines = [_make_kline(i) for i in range(60)]
@@ -1156,7 +1156,7 @@ def test_analysis_l2_active_for_stock_perp_when_lob_ok(monkeypatch) -> None:
 
 def test_analysis_l2_pending_when_lob_unavailable(monkeypatch) -> None:
     """Stock perp with ok=False L2 → lob_status=pending, error captured, source NOT in data_sources."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     svc = MagicMock()
     klines = [_make_kline(i) for i in range(60)]
@@ -1258,7 +1258,7 @@ def test_bot_service_l2_analysis_public_delegates_to_internal() -> None:
     """The public ``l2_analysis_for_symbol`` must return whatever the internal
     private helper returns — proves routers can call the contract without
     reaching into private state."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
     from backend.services.bingx_bot_service import BingXBotService
 
     service = BingXBotService()
@@ -1380,7 +1380,7 @@ def test_healthcheck_default_skips_probe_block(monkeypatch) -> None:
 
 def test_healthcheck_probe_l2_counts_active_and_failed(monkeypatch) -> None:
     """probe=true with mixed ok/failed L2 results — counts must split correctly."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
 
@@ -1442,7 +1442,7 @@ def test_healthcheck_probe_l2_captures_exceptions_as_failures(monkeypatch) -> No
 
 def test_healthcheck_probe_l2_respects_sample_env_var(monkeypatch) -> None:
     """``BINGX_HEALTHCHECK_L2_SAMPLE`` caps the probe sample size."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("BINGX_HEALTHCHECK_L2_SAMPLE", "2")
@@ -1462,8 +1462,8 @@ def test_healthcheck_probe_l2_respects_sample_env_var(monkeypatch) -> None:
 
 def test_healthcheck_probe_l2_samples_full_live_allowlist(monkeypatch) -> None:
     """Live allowlist is production-critical and must not be truncated by sample cap."""
-    import backend.routers.bingx_bot_router as mod
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    import backend.api.routes.bingx_bot_router as mod
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("BINGX_HEALTHCHECK_L2_SAMPLE", "1")
@@ -1488,8 +1488,8 @@ def test_healthcheck_probe_l2_samples_full_live_allowlist(monkeypatch) -> None:
 
 def test_healthcheck_probe_l2_samples_crypto_live_allowlist(monkeypatch) -> None:
     """Crypto-only live allowlists must still be able to satisfy the L2 probe."""
-    import backend.routers.bingx_bot_router as mod
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    import backend.api.routes.bingx_bot_router as mod
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("BINGX_HEALTHCHECK_L2_SAMPLE", "1")
@@ -1537,7 +1537,7 @@ def test_healthcheck_probe_l2_timeout_recorded(monkeypatch) -> None:
 
 def test_healthcheck_probe_fmp_skipped_without_api_key(monkeypatch) -> None:
     """FMP probe skips cleanly when ``FMP_API_KEY`` is absent."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
 
@@ -1558,7 +1558,7 @@ def test_healthcheck_probe_fmp_skipped_without_api_key(monkeypatch) -> None:
 
 def test_healthcheck_probe_fmp_ok_when_snapshot_succeeds(monkeypatch) -> None:
     """FMP probe reports ok when EquityTASnapshotService returns ok=True."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("FMP_API_KEY", "sk-test-not-real")
@@ -1572,7 +1572,7 @@ def test_healthcheck_probe_fmp_ok_when_snapshot_succeeds(monkeypatch) -> None:
         return {"ok": True, "ticker": "SPY", "rsi_14": 55.0, "source": "fmp"}
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService.snapshot",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService.snapshot",
         _ok_snapshot,
     )
 
@@ -1588,7 +1588,7 @@ def test_healthcheck_probe_fmp_ok_when_snapshot_succeeds(monkeypatch) -> None:
 
 def test_healthcheck_probe_fmp_uses_repo_fmp_key_aliases(monkeypatch) -> None:
     """FMP probe must honor the configured FMP_KEY_* envs used by FMPClient."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("FMP_KEY_QUOTES", "sk-test-not-real")
@@ -1602,7 +1602,7 @@ def test_healthcheck_probe_fmp_uses_repo_fmp_key_aliases(monkeypatch) -> None:
         return {"ok": True, "ticker": "SPY", "source": "fmp"}
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService.snapshot",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService.snapshot",
         _ok_snapshot,
     )
 
@@ -1615,7 +1615,7 @@ def test_healthcheck_probe_fmp_uses_repo_fmp_key_aliases(monkeypatch) -> None:
 
 def test_healthcheck_probe_fmp_failure_carries_reason(monkeypatch) -> None:
     """FMP probe surfaces snapshot reason on ok=False."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("FMP_API_KEY", "sk-test-not-real")
@@ -1629,7 +1629,7 @@ def test_healthcheck_probe_fmp_failure_carries_reason(monkeypatch) -> None:
         return {"ok": False, "reason": "fmp_unauthorized", "ticker": "SPY"}
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService.snapshot",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService.snapshot",
         _failed_snapshot,
     )
 
@@ -1643,7 +1643,7 @@ def test_healthcheck_probe_fmp_failure_carries_reason(monkeypatch) -> None:
 
 def test_healthcheck_probe_options_skipped_without_credentials(monkeypatch) -> None:
     """Options probe skips cleanly when no Massive/Finnhub credential is set."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
 
@@ -1664,7 +1664,7 @@ def test_healthcheck_probe_options_skipped_without_credentials(monkeypatch) -> N
 
 def test_healthcheck_probe_options_ok_when_snapshot_succeeds(monkeypatch) -> None:
     """Options probe reports ok when options_snapshot_service yields ok=True."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("MASSIVE_KEY_OPTIONS_PRIMARY", "kp-test-not-real")
@@ -1687,7 +1687,7 @@ def test_healthcheck_probe_options_ok_when_snapshot_succeeds(monkeypatch) -> Non
         )
 
     monkeypatch.setattr(
-        "backend.routers.options_router.options_snapshot_service",
+        "backend.api.routes.options_router.options_snapshot_service",
         _options_snapshot,
     )
 
@@ -1705,8 +1705,8 @@ def test_healthcheck_probe_options_ok_when_snapshot_succeeds(monkeypatch) -> Non
 
 def test_healthcheck_probe_options_checks_all_allowlisted_equities(monkeypatch) -> None:
     """Options must be verified for the production equity allowlist, not only GOOGL."""
-    import backend.routers.bingx_bot_router as mod
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    import backend.api.routes.bingx_bot_router as mod
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("MASSIVE_KEY_OPTIONS_PRIMARY", "kp-test-not-real")
@@ -1729,7 +1729,7 @@ def test_healthcheck_probe_options_checks_all_allowlisted_equities(monkeypatch) 
         return SimpleNamespace(ok=True)
 
     monkeypatch.setattr(
-        "backend.routers.options_router.options_snapshot_service",
+        "backend.api.routes.options_router.options_snapshot_service",
         _options_snapshot,
     )
 
@@ -1744,11 +1744,11 @@ def test_healthcheck_probe_options_checks_all_allowlisted_equities(monkeypatch) 
 
 def test_healthcheck_probe_response_never_includes_credential_values(monkeypatch) -> None:
     """Survival guarantee: probe response must NEVER leak the actual key text."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
-    fmp_secret = "sk-fmp-redacted-12345-DO-NOT-LEAK"
-    massive_secret = "kp-massive-redacted-67890-DO-NOT-LEAK"
+    fmp_secret = "sk-fmp-redacted-12345-DO-NOT-LEAK"  # nosec # NOSONAR
+    massive_secret = "kp-massive-redacted-67890-DO-NOT-LEAK"  # nosec # NOSONAR
     monkeypatch.setenv("FMP_API_KEY", fmp_secret)
     monkeypatch.setenv("MASSIVE_KEY_OPTIONS_PRIMARY", massive_secret)
     monkeypatch.setenv("BINGX_API_KEY", "kp-bingx-redacted-99999-DO-NOT-LEAK")
@@ -1765,11 +1765,11 @@ def test_healthcheck_probe_response_never_includes_credential_values(monkeypatch
         return SimpleNamespace(ok=True)
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService.snapshot",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService.snapshot",
         _ok_snapshot,
     )
     monkeypatch.setattr(
-        "backend.routers.options_router.options_snapshot_service",
+        "backend.api.routes.options_router.options_snapshot_service",
         _options_snapshot,
     )
 
@@ -1838,7 +1838,7 @@ def test_live_readiness_gates_dict_present() -> None:
 
 def test_live_readiness_healthcheck_gate_reflects_cache(monkeypatch) -> None:
     """When the cache is marked fresh the healthcheck gate should be green."""
-    import backend.routers.bingx_bot_router as mod
+    import backend.api.routes.bingx_bot_router as mod
 
     configure_service(_make_simple_service())
     # Inject a fresh successful cache entry
@@ -1855,7 +1855,7 @@ def test_live_readiness_healthcheck_gate_reflects_cache(monkeypatch) -> None:
 
 def test_live_readiness_requires_production_gates(monkeypatch) -> None:
     """Ready cannot be true when only the legacy three gates are green."""
-    import backend.routers.bingx_bot_router as mod
+    import backend.api.routes.bingx_bot_router as mod
 
     configure_service(_make_simple_service(dry_run=False))
 
@@ -1934,7 +1934,7 @@ def test_trade_client_live_but_allow_live_false_returns_409() -> None:
 
 def test_trade_live_blocked_when_paper_trading_enabled(monkeypatch) -> None:
     """Live client + allow_live=true + paper mode must never send orders."""
-    import backend.routers.bingx_bot_router as mod
+    import backend.api.routes.bingx_bot_router as mod
 
     configure_service(_make_trade_service(dry_run=False))
 
@@ -1955,7 +1955,7 @@ def test_trade_live_blocked_when_paper_trading_enabled(monkeypatch) -> None:
 
 def test_trade_vst_demo_ignores_paper_trading_gate(monkeypatch) -> None:
     """VST demo can submit external demo orders while production live remains gated."""
-    import backend.routers.bingx_bot_router as mod
+    import backend.api.routes.bingx_bot_router as mod
 
     svc = _make_trade_service(dry_run=False, trading_environment="prod-vst")
     configure_service(svc)
@@ -1980,7 +1980,7 @@ def test_trade_vst_demo_ignores_paper_trading_gate(monkeypatch) -> None:
 
 def test_trade_live_blocked_by_allowlist(monkeypatch) -> None:
     """Live client + allow_live=true but symbol not in allowlist → 403."""
-    import backend.routers.bingx_bot_router as mod
+    import backend.api.routes.bingx_bot_router as mod
 
     configure_service(_make_trade_service(dry_run=False))
 
@@ -2005,7 +2005,7 @@ def test_trade_live_blocked_by_allowlist(monkeypatch) -> None:
 
 def test_trade_live_blocked_when_allowlist_empty(monkeypatch) -> None:
     """Live client + allow_live=true + empty allowlist is not production-safe."""
-    import backend.routers.bingx_bot_router as mod
+    import backend.api.routes.bingx_bot_router as mod
 
     configure_service(_make_trade_service(dry_run=False))
 
@@ -2026,7 +2026,7 @@ def test_trade_live_blocked_when_allowlist_empty(monkeypatch) -> None:
 
 def test_trade_live_blocked_by_stale_healthcheck(monkeypatch) -> None:
     """Live + allow_live=true + require_healthcheck=true but cache stale → 409."""
-    import backend.routers.bingx_bot_router as mod
+    import backend.api.routes.bingx_bot_router as mod
 
     configure_service(_make_trade_service(dry_run=False))
 
@@ -2055,7 +2055,7 @@ def test_trade_live_blocked_by_stale_healthcheck(monkeypatch) -> None:
 
 def test_trade_live_passes_all_gates_and_runs_cycle(monkeypatch) -> None:
     """All gates green → cycle runs normally."""
-    import backend.routers.bingx_bot_router as mod
+    import backend.api.routes.bingx_bot_router as mod
 
     svc = _make_trade_service(dry_run=False)
     configure_service(svc)
@@ -2102,7 +2102,7 @@ def test_trade_never_live_by_default(monkeypatch) -> None:
 
 def test_healthcheck_probe_ok_false_when_options_probe_is_skipped(monkeypatch) -> None:
     """probe_ok=false unless L2, FMP and options probes are all production-green."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("FMP_API_KEY", "test-key")
@@ -2116,7 +2116,7 @@ def test_healthcheck_probe_ok_false_when_options_probe_is_skipped(monkeypatch) -
         return {"ok": True, "ticker": "SPY", "source": "fmp"}
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService.snapshot",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService.snapshot",
         _snapshot_ok,
     )
 
@@ -2129,7 +2129,7 @@ def test_healthcheck_probe_ok_false_when_options_probe_is_skipped(monkeypatch) -
 
 def test_healthcheck_probe_ok_false_when_fmp_fails(monkeypatch) -> None:
     """probe_ok=false when fmp probe fails even if l2 is active."""
-    from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+    from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 
     _clear_optional_env(monkeypatch)
     monkeypatch.setenv("FMP_API_KEY", "test-key")
@@ -2143,7 +2143,7 @@ def test_healthcheck_probe_ok_false_when_fmp_fails(monkeypatch) -> None:
         raise RuntimeError("fmp down")
 
     monkeypatch.setattr(
-        "backend.routers.bingx_bot_router.EquityTASnapshotService.snapshot",
+        "backend.api.routes.bingx_bot_router.EquityTASnapshotService.snapshot",
         _snapshot_fail,
     )
 

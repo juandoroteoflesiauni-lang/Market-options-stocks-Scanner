@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Literal, Any
 """BingX multi-module decision engine.
 
 Replaces the historical VSA/heuristic filter with a rule-based engine that
@@ -27,16 +29,15 @@ Configurable thresholds (env-overridable, clamped server-side):
   perps without an L2 snapshot.
 """
 
-from __future__ import annotations
 
 import math
 import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Literal
 
 from backend.config.logger_setup import get_logger
-from backend.layer_3_specialists.ia_probabilistico.domain.probabilistic_models import (
+from backend.domain.probabilistic_models import (
+    PredictiveOptions2Bundle,
     PredictiveOptionsBundleReport,
 )
 from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
@@ -218,12 +219,12 @@ def _clamp_unit(value: float | None) -> float:
 # Weight matrix for the full technical terminal engine suite. Sums to 1.0.
 # Priority: microstructure (HMM, OFI) and volume/price anchors.
 _TECHNICAL_WEIGHT_MATRIX: dict[str, float] = {
-    "hmm_regime": 0.15,
-    "ofi": 0.15,
-    "volume_profile": 0.10,
-    "vwap_advanced": 0.10,
-    "lob_dynamics": 0.10,
-    "vsa": 0.10,
+    "hmm_regime": 0.12,
+    "ofi": 0.12,
+    "volume_profile": 0.08,
+    "vwap_advanced": 0.08,
+    "lob_dynamics": 0.08,
+    "vsa": 0.08,
     "fvg": 0.08,
     "order_flow_delta": 0.06,
     "delta_volume": 0.05,
@@ -231,6 +232,12 @@ _TECHNICAL_WEIGHT_MATRIX: dict[str, float] = {
     "tpo_skewness": 0.03,
     "single_prints": 0.02,
     "vsa_footprint": 0.02,
+    "avwap_m13": 0.04,
+    "avwap_m14": 0.02,
+    "avwap_m15": 0.02,
+    "avwap_m16": 0.02,
+    "avwap_m17": 0.02,
+    "avwap_m18": 0.02,
 }
 
 
@@ -391,6 +398,14 @@ def _engine_bias_vote(
     if engine == "vsa_footprint":
         return "NEUTRAL"
 
+    if engine.startswith("avwap_m"):
+        decision = str(block.get("decision") or "").upper()
+        if decision in ("LONG", "BULLISH"):
+            return "BULLISH"
+        if decision in ("SHORT", "BEARISH"):
+            return "BEARISH"
+        return "NEUTRAL"
+
     return "NEUTRAL"
 
 
@@ -407,7 +422,7 @@ def _technical_consensus(
     direction : Direction
         ``LONG`` when consensus > 0.60 (weighted), ``SHORT`` when < -0.60,
         ``FLAT`` otherwise.
-    details : dict
+    details : dict[str, Any]
         Per-engine vote & weight breakdown for diagnostics.
     """
     venue_tech = analysis.technical.venue_technical
@@ -417,6 +432,10 @@ def _technical_consensus(
     payload = venue_tech.get("payload")
     if not isinstance(payload, dict):
         return 0.5, "FLAT", {"fallback": "full_payload_missing"}
+
+    avwap_signals = getattr(analysis, "avwap_hybrid_signals", None)
+    if isinstance(avwap_signals, dict):
+        payload.update(avwap_signals)
 
     weighted_sum = 0.0
     active_weight = 0.0
@@ -786,6 +805,27 @@ def decide(
     )
     score_total = _aggregate_score(module_scores)
 
+    # --- ML SCORE BLEND ---
+    try:
+        from backend.ml_engine.models.random_forest_classifier import TradePredictor
+        predictor = TradePredictor()
+        if predictor.load():
+            indicators = {
+                "venue_score": venue_score_val,
+                "technical_score": technical_score_val,
+                "options_score": options_score_val,
+                "predictive_score": predictive_score_val,
+                "l2_score": l2_score_val,
+                "risk_score": risk_score_val,
+                "score_total": score_total
+            }
+            ml_prob = predictor.predict_prob(indicators)
+            score_total = round(0.80 * score_total + 0.20 * ml_prob, 4)
+            if ml_prob < 0.45:
+                reason_codes.append("ml_prob_low")
+    except Exception as exc:
+        logger.debug("bingx_bot.ml_predict_failed error=%s", exc)
+
     # ── Confluence Multiplier & Divergence Veto ──────────────────────────────
     confluence_score_val = (
         _safe_float(inner_metrics.get("confluence_score"))
@@ -891,7 +931,8 @@ def decide(
         needs_legacy_size_down = True
         reason_codes.append(REASON_VOLATILITY_PANIC_SIZE_DOWN)
 
-    # Intentar extraer el reporte real, si no existe, usar un mock neutral (todo apagado/seguro)
+    # Si el activo no tiene opciones disponibles, usar un reporte neutral (safe fallback)
+    # para evitar bloqueos duros, pero el score de opciones será 0.0 impactando el total.
     default_safe_report = PredictiveOptionsBundleReport(
         gamma_flip_level=0.0,
         is_gamma_negative_regime=False,

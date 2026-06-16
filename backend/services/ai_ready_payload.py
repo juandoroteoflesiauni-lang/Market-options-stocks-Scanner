@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Deterministic AI-ready evidence packs and token budgeting.
 
 This module prepares compact, typed payloads for LLM agents. LLMs should
@@ -5,7 +6,6 @@ interpret these packs instead of discovering signals from raw text or large
 frontend/API payloads.
 """
 
-from __future__ import annotations
 
 import hashlib
 import json

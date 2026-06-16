@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/layer_1_data/fetchers/bcra_fetcher.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -5,7 +6,6 @@ BCRA (Banco Central de la República Argentina) — Foreign Exchange Statistics.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from __future__ import annotations
 
 import datetime as _dt
 import json

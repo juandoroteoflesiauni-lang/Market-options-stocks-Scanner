@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Protocol, Literal, Any
 """BingX L2 (depth) → normalized adapter — Layer 1.
 
 Converts raw BingX REST depth payloads (``/openApi/swap/v2/quote/depth`` for
@@ -15,11 +17,9 @@ return ``ok=False`` with an explicit ``reason`` (``l2_unavailable``,
 or block sizing — never fabricate book state.
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Protocol
 
 from backend.config.logger_setup import get_logger
 
@@ -136,8 +136,10 @@ def _parse_levels(raw_levels: object) -> tuple[BingXL2Level, ...]:
         else:
             continue
         try:
-            price = float(price_raw)  # type: ignore[arg-type]
-            qty = float(qty_raw)  # type: ignore[arg-type]
+            price = float(price_raw)
+
+            qty = float(qty_raw)
+
         except (TypeError, ValueError):
             continue
         if price <= 0.0 or qty < 0.0:

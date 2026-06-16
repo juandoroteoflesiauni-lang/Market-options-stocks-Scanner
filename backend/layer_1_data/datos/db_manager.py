@@ -1,14 +1,14 @@
+from __future__ import annotations
+from typing import Any
 """Gestor central DuckDB para la Capa 1 (datos).
 
 Este modulo expone una unica puerta de acceso a la persistencia para que las capas
 superiores consuman datos de forma segura, trazable y sin abrir conexiones ad-hoc.
 """
 
-from __future__ import annotations
 
 from threading import Lock
 from types import TracebackType
-from typing import Any
 
 import duckdb
 

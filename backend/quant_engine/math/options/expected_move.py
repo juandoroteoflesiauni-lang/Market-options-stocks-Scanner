@@ -1,3 +1,4 @@
+from typing import Any
 """
 backend/engine/metrics/expected_move.py
 Sector: Options / Expected Move Engine
@@ -12,7 +13,6 @@ Theoretical basis (Black-Scholes, 1973):
 """
 
 import math
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Núcleo Matemático Black-Scholes-Merton (BSM) — Sector Opciones/GEX.
 
 Implementa el motor de pricing de opciones y cálculo de Griegas de primer,
@@ -5,7 +6,6 @@ segundo y tercer orden. Soporta cálculos escalares (Python puro) y
 vectorizados (NumPy) para el análisis de cadenas completas.
 """
 
-from __future__ import annotations
 
 import math
 from enum import Enum
@@ -13,7 +13,8 @@ from typing import TypeAlias
 
 import numpy as np
 import numpy.typing as npt
-from scipy.optimize import brentq, newton  # type: ignore[import-untyped]
+from scipy.optimize import brentq, newton
+
 
 
 class OptionType(str, Enum):

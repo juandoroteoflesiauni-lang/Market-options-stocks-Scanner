@@ -1,13 +1,13 @@
+from __future__ import annotations
+from typing import Any
 """Canonical Options/GEX feature vector assembly.
 
 This module keeps live snapshots, scanner synthesis, backfill and backtests
 aligned on the same small set of risk-aware Options/GEX signals.
 """
 
-from __future__ import annotations
 
 import math
-from typing import Any
 
 SOURCE_TIER_SCORES = {
     "light_proxy": 0.25,
@@ -252,10 +252,12 @@ def _as_dict(value: object) -> dict[str, Any]:
         return dict(value)
     if hasattr(value, "model_dump"):
         try:
-            dumped = value.model_dump(mode="json")  # type: ignore[attr-defined]
+            dumped = value.model_dump(mode="json")
+
             return dumped if isinstance(dumped, dict) else {}
         except TypeError:
-            dumped = value.model_dump()  # type: ignore[attr-defined]
+            dumped = value.model_dump()
+
             return dumped if isinstance(dumped, dict) else {}
     return {
         key: getattr(value, key)

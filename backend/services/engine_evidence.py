@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Semantic evidence compilers for AI-ready engine outputs.
 
 The classes in this module sit between deterministic market engines and LLM
@@ -5,7 +6,6 @@ agents. They preserve decision evidence and strip raw series so the LLM
 interprets verified signals instead of rediscovering math from JSON blobs.
 """
 
-from __future__ import annotations
 
 import hashlib
 import json

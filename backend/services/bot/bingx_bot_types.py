@@ -1,3 +1,15 @@
+from __future__ import annotations
+
+from typing import Any, Callable, Awaitable, Iterable
+from backend.services.bingx_risk_desk import BingXRiskDesk
+from backend.services.bingx_risk_desk import BingXRiskDeskPolicy
+from backend.services.funding_lab_scanner_confirmation import ScannerConfirmationService
+from backend.layer_1_data.datos.bingx_client import BingXClient, VALID_KLINE_INTERVAL
+from backend.services.bingx_universe import BingXUniverseService
+from backend.services.bingx_account_service import BingXAccountService
+from backend.layer_1_data.datos.bingx_ws_hub import BingXWebSocketHub
+
+from typing import Protocol, Literal, Any
 """BingX Bot service — orchestrates Scan -> Filter -> Risk -> Execute.
 
 This service is intentionally decoupled from the Funding Lab pipeline. It targets
@@ -18,16 +30,16 @@ Design principles:
   order placement unless ``dry_run=False`` is set explicitly.
 """
 
-from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Protocol
+
+import os
 
 from backend.config.logger_setup import get_logger
-from backend.domain.market_scanner_models import MarketScannerRequest
+from backend.domain.market_scanner_models import MarketScannerRequest, ScannerTimeframe, ScannerModuleKey
 from backend.layer_1_data.datos.bingx_client import VALID_KLINE_INTERVAL, BingXOrderResponse
-from backend.layer_3_specialists.tecnico.lob_dynamics_engine import LOBDynamicsAnalysis
+from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
 from backend.services.bingx_decision_engine import BingXDecision
 from backend.services.bingx_risk_desk import OrderIntent, RiskDeskDecision
@@ -46,8 +58,8 @@ DEFAULT_MIN_BARS_FOR_SIGNAL: int = 40
 DEFAULT_VOLUME_Z_THRESHOLD: float = 2.0
 DEFAULT_HEURISTIC_PROB_FLOOR: float = 0.55
 DEFAULT_SCANNER_MIN_SCORE: float = 45.0
-SCANNER_CONFIRMATION_TIMEFRAMES: tuple[str, ...] = ("5m", "15m", "1h", "1D")
-SCANNER_CONFIRMATION_MODULES: tuple[str, ...] = ("technical", "probabilistic", "options_gex")
+SCANNER_CONFIRMATION_TIMEFRAMES: tuple[ScannerTimeframe, ...] = ("5m", "15m", "1h", "1D")
+SCANNER_CONFIRMATION_MODULES: tuple[ScannerModuleKey, ...] = ("technical", "probabilistic", "options_gex")
 DEFAULT_UNIVERSE: tuple[str, ...] = (
     "AMZN-USDT",
     "AAPL-USDT",
@@ -81,7 +93,9 @@ REASON_EXECUTION_COOLDOWN = "execution_cooldown"
 
 
 # Cooldown window for re-executing the same symbol (minutes).
-EXECUTION_COOLDOWN_MINUTES: float = 15.0
+EXECUTION_COOLDOWN_MINUTES: float = float(
+    os.getenv("BOT_EXECUTION_COOLDOWN_MINUTES", "15.0")
+)
 
 # Parametric fade-and-flip exit ladder (unrealized PnL % vs entry, Massive/Polygon spot).
 PARAMETRIC_TP_TRIGGER_PCT: float = 3.0
@@ -203,6 +217,40 @@ class BingXOrderPlan:
         payload = asdict(self)
         payload["reason_codes"] = list(self.reason_codes)
         return payload
+
+def _order_intent_to_dict(intent: OrderIntent) -> dict[str, Any]:
+    return {
+        "venue_symbol": intent.venue_symbol,
+        "side": intent.side,
+        "position_side": intent.position_side,
+        "quantity": intent.quantity,
+        "leverage": intent.leverage,
+        "entry_type": intent.entry_type,
+        "stop_loss": intent.stop_loss,
+        "take_profit": intent.take_profit,
+        "client_order_id": intent.client_order_id,
+        "reduce_only": intent.reduce_only,
+        "cycle_id": intent.cycle_id,
+        "notional_usdt": intent.notional_usdt,
+        "spread_pct": intent.spread_pct,
+        "l2_quality_score": intent.l2_quality_score,
+        "provider_health": intent.provider_health,
+        "market_type": intent.market_type,
+        "requires_l2": intent.requires_l2,
+        "price_zone": intent.price_zone,
+    }
+
+
+def _risk_decision_to_dict(decision: RiskDeskDecision) -> dict[str, Any]:
+    return {
+        "authorized": decision.authorized,
+        "intent": _order_intent_to_dict(decision.intent),
+        "idempotency_key": decision.idempotency_key,
+        "reason_codes": list(decision.reason_codes),
+        "adjusted_quantity": decision.adjusted_quantity,
+        "adjusted_entry_price": decision.adjusted_entry_price,
+        "already_seen": decision.already_seen,
+    }
 
 
 @dataclass(frozen=True)

@@ -1,9 +1,9 @@
+from __future__ import annotations
+from typing import Any
 """Tests for AuditComplexStore — DuckDB-backed unified audit subsystem."""
 
-from __future__ import annotations
 
 import json
-from typing import Any
 
 from backend.audit.audit_complex_store import (
     ApiCallAuditEntry,

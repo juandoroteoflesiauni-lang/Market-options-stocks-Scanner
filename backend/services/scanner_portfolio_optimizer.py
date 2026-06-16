@@ -1,15 +1,15 @@
+from __future__ import annotations
+from typing import Any
 """Non-binding basket optimizer for Market Scanner leaders.
 
 The optimizer is deliberately separate from scanner scoring and funding gates:
 it produces portfolio diagnostics only and never authorizes trades.
 """
 
-from __future__ import annotations
 
 import math
 import os
 from dataclasses import dataclass
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import (

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """signal_quality.py
 ====================
 Standardises evaluation and communication of the final probabilistic signal quality.
@@ -10,11 +12,9 @@ Public API
 - format_signal_for_scanner(signal_result, quality) -> dict
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
 
 # ---------------------------------------------------------------------------
 # ConvictionLevel

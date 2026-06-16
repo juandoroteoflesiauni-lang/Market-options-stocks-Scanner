@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Tests for bingx_candidate_analysis — unified BingX candidate analysis contract.
 
 Coverage:
@@ -7,7 +8,6 @@ Coverage:
 - Integration: build_candidate_analysis with all engines mocked
 """
 
-from __future__ import annotations
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch

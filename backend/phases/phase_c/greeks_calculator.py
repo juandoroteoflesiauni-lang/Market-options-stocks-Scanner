@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Calculadora de Greeks como wrapper del motor BSM existente.
 
 Proporciona una interfaz simplificada para calcular Greeks de opciones
 usando el motor BlackScholesPricer de backend/quant_engine/math/options/bsm.py.
 """
 
-from __future__ import annotations
 
 from typing import Literal
 

@@ -1,10 +1,10 @@
+from __future__ import annotations
 """Buffer circular para almacenar y analizar ticks en tiempo real.
 
 Proporciona métricas de momentum, volatilidad, volume spike y VWAP
 para la generación de señales de ejecución en Phase D.
 """
 
-from __future__ import annotations
 
 from collections import deque
 from decimal import Decimal

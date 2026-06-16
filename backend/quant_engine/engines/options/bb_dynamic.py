@@ -1,3 +1,4 @@
+from typing import Any
 """
 BB-GEX — Bollinger Bands con Multiplicador Dinámico de Gamma + IV
 ══════════════════════════════════════════════════════════════════
@@ -24,6 +25,9 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 import pandas_ta as ta
+import logging
+logger = logging.getLogger(__name__)
+
 
 warnings.filterwarnings("ignore")
 
@@ -265,7 +269,7 @@ class BBGEXEngine:
         self,
         candle: CandleBar,
         opt: OptionsRegime | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Procesa una vela de 1m y calcula las BB-GEX.
 
@@ -606,9 +610,9 @@ def run_bbgex_pipeline(
     verbose: bool = True,
 ) -> pd.DataFrame:
 
-    print(f"\n{'═'*62}")
-    print(f"  BB-GEX ENGINE  |  {ticker}  |  {n} velas 1m  |  σ={sigma_mode}")
-    print(f"{'═'*62}")
+    logger.info(f"\n{'═'*62}")
+    logger.info(f"  BB-GEX ENGINE  |  {ticker}  |  {n} velas 1m  |  σ={sigma_mode}")
+    logger.info(f"{'═'*62}")
 
     candles, opts = generate_demo_data(ticker, n)
 
@@ -651,31 +655,31 @@ def run_bbgex_pipeline(
 
 
 def _print_report(df: pd.DataFrame, ticker: str, mode: str):
-    print(f"\n── Resumen BB-GEX {ticker} (modo: {mode}) ──────────────")
+    logger.info(f"\n── Resumen BB-GEX {ticker} (modo: {mode}) ──────────────")
     last = df.iloc[-1]
-    print(f"  Precio final       : ${last['close']:.2f}")
-    print(f"  SMA({20})           : ${last['sma']:.4f}")
-    print(f"  Banda superior     : ${last['upper']:.4f}")
-    print(f"  Banda inferior     : ${last['lower']:.4f}")
-    print(f"  σ usada            : ${last['sigma_used']:.4f}")
-    print(f"  σ histórica        : ${last['sigma_hist']:.4f}")
-    print(f"  σ de IV            : ${last['sigma_iv']:.4f}")
-    print(f"  Multiplicador k    : {last['k_multiplier']:.2f} ({last['k_reason']})")
-    print(f"  Bandwidth actual   : {last['bandwidth']:.3f}%")
-    print(f"  %B actual          : {last['pct_b']:.4f}")
-    print(f"  Régimen actual     : {last['regime']}")
-    print(f"  Cruces Gamma Flip  : {last['flip_count']}")
-    print(f"  IV ATM             : {last['iv_atm']:.2%}")
+    logger.info(f"  Precio final       : ${last['close']:.2f}")
+    logger.info(f"  SMA({20})           : ${last['sma']:.4f}")
+    logger.info(f"  Banda superior     : ${last['upper']:.4f}")
+    logger.info(f"  Banda inferior     : ${last['lower']:.4f}")
+    logger.info(f"  σ usada            : ${last['sigma_used']:.4f}")
+    logger.info(f"  σ histórica        : ${last['sigma_hist']:.4f}")
+    logger.info(f"  σ de IV            : ${last['sigma_iv']:.4f}")
+    logger.info(f"  Multiplicador k    : {last['k_multiplier']:.2f} ({last['k_reason']})")
+    logger.info(f"  Bandwidth actual   : {last['bandwidth']:.3f}%")
+    logger.info(f"  %B actual          : {last['pct_b']:.4f}")
+    logger.info(f"  Régimen actual     : {last['regime']}")
+    logger.info(f"  Cruces Gamma Flip  : {last['flip_count']}")
+    logger.info(f"  IV ATM             : {last['iv_atm']:.2%}")
 
-    print("\n── Distribución de regímenes ──")
-    print(df["regime"].value_counts().to_string())
+    logger.info("\n── Distribución de regímenes ──")
+    logger.info(df["regime"].value_counts().to_string())
 
-    print("\n── Distribución de señales ──")
-    print(df["signal"].value_counts().to_string())
+    logger.info("\n── Distribución de señales ──")
+    logger.info(df["signal"].value_counts().to_string())
 
     # Señales fuertes
     strong = df[df["signal_strength"] >= 2]
-    print(f"\n── Señales fuerza ≥ 2 ({len(strong)} eventos) ──")
+    logger.info(f"\n── Señales fuerza ≥ 2 ({len(strong)} eventos) ──")
     if not strong.empty:
         cols = [
             "close",
@@ -689,22 +693,22 @@ def _print_report(df: pd.DataFrame, ticker: str, mode: str):
             "signal",
             "signal_strength",
         ]
-        print(strong[cols].tail(12).to_string())
+        logger.info(strong[cols].tail(12).to_string())
 
     # Comparación de bandwidth entre modos
     bw_cols = [c for c in df.columns if "bandwidth" in c]
     if len(bw_cols) > 1:
-        print("\n── Comparación bandwidth promedio por modo ──")
+        logger.info("\n── Comparación bandwidth promedio por modo ──")
         for col in bw_cols:
-            print(f"  {col:22s}: {df[col].mean():.4f}%")
+            logger.info(f"  {col:22s}: {df[col].mean():.4f}%")
 
     # Cruces del Gamma Flip
     flips = df[df["gamma_flip_cross"] == True]
-    print(f"\n── Cruces del Gamma Flip detectados: {len(flips)} ──")
+    logger.info(f"\n── Cruces del Gamma Flip detectados: {len(flips)} ──")
     if not flips.empty:
-        print(flips[["close", "k_multiplier", "regime", "signal"]].to_string())
+        logger.info(flips[["close", "k_multiplier", "regime", "signal"]].to_string())
 
-    print(f"\n{'═'*62}")
+    logger.info(f"\n{'═'*62}")
 
 
 # ─────────────────────────────────────────────
@@ -794,7 +798,7 @@ class BBGEXLive:
         """Hook de señal — conectar a la lógica de órdenes del bot."""
         priority = self.SIGNAL_PRIORITY.get(result["signal"], 0)
         if priority >= 2:
-            print(
+            logger.info(
                 f"[{result['timestamp']}] {self.ticker:5s} | "
                 f"P{priority} {result['signal']:22s} | "
                 f"${result['close']:.2f} | "
@@ -822,4 +826,4 @@ if __name__ == "__main__":
         all_results[ticker] = df
         df.to_csv(f"/tmp/bbgex_{ticker.lower()}.csv")
 
-    print("\n✓ BB-GEX completado para los 5 proxies BingX.\n")
+    logger.info("\n✓ BB-GEX completado para los 5 proxies BingX.\n")

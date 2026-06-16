@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Options multi-leg payoff engine."""
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 

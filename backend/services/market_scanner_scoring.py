@@ -1,15 +1,15 @@
+from __future__ import annotations
+from typing import Any
 """Institutional-grade scoring utilities for Market Scanner.
 
 Loads optional JSON grade thresholds, confidence-weighted Phase-B blending,
 score uncertainty bands, and lightweight risk hints (Kelly-lite, VaR proxy).
 """
 
-from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
-from typing import Any
 
 from backend.config.logger_setup import get_logger
 from backend.domain.market_scanner_models import ScannerGrade, ScannerModuleSignal

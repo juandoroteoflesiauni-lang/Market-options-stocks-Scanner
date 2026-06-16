@@ -1,6 +1,7 @@
+from __future__ import annotations
+from typing import Any
 """Provider registry and audit storage for FTMO Funding Lab CFD fidelity."""
 
-from __future__ import annotations
 
 import math
 import os
@@ -10,7 +11,6 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 import httpx
 

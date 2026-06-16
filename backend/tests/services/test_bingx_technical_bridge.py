@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any
 """Tests for ``bingx_technical_bridge`` — full SMC/VSA/FVG/VP pipeline binding.
 
 Coverage:
@@ -12,11 +14,9 @@ Coverage:
 - JSON safety end-to-end via ``to_dict``
 """
 
-from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest

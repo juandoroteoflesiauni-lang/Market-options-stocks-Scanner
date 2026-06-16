@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/vsa_forecast.py
 Sector: IA / Probabilístico
@@ -7,7 +8,6 @@ VSA Forecast Engine: Volume Force Index (VFI) & Intra-Bar Modeling.
 Estimates final candle metrics and aggregate volume flow intensity.
 """
 
-from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime

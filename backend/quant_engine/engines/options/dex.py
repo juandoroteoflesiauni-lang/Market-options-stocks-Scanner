@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 backend/engine/metrics/dex.py
 Sector: Options / MM Delta Exposure (DEX) Engine
@@ -8,7 +9,6 @@ Theoretical basis:
     and identify critical acceleration zones (gamma trap / flip levels).
 """
 
-from __future__ import annotations
 
 import logging
 

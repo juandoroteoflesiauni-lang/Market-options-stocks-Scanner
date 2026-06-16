@@ -1,11 +1,11 @@
+from __future__ import annotations
 """Assemble fundamentals intelligence block (Layer 3 specialists) for FMP mega-fetch."""
 
-from __future__ import annotations
 
 from backend.config.logger_setup import get_logger
-from backend.layer_3_specialists.fundamentales.insider_specialist import InsiderSpecialist
-from backend.layer_3_specialists.fundamentales.sentiment_specialist import SentimentSpecialist
-from backend.layer_3_specialists.fundamentales.transcript_specialist import TranscriptSpecialist
+from backend.quant_engine.engines.fundamental.insider_specialist import InsiderSpecialist
+from backend.quant_engine.engines.fundamental.sentiment_specialist import SentimentSpecialist
+from backend.quant_engine.engines.fundamental.transcript_specialist import TranscriptSpecialist
 from backend.services.transcript_llm_bridge import default_transcript_agent_invoke
 
 logger = get_logger(__name__)
