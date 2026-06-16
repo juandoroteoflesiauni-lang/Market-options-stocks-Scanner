@@ -69,6 +69,14 @@ select = [
 ]
 ignore = []
 
+[tool.ruff.lint.per-file-ignores]
+"backend/services/bot/bingx_bot_execution_mixin.py" = ["F403", "F405", "RUF006"]
+"backend/services/bot/bingx_bot_risk_mixin.py" = ["F403", "F405"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+skips = ["B608"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"

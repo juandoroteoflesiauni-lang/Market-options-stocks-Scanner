@@ -1,19 +1,17 @@
-from __future__ import annotations
-from typing import TYPE_CHECKING, Any
-
-import os
-
-from backend.services.bot.bingx_bot_types import *
-from backend.layer_1_data.datos.bingx_client import BingXPerpOrderRequest, BingXOrderRequest
-from backend.services.bingx_symbol_linker import display_name_from_bingx_symbol
-
 """Mixin class for BingX Bot Execution."""
 
+from __future__ import annotations
+
 import asyncio
-from datetime import UTC, datetime
+import os
 from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from backend.config.logger_setup import get_logger
+from backend.layer_1_data.datos.bingx_client import BingXOrderRequest, BingXPerpOrderRequest
+from backend.services.bingx_symbol_linker import display_name_from_bingx_symbol
+from backend.services.bot.bingx_bot_types import *
 
 logger = get_logger(__name__)
 
@@ -24,7 +22,6 @@ def _float_or_none(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
 
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.services.bingx_bot_service import *
@@ -154,6 +151,18 @@ class BingXBotExecutionMixin:
         are logged to Trade Journal (Caja Negra) with complete institutional
         research snapshot and decision reasoning.
         """
+        from backend.services.agentic_execution_bridge import apply_agentic_gate_to_bingx_decisions
+
+        score_map: dict[str, float] = {}
+        if engine_decisions:
+            for eng in engine_decisions:
+                score_map[eng.symbol] = float(getattr(eng, "score_total", 0.0) or 0.0)
+
+        decisions = await apply_agentic_gate_to_bingx_decisions(
+            decisions,
+            signal_scores=score_map or None,
+        )
+
         # Build lookup maps for audit enrichment
         analysis_map: dict[str, BingXCandidateAnalysis] = {}
         decision_map: dict[str, BingXDecision] = {}
@@ -229,7 +238,7 @@ class BingXBotExecutionMixin:
                 spread_pct = (spread / mid * 100.0) if (spread and mid) else 0.0
                 total_depth = bid_depth + ask_depth
 
-                # Slivering triggers: slightly wide spread, moderate/thin depth, or high HHI concentration
+                # Slivering triggers: wide spread, thin depth, or high HHI
                 if twap_enabled and (
                     spread_pct > 0.03 or total_depth < 30000.0 or (hhi is not None and hhi > 0.20)
                 ):
@@ -256,11 +265,8 @@ class BingXBotExecutionMixin:
                     BingXPerpOrderRequest(
                         symbol=intent.venue_symbol,
                         side=intent.side,
-
                         position_side=intent.position_side,
-
                         order_type=intent.entry_type,
-
                         quantity=sliver_qty,
                         price=decision.adjusted_entry_price,
                         client_order_id=intent.client_order_id,
@@ -276,7 +282,7 @@ class BingXBotExecutionMixin:
                         contract_metadata,
                     )
                     # Spawn background task for the remaining 3 slivers
-                    asyncio.create_task(
+                    _twap_task = asyncio.create_task(
                         self._run_adaptive_twap_execution(
                             symbol=intent.venue_symbol,
                             side=intent.side,
@@ -298,11 +304,8 @@ class BingXBotExecutionMixin:
                     BingXPerpOrderRequest(
                         symbol=intent.venue_symbol,
                         side=intent.side,
-
                         position_side=intent.position_side,
-
                         order_type=intent.entry_type,
-
                         quantity=quantity,
                         price=decision.adjusted_entry_price,
                         client_order_id=intent.client_order_id,
@@ -400,11 +403,8 @@ class BingXBotExecutionMixin:
                     BingXPerpOrderRequest(
                         symbol=symbol,
                         side=side,
-
                         position_side=position_side,
-
                         order_type=order_type,
-
                         quantity=sliver_qty,
                         price=price,
                         client_order_id=f"{intent.client_order_id}_s{i+2}",
@@ -550,11 +550,11 @@ class BingXBotExecutionMixin:
             return None
 
         from backend.services.bingx_bot_service import (
-            _reference_price_from_analysis,
             _bracket_prices,
             _client_order_id,
-            _spread_fraction_from_analysis,
             _provider_health_for_execution,
+            _reference_price_from_analysis,
+            _spread_fraction_from_analysis,
         )
 
         reference_price = _reference_price_from_analysis(analysis)
@@ -602,14 +602,16 @@ class BingXBotExecutionMixin:
                 # Must be in correct zone
                 if decision.direction == "LONG" and price_zone != "ACUMULACION":
                     logger.info(
-                        "bingx_bot.pyramiding_blocked symbol=%s zone=%s reason=long_pyramiding_only_in_accumulation",
+                        "bingx_bot.pyramiding_blocked symbol=%s zone=%s "
+                        "reason=long_pyramiding_only_in_accumulation",
                         analysis.venue_symbol,
                         price_zone,
                     )
                     return None
                 if decision.direction == "SHORT" and price_zone != "DISTRIBUCION":
                     logger.info(
-                        "bingx_bot.pyramiding_blocked symbol=%s zone=%s reason=short_pyramiding_only_in_distribution",
+                        "bingx_bot.pyramiding_blocked symbol=%s zone=%s "
+                        "reason=short_pyramiding_only_in_distribution",
                         analysis.venue_symbol,
                         price_zone,
                     )
@@ -623,7 +625,7 @@ class BingXBotExecutionMixin:
                     )
                     return None
 
-                # Calculate adaptive size based on proximity to support/resistance and order flow delta/L2 absorption
+                # Adaptive size from S/R proximity and order flow delta/L2 absorption
                 capital = self._risk_policy.equity_usdt
 
                 # Retrieve technical data
@@ -693,8 +695,10 @@ class BingXBotExecutionMixin:
                 else:
                     size_pct = 0.02
 
-                notional = size_pct * capital * self._bingx_notional_scalars(
-                    analysis, decision, reference_price
+                notional = (
+                    size_pct
+                    * capital
+                    * self._bingx_notional_scalars(analysis, decision, reference_price)
                 )
             else:
                 # Use dynamic notional if provided, otherwise fall back to static

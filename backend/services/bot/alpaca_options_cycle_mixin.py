@@ -97,9 +97,7 @@ class AlpacaOptionsCycleMixin:
         r1_candidates = _eligible_equity_decisions(r1_decisions, "priority")[
             :_MAX_R1_OPTIONS_PER_CYCLE
         ]
-        r2_candidates = _eligible_equity_decisions(r2_decisions, "scan")[
-            :_MAX_R2_OPTIONS_PER_CYCLE
-        ]
+        r2_candidates = _eligible_equity_decisions(r2_decisions, "scan")[:_MAX_R2_OPTIONS_PER_CYCLE]
 
         for route, candidates, extra_symbols in (
             ("priority", r1_candidates, ()),
@@ -112,6 +110,36 @@ class AlpacaOptionsCycleMixin:
             for decision in candidates:
                 symbol = decision.symbol.upper()
                 try:
+                    from backend.services.agentic_execution_bridge import get_agentic_trade_gate
+
+                    gate = get_agentic_trade_gate()
+                    if gate is not None and execute:
+                        outcome = await gate.evaluate_trade(
+                            module="alpaca",
+                            symbol=symbol,
+                            contract_symbol=symbol,
+                            signal_score=float(decision.score),
+                        )
+                        from backend.audit.hooks import audit_agentic_decision
+
+                        event = gate.build_audit_event(
+                            outcome,
+                            module="alpaca",
+                            symbol=symbol,
+                            contract_symbol=symbol,
+                        )
+                        await audit_agentic_decision(event=event)
+                        if not outcome.allow_execute:
+                            entries.append(
+                                {
+                                    "symbol": symbol,
+                                    "route": route,
+                                    "decision": StrategyDecision.NO_TRADE,
+                                    "reason": "agentic_committee_pass",
+                                    "executed": False,
+                                }
+                            )
+                            continue
                     include_r1 = route == "priority"
                     inp = build_strategy_input(
                         symbol,
@@ -134,9 +162,11 @@ class AlpacaOptionsCycleMixin:
                         exec_ok = result.execution.ok
                         if exec_ok:
                             executed_symbols.add(symbol)
-                            premium = float(log.execution_payload.max_premium_usd) if (
-                                log.execution_payload is not None
-                            ) else 0.0
+                            premium = (
+                                float(log.execution_payload.max_premium_usd)
+                                if (log.execution_payload is not None)
+                                else 0.0
+                            )
                             reserved_premium += premium
                             risk_pct = (
                                 log.execution_payload.risk_budget_pct
@@ -157,7 +187,8 @@ class AlpacaOptionsCycleMixin:
                                     "open_symbols": tuple(
                                         sorted(set(session.open_symbols) | {symbol.upper()})
                                     ),
-                                    "total_risk_budget_pct": session.total_risk_budget_pct + risk_pct,
+                                    "total_risk_budget_pct": session.total_risk_budget_pct
+                                    + risk_pct,
                                     "sector_risk_budget_pct": sector_map,
                                 }
                             )
@@ -179,7 +210,7 @@ class AlpacaOptionsCycleMixin:
                         result.execution is not None,
                         exec_ok,
                     )
-                except Exception as exc:  # noqa: BLE001 - aislar por ticker
+                except Exception as exc:
                     logger.warning(
                         "alpaca_bot.options_failed symbol=%s route=%s error=%s",
                         symbol,

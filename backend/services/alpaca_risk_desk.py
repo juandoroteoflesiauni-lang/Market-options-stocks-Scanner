@@ -25,7 +25,6 @@ from backend.domain.alpaca_models import (
     EquityOrderIntent,
     EquityRiskDecision,
 )
-
 from backend.services.options_strategy.sizing_engine import (
     atr_pct_to_vix_proxy,
     equity_confidence_multiplier,
@@ -131,8 +130,9 @@ class AlpacaRiskDesk:
         quantity = math.floor(notional / price)
         if quantity <= 0:
             return None
+        stop_mult = self._effective_stop_mult(self._policy)
         stop_loss, take_profit = compute_bracket_levels(
-            price, analysis.atr, self._policy.atr_stop_mult, self._policy.atr_take_mult
+            price, analysis.atr, stop_mult, self._policy.atr_take_mult
         )
         return EquityOrderIntent(
             symbol=analysis.symbol,
@@ -182,3 +182,13 @@ class AlpacaRiskDesk:
 
     def clear_position(self, symbol: str) -> None:
         self.open_positions.pop(symbol, None)
+
+    @staticmethod
+    def _effective_stop_mult(policy: AlpacaRiskPolicy) -> float:
+        """Apply macro agent stop-loss multiplier when agentic layer is active."""
+        try:
+            from backend.services.agentic_execution_bridge import macro_stop_loss_multiplier
+
+            return policy.atr_stop_mult * macro_stop_loss_multiplier()
+        except Exception:
+            return policy.atr_stop_mult

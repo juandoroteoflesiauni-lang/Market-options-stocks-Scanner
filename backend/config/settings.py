@@ -83,6 +83,11 @@ class MarketDataSettings(BaseSettings):
     # Audit Complex
     audit_db_path: str = "data/audit_complex.duckdb"
 
+    # Agentic funnel
+    agentic_llm_timeout_s: float = 3.0
+    agentic_top_n: int = 5
+    agentic_macro_horizon_days: int = 7
+
     # Operator Auth (HMAC-signed session cookies)
     qa_session_secret: str = ""
     qa_app_username: str = "admin"
