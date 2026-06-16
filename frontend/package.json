@@ -81,7 +81,7 @@
     "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.9",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-prettier": "^10.1.8",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.15",
     "prettier": "^3.3.0",
