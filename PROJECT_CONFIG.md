@@ -14,9 +14,9 @@
 
 ## 📈 ESTADO ACTUAL DEL PROYECTO
 
-**Última actualización:** 2026-06-11
-**Sesiones completadas:** 6
-**Progreso general:** 95% completado (Scanner migrado a datos reales con WebSocket en tiempo real, auth integrado, 52 tests unitarios, infraestructura Vitest completa).
+**Última actualización:** 2026-06-12
+**Sesiones completadas:** 9
+**Progreso general:** 97% completado (Scanner migrado a datos reales con WebSocket en tiempo real, auth integrado, **MFFU Builder Plan backend + API + cockpit mínimo** con 61 tests unitarios Builder, infraestructura Vitest completa, **Expediente del Módulo de Funding generado**).
 
 ---
 
@@ -63,6 +63,72 @@
 - [x] Logging estructurado
 - [x] Variables de entorno configuradas (settings mappings en `.env`)
 - [x] Auth settings (`qa_session_secret`, `qa_app_username`, `qa_app_password_hash`)
+
+### Backend — MFFU Builder Plan ($50K) ✅ COMPLETADO
+- [x] Contratos CME + preset `MFFU_BUILDER_50K` (`builder_contracts.yaml`, `builder_models.py`)
+- [x] State machine EVAL→SIM→LIVE + persistencia SQLite (`builder_state_machine.py`, `builder_state_store.py`)
+- [x] Rule engine (trailing DD, DLL soft pause, contract cap)
+- [x] Sizing overlay (% risk → contratos enteros)
+- [x] Survival + payout engines (50% consistency, buffer, qualified days)
+- [x] Integración en `funding_orchestrator.py` (FTMO sigue siendo default)
+- [x] API: `GET /api/v1/funding/builder/state|metrics`, `POST /evaluate`
+- [x] Persistencia de PnL diario (`builder_daily_pnl`) para consistency/survival con histórico
+- [x] Intraday trailing DD tracker (proyección de floor EOD + alerta de drift)
+- [x] Consistency 50% live tracker (techo de ganancia diario)
+- [x] Payout planner (buffer/días restantes + ETA a primer retiro)
+- [x] What-if por trade (escenario post-stop: equity, distancias, breach)
+- [x] Backtest determinístico de supervivencia (`POST /builder/backtest`)
+- [x] Batch evaluate para leaders del scanner (`POST /builder/evaluate-batch`)
+- [x] 77 tests unitarios Builder (`pytest -k builder`)
+
+### Frontend — Funding Module
+- [x] `BuilderCockpit` (eval progress, trailing DD, DLL, payout buffer, max profit hoy, payout ETA, alerta floor drift)
+- [x] Preset `mffu-builder-50k` en `data/funding.ts`
+- [x] `fetchBuilderMetrics()` + `evaluateBuilderCandidate()` en `store/fundingStore.ts`
+- [ ] Dashboard glassmorphism dark mode completo (Survival + Risk Metrics + Sizing + Global Context)
+- [ ] `types/riskMetrics.ts` 1:1 con Pydantic (200 líneas)
+- [ ] `services/riskMetricsService.ts` con retry/backoff
+- [ ] `store/fundingStore.ts` Zustand con persistencia
+- [ ] Kill switch visible y operativo
+- [ ] Alerts feed con 3 niveles + dedup 15min
+- [ ] Monte Carlo button + histograma de drawdowns
+- [ ] Consistency heatmap mensual
+- [ ] Trade journal con filtros
+- [ ] Mode toggle paper ↔ live
+- [ ] Playbook audit trail visual
+
+### Backend — Performance Analytics (Sprint 0 — NUEVO)
+- [ ] `PerformanceAnalyticsEngine` con E[R] global + por setup, PF rolling, Sharpe/Sortino/Calmar
+- [ ] BUR 3 zonas (verde/amarillo/rojo)
+- [ ] VaR/CVaR 95/99 histórico
+- [ ] Ulcer Index rolling 50
+- [ ] Risk of Ruin Monte Carlo (n_sims=10k, n_trades=100, mll=10%)
+- [ ] Kelly fraccional (25% con cap 25%)
+- [ ] `RiskMetricsSnapshot` Pydantic frozen
+- [ ] `TradeRecord` Pydantic frozen + SQLite persistence
+- [ ] `FundingThresholds` pydantic-settings con `QA_FTMO_*` y `QA_PA_*`
+- [ ] `GET /api/v1/funding/risk-metrics` endpoint con auth
+- [ ] Tests unitarios + integración con coverage ≥ 80%
+
+### Backend — Sizing + Global Context (Sprint 1 — NUEVO)
+- [ ] `SizingEngine` multi-factor (Kelly × F_vol × F_dd × F_signal × F_regime × F_conviction × F_global)
+- [ ] `GlobalContextEngine` Capa 3.5 con VIX, Fear/Greed, SPY/EEM, QQQ/IWM, XLY/XLP, HYG/TLT, Breadth
+- [ ] `ConvergenceGate` con R:R ≥ 1.5 + Expectancy Gate por setup
+- [ ] `DailyBudgetGuard` con CVaR 99% × 1.67
+- [ ] `TrailingMLLSimulator` con BUR 3 zonas + Live Calmar
+- [ ] `ConsistencyRuleManager` con PF rolling + Sortino rolling
+- [ ] `PreMarketCheck` con UI rolling override
+- [ ] Test E2E `test_funding_pipeline.py` con todo el pipeline
+
+### Backend — Funding Production Hardening (Sprint 5)
+- [ ] `docs/OPERATIONS_RUNBOOK.md` con quickstart "Operar mañana"
+- [ ] `docs/SECURITY_AUDIT_FUNDING.md` con PD-1 compliance
+- [ ] `docs/INCIDENT_RESPONSE.md`
+- [ ] `scripts/seed_backtest_data.py` con datos sintéticos
+- [ ] `scripts/verify_production_readiness.py` con todos los gates
+- [ ] `docs/FUNDING_MODULE.md` reescrito con arquitectura 8 capas
+- [ ] `CHANGELOG.md` con todos los cambios Sprint 0-5
+- [ ] Branch `feature/05-funding` con commits semánticos
 
 ### Frontend — Dashboard
 - [x] Layout base con dark theme de Bloomberg (Wall Street Standard)
@@ -112,49 +178,21 @@
 
 ## 📍 ÚLTIMO CHECKPOINT
 
-**Sesión anterior terminó en:**
-Se completó la migración completa del Market Scanner (Fase 0-4) de datos mock a datos reales del backend. Incluye: tipos 1:1 con Pydantic, servicio de integración con 7 endpoints, hook centralizado con retry/backoff, Zustand store persistente, WebSocket para precios en tiempo real, auth middleware con cookies HMAC-signed, error handling estructurado, y 52 tests unitarios con Vitest. Todos los quality gates pasan (tsc, eslint, prettier).
-
-**Próxima tarea:**
-Completar Fase 4 de limpieza de deuda técnica: eliminar `services/mock/` (requiere migrar 5 componentes no-scanner), actualizar PROJECT_CONFIG.md, y hacer Q&A del flujo completo.
-
-**Archivos modificados en sesiones recientes:**
-- `frontend/types/marketScanner.ts` — Contratos de tipo 537 líneas, 1:1 con Pydantic
-- `frontend/services/scannerService.ts` — Servicio de integración 429 líneas
-- `frontend/hooks/useScanner.ts` — Hook centralizado 427 líneas
-- `frontend/hooks/useScannerWebSocket.ts` — WebSocket para precios en tiempo real
-- `frontend/hooks/useAuthToken.ts` — Auth hook con backend cookie-based
-- `frontend/store/scannerStore.ts` — Zustand store para scanner
-- `frontend/lib/api-client.ts` — Error classes + auth helpers + credentials:include
-- `frontend/lib/constants.ts` — Todos los números mágicos centralizados
-- `frontend/components/tabs/MarketScanner/index.tsx` — Datos reales + WebSocket
-- `frontend/components/tabs/MarketScanner/UniverseManager.tsx` — Backend universes
-- `frontend/components/tabs/MarketScanner/PhaseAnalytics.tsx` — Phase derived
-- `frontend/components/tabs/MarketScanner/StrategyWeights.tsx` — Backend sync
-- `frontend/store/tradingStore.ts` — Limpieza de initMockData
-- `frontend/vitest.config.ts` — Configuración de testing
-- `frontend/__tests__/services/scannerService.test.ts` — 29 tests
-- `frontend/__tests__/store/scannerStore.test.ts` — 13 tests
-- `frontend/__tests__/hooks/useScanner.test.ts` — 10 tests
-- `backend/config/settings.py` — Auth settings
-- `backend/api/router.py` — Mounted auth_router
-- `backend/routers/auth_router.py` — Auth dependency
-- `backend/routers/market_scanner_router.py` — Auth on all endpoints
+**Sesión actual (Fases 1-5 Módulo 05 Funding) entregó:**
+- **Contrato Canónico (Fase 1)**: Implementado `CanonicalSignalPayload` en `backend/models/canonical_signal.py` utilizando Pydantic v2 y precisión Decimal para soportar estructuras de opciones multi-pata de forma limpia.
+- **Sizing de Opciones Estructurado (Fase 2)**: Desarrollados `LinearInstrumentSizer` y `StructuredOptionsSizer` en `backend/services/` para aplicar penalización por bid-ask spread y controlar el buying power de Alpaca.
+- **Integración con Orquestador (Fase 3)**: Integrada la evaluación canónica en `FundingOrchestrator` y habilitado el pipeline de control para admitir opciones.
+- **Reconciliación y Estado Vivo (Fase 4)**: Creada caché en memoria en `BuilderStateStore` con persistencia SQLite asíncrona en segundo plano, e implementado `BrokerStateReconciliator` para sincronizar equity, PnL y HWM dinámicamente con la API de Alpaca.
+- **Cockpit en Tiempo Real vía WebSockets (Fase 5)**: Habilitado el stream en tiempo real `/api/v1/ws/funding` en el backend y adaptado `fundingStore.ts` en el frontend para actualizar los indicadores React de forma reactiva cada 3 segundos, incorporando reconexión automática y fallback.
+- **Corrección de Simulación**: Resuelto error en el endpoint `/mock-trade` mediante la importación explícita de `TradeRecord`.
+- **Tests de Calidad Financiera**: Suite de 36 pruebas unitarias de funding/builder completada al 100%, junto con 3 pruebas de integración dedicadas para la API WebSocket y mock trade.
 
 **Comandos para verificar que todo está bien:**
 ```bash
-# Frontend type check
-cd frontend && npx tsc --noEmit
-# Frontend lint
-npx eslint --max-warnings=0 .
-# Frontend tests
-npx vitest run __tests__/
-# Frontend build
-npm run build
-# Backend type check
-cd .. && python -m py_compile backend/main.py
-# Levantar el backend
-python -m backend.main
+# Ejecutar tests unitarios de Funding/Builder
+poetry run pytest backend/tests/unit/ -k "builder or reconciliator or canonical or funding"
+# Ejecutar tests de integración WebSocket/Mock API
+poetry run pytest backend/tests/integration/test_funding_ws.py backend/tests/integration/test_risk_metrics_api.py
 ```
 
 ---

@@ -18,6 +18,9 @@
   "editor.trimAutoWhitespace": true,
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
+  "files.associations": {
+    "*.md": "markdown"
+  },
   // ── Tema: Terminal Financiera Oscura ──────────────────────────
   "workbench.colorTheme": "GitHub Dark Default",
   "editor.fontFamily": "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace",
@@ -182,6 +185,15 @@
     "**/.env": true,
     "**/.env.local": true
   },
+  // ── Code Spell Checker ──────────────────────────────────────────
+  "cSpell.enabled": false,
+  "cSpell.language": "en,es",
+  "cSpell.words": [
+    "bingx",
+    "vibecoding",
+    "vpoc",
+    "ncsk"
+  ],
   // ── GitHub Copilot: Instrucciones del Proyecto en Español ─────
   // Estas instrucciones se cargan automáticamente en Copilot Chat
   "github.copilot.chat.codeGeneration.instructions": [
