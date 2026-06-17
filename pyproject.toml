@@ -67,11 +67,16 @@ select = [
     "SIM",  # flake8-simplify
     "RUF"   # Ruff-specific rules
 ]
-ignore = []
+ignore = ["E402", "E501"]
 
 [tool.ruff.lint.per-file-ignores]
+"tests/unit/test_bjerksund_stensland.py" = ["N806", "N803", "E741"]
+"tests/unit/test_greeks_calculator.py" = ["N806", "N803"]
+"backend/quant_engine/math/options/bjerksund_stensland.py" = ["N803", "E741"]
+"backend/quant_engine/math/options/bjerksund_stensland_greeks.py" = ["N803"]
 "backend/services/bot/bingx_bot_execution_mixin.py" = ["F403", "F405", "RUF006"]
 "backend/services/bot/bingx_bot_risk_mixin.py" = ["F403", "F405"]
+"backend/services/bot/bingx_bot_exits_mixin.py" = ["F403", "F405"]
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv"]

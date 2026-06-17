@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
+
 """Unified analysis contract for BingX candidates.
 
 Connects venue, underlying, options, technical (underlying equity TA),
@@ -24,6 +26,7 @@ if TYPE_CHECKING:
     )
 
 from backend.config.logger_setup import get_logger
+from backend.config.shared_options_tier_policy import REASON_TECHNICAL_TIER_ONLY
 from backend.layer_1_data.datos.bingx_client import BingXClient, BingXKline
 from backend.services.bingx_candidate_context import (
     AlpacaBarsClient,
@@ -728,6 +731,14 @@ def _collect_errors(
 # ── Public builder ────────────────────────────────────────────────────────────
 
 
+async def _technical_tier_predictive_block() -> BingXPredictiveBlock:
+    return BingXPredictiveBlock(
+        status="unavailable",
+        source="none",
+        reason=REASON_TECHNICAL_TIER_ONLY,
+    )
+
+
 async def build_candidate_analysis(
     venue_symbol: str,
     *,
@@ -743,6 +754,7 @@ async def build_candidate_analysis(
     exchange_derivatives_client: ExchangeDerivativesClient | None = None,
     kline_interval: str = "5m",
     kline_limit: int = 2000,
+    full_quant_tier: bool = True,
 ) -> BingXCandidateAnalysis:
     """Build a unified BingXCandidateAnalysis for *venue_symbol*.
 
@@ -766,6 +778,9 @@ async def build_candidate_analysis(
     underlying = underlying_from_bingx_symbol(venue_symbol)
     market_type: MarketType = classify_underlying(venue_symbol)
 
+    effective_options_fn = options_snapshot_fn if full_quant_tier else None
+    skip_light_options = bool(full_quant_tier and effective_options_fn is not None)
+
     ctx_coro = build_candidate_context(
         venue_symbol,
         bingx_client=bingx_client,
@@ -776,15 +791,20 @@ async def build_candidate_analysis(
         meta_learner=meta_learner,
         kline_interval=kline_interval,
         kline_limit=kline_limit,
+        skip_light_options=skip_light_options,
     )
     l2_coro = _build_l2_block(bingx_client, venue_symbol, market_type)
     tech_coro = _build_technical_block(underlying, market_type)
-    pred_coro = _build_predictive_block(
-        venue_symbol,
-        market_type,
-        equity_summary_fn=equity_summary_fn,
+    pred_coro = (
+        _build_predictive_block(
+            venue_symbol,
+            market_type,
+            equity_summary_fn=equity_summary_fn,
+        )
+        if full_quant_tier
+        else _technical_tier_predictive_block()
     )
-    options_coro = _build_options_block_via_bridge(venue_symbol, market_type, options_snapshot_fn)
+    options_coro = _build_options_block_via_bridge(venue_symbol, market_type, effective_options_fn)
     exchange_derivatives_coro = _build_exchange_derivatives_block(
         venue_symbol,
         market_type,
@@ -824,42 +844,44 @@ async def build_candidate_analysis(
     # available.  The bridge is always safe to call — it never raises and
     # degrades to all-unavailable desks (Phase 1 stub returns that by default).
     institutional_research: InstitutionalResearchSnapshot | None = None
-    try:
-        options_snapshot_data = None
-        if hasattr(options, "raw_snapshot"):
-            options_snapshot_data = options.raw_snapshot
+    if full_quant_tier:
+        try:
+            options_snapshot_data = None
+            if hasattr(options, "raw_snapshot"):
+                options_snapshot_data = options.raw_snapshot
 
-        institutional_research = await fetch_institutional_snapshot(
-            venue_symbol,
-            underlying_symbol=underlying,
-            market_type=market_type,
-            technical_payload=technical.venue_technical,
-            options_snapshot=options_snapshot_data,
-            klines=venue.klines,
-        )
-        logger.debug(
-            "bingx_candidate_analysis.institutional_snapshot " "venue=%s actionable=%s desks=%s",
-            venue_symbol,
-            institutional_research.is_actionable(),
-            institutional_research.desk_summary(),
-        )
-    except Exception as _ir_exc:
-        logger.warning(
-            "bingx_candidate_analysis.institutional_snapshot_failed " "venue=%s error=%s",
-            venue_symbol,
-            str(_ir_exc)[:180],
-        )
+            institutional_research = await fetch_institutional_snapshot(
+                venue_symbol,
+                underlying_symbol=underlying,
+                market_type=market_type,
+                technical_payload=technical.venue_technical,
+                options_snapshot=options_snapshot_data,
+                klines=venue.klines,
+            )
+            logger.debug(
+                "bingx_candidate_analysis.institutional_snapshot "
+                "venue=%s actionable=%s desks=%s",
+                venue_symbol,
+                institutional_research.is_actionable(),
+                institutional_research.desk_summary(),
+            )
+        except Exception as _ir_exc:
+            logger.warning(
+                "bingx_candidate_analysis.institutional_snapshot_failed " "venue=%s error=%s",
+                venue_symbol,
+                str(_ir_exc)[:180],
+            )
 
-    if (
-        institutional_research is not None
-        and institutional_research.options_gex.desk_status.is_available
-    ):
-        # Inyectar el reporte real para que el motor de decisiones no use el fallback
-        object.__setattr__(
-            options,
-            "predictive_report",
-            institutional_research.options_gex.predictive_report,
-        )
+        if (
+            institutional_research is not None
+            and institutional_research.options_gex.desk_status.is_available
+        ):
+            # Inyectar el reporte real para que el motor de decisiones no use el fallback
+            object.__setattr__(
+                options,
+                "predictive_report",
+                institutional_research.options_gex.predictive_report,
+            )
 
     data_sources = _collect_data_sources(
         venue, underlying_block, options, technical, predictive, l2, exchange_derivatives

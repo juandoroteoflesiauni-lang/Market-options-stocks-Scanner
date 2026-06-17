@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Any
+
 """Trade Journal Service — Exhaustive Audit Trail for Executed Trades.
 
 Implements the 'Caja Negra' (Black Box) for Forward Testing:
@@ -76,6 +78,16 @@ class TradeJournalEntry:
     dry_run: bool
     cycle_id: str
 
+    # TCA / Implementation Shortfall (Fase A)
+    route: str = "BINGX"
+    decision_price: float = 0.0
+    decision_timestamp: str = ""
+    fill_price: float = 0.0
+    implementation_shortfall_bps: float = 0.0
+    slippage_usd: float = 0.0
+    delay_ms: int = 0
+    fill_rate: float = 1.0
+
     # Internal use
     _created_at: str = field(default_factory=lambda: _utc_iso_now())
 
@@ -96,6 +108,14 @@ class TradeJournalEntry:
             "engine_decision_payload": self.engine_decision_payload,
             "dry_run": self.dry_run,
             "cycle_id": self.cycle_id,
+            "route": self.route,
+            "decision_price": self.decision_price,
+            "decision_timestamp": self.decision_timestamp,
+            "fill_price": self.fill_price,
+            "implementation_shortfall_bps": self.implementation_shortfall_bps,
+            "slippage_usd": self.slippage_usd,
+            "delay_ms": self.delay_ms,
+            "fill_rate": self.fill_rate,
             "_created_at": self._created_at,
         }
 
@@ -108,25 +128,65 @@ def _utc_iso_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _trade_entry_checks(entry: TradeJournalEntry) -> dict[str, bool]:
+    """Named validation checks for a trade journal entry."""
+    return {
+        "execution_timestamp": bool(entry.execution_timestamp),
+        "symbol": bool(entry.symbol),
+        "side": entry.side in ("BUY", "SELL"),
+        "quantity": entry.quantity > 0,
+        "notional_usdt": entry.notional_usdt > 0,
+        "entry_price": entry.entry_price > 0,
+        "decision_score": 0.0 <= entry.decision_score <= 1.0,
+        "reason_codes": isinstance(entry.reason_codes, list),
+        "institutional_research_snapshot": isinstance(entry.institutional_research_snapshot, dict),
+        "engine_decision_payload": isinstance(entry.engine_decision_payload, dict),
+        "cycle_id": bool(entry.cycle_id),
+    }
+
+
 def _validate_trade_entry(entry: TradeJournalEntry) -> bool:
     """Basic validation of required fields."""
-    checks = [
-        bool(entry.execution_timestamp),
-        bool(entry.symbol),
-        entry.side in ("BUY", "SELL"),
-        entry.quantity > 0,
-        entry.notional_usdt > 0,
-        entry.entry_price > 0,
-        0.0 <= entry.decision_score <= 1.0,
-        isinstance(entry.reason_codes, list),
-        isinstance(entry.institutional_research_snapshot, dict),
-        isinstance(entry.engine_decision_payload, dict),
-        bool(entry.cycle_id),
-    ]
-    return all(checks)
+    return all(_trade_entry_checks(entry).values())
+
+
+def _failed_validation_fields(entry: TradeJournalEntry) -> list[str]:
+    """Return field names that failed ``_validate_trade_entry``."""
+    return [name for name, ok in _trade_entry_checks(entry).items() if not ok]
 
 
 # ── DuckDB Persistence ───────────────────────────────────────────────────────
+
+_TCA_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("route", "VARCHAR DEFAULT 'BINGX'"),
+    ("decision_price", "DOUBLE DEFAULT 0"),
+    ("decision_timestamp", "VARCHAR DEFAULT ''"),
+    ("fill_price", "DOUBLE DEFAULT 0"),
+    ("implementation_shortfall_bps", "DOUBLE DEFAULT 0"),
+    ("slippage_usd", "DOUBLE DEFAULT 0"),
+    ("delay_ms", "INTEGER DEFAULT 0"),
+    ("fill_rate", "DOUBLE DEFAULT 1.0"),
+)
+
+
+def _migrate_trade_journal_tca(conn: duckdb.DuckDBPyConnection) -> None:
+    """Añade columnas TCA en DBs existentes (idempotente)."""
+    for column, typedef in _TCA_COLUMNS:
+        try:
+            rows = conn.execute(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'trade_journal' AND column_name = ?
+                """,
+                [column],
+            ).fetchall()
+            if rows:
+                continue
+            conn.execute(f"ALTER TABLE trade_journal ADD COLUMN {column} {typedef}")
+            logger.info("trade_journal.migrated column=%s", column)
+        except Exception as exc:
+            logger.warning("trade_journal.migration_failed column=%s error=%s", column, exc)
 
 
 def init_trade_journal_table(db_path: str | Path) -> None:
@@ -167,6 +227,15 @@ def init_trade_journal_table(db_path: str | Path) -> None:
                 dry_run BOOLEAN,
                 cycle_id VARCHAR,
 
+                route VARCHAR DEFAULT 'BINGX',
+                decision_price DOUBLE DEFAULT 0,
+                decision_timestamp VARCHAR DEFAULT '',
+                fill_price DOUBLE DEFAULT 0,
+                implementation_shortfall_bps DOUBLE DEFAULT 0,
+                slippage_usd DOUBLE DEFAULT 0,
+                delay_ms INTEGER DEFAULT 0,
+                fill_rate DOUBLE DEFAULT 1.0,
+
                 _created_at VARCHAR,
 
                 UNIQUE(execution_timestamp, symbol, cycle_id)
@@ -187,6 +256,7 @@ def init_trade_journal_table(db_path: str | Path) -> None:
             )
         """
         )
+        _migrate_trade_journal_tca(conn)
         conn.commit()
         logger.info("trade_journal.init_table db_path=%s", db_path)
     except Exception as e:
@@ -210,10 +280,14 @@ def persist_trade_execution(
     Logs detailed errors for audit trail.
     """
     if not _validate_trade_entry(entry):
+        failed = _failed_validation_fields(entry)
         logger.warning(
-            "trade_journal.persist validation_failed symbol=%s cycle_id=%s",
+            "trade_journal.persist validation_failed symbol=%s cycle_id=%s "
+            "failed_fields=%s entry_price=%.6f",
             entry.symbol,
             entry.cycle_id,
+            failed,
+            entry.entry_price,
         )
         return False
 
@@ -221,6 +295,7 @@ def persist_trade_execution(
     try:
         conn = duckdb.connect(str(db_path), read_only=False)
         try:
+            _migrate_trade_journal_tca(conn)
             conn.execute(
                 """
                 INSERT INTO trade_journal (
@@ -238,8 +313,16 @@ def persist_trade_execution(
                     engine_decision_payload,
                     dry_run,
                     cycle_id,
+                    route,
+                    decision_price,
+                    decision_timestamp,
+                    fill_price,
+                    implementation_shortfall_bps,
+                    slippage_usd,
+                    delay_ms,
+                    fill_rate,
                     _created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 [
                     entry.execution_timestamp,
@@ -256,6 +339,14 @@ def persist_trade_execution(
                     json.dumps(entry.engine_decision_payload),
                     entry.dry_run,
                     entry.cycle_id,
+                    entry.route,
+                    entry.decision_price,
+                    entry.decision_timestamp,
+                    entry.fill_price or entry.entry_price,
+                    entry.implementation_shortfall_bps,
+                    entry.slippage_usd,
+                    entry.delay_ms,
+                    entry.fill_rate,
                     entry._created_at,
                 ],
             )

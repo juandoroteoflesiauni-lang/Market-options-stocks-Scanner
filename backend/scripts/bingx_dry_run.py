@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Any
+
 """Standalone BingX bot dry-run probe.
 
 Executes one full Scan -> Filter -> Risk -> Execute cycle against the BingX
@@ -43,7 +45,6 @@ from backend.layer_1_data.datos.bingx_client import (
 )
 from backend.layer_1_data.fetchers.fmp_client import FMPClient
 from backend.layer_1_data.fetchers.massive_client import MassiveClient
-from backend.api.routes.options_router import options_snapshot_service
 from backend.services.bingx_audit_store import BingXAuditEntry, BingXAuditStore
 from backend.services.bingx_bot_service import (
     DEFAULT_KLINES_PER_SYMBOL,
@@ -56,6 +57,7 @@ from backend.services.bingx_bot_service import (
     BingXCycleResult,
     BingXRiskPolicy,
 )
+from backend.services.shared_options_snapshot_resolver import shared_options_snapshot_service
 from backend.services.technical_terminal_payload import (
     build_technical_terminal_payload_from_candles,
 )
@@ -197,7 +199,7 @@ async def _run(args: argparse.Namespace) -> int:
         risk_policy=policy,
         scan_interval=args.interval,
         klines_per_symbol=int(args.klines),
-        options_snapshot_fn=options_snapshot_service,
+        options_snapshot_fn=shared_options_snapshot_service,
         venue_technical_fn=build_technical_terminal_payload_from_candles,
         fmp_client=fmp_client,
         massive_client=massive_client,

@@ -31,6 +31,7 @@ from backend.domain.volatility import compute_atr, compute_macd, compute_relativ
 from backend.layer_1_data.datos.alpaca_client import AlpacaClient
 from backend.services.alpaca_decision_engine import AlpacaDecisionConfig, decide
 from backend.services.alpaca_dual_route_service import (
+    build_open_position_quant_analyses,
     build_route1_batch,
     build_route2_batch,
     select_route2_symbols,
@@ -155,6 +156,7 @@ class AlpacaBotService(
         self._last_execution: dict[str, datetime] = {}
         self._parametric_exit_state: dict[str, _ParametricExitState] = {}
         self._eod_flatten_date: str | None = None
+        self._open_quant_analyses: dict[str, AlpacaCandidateAnalysis] = {}
 
     @property
     def dry_run(self) -> bool:
@@ -249,8 +251,16 @@ class AlpacaBotService(
             atr_pct = None
             if analysis.atr and analysis.latest_close and analysis.latest_close > 0:
                 atr_pct = analysis.atr / analysis.latest_close
+            from backend.services.calibration.kelly_session_sizer import kelly_notional_scalar
+
+            kelly_scalar = kelly_notional_scalar(route=decision.route.upper())
+            base_qty = (
+                max(1, int(round(intent.quantity * kelly_scalar)))
+                if kelly_scalar < 1.0
+                else intent.quantity
+            )
             sized = DynamicSizer.size(
-                base_quantity=intent.quantity,
+                base_quantity=base_qty,
                 reference_price=intent.reference_price,
                 signal_score=decision.score,
                 stop_loss=intent.stop_loss,
@@ -401,6 +411,17 @@ class AlpacaBotService(
             )
 
         allow_new_entries = not is_eod_entry_cutoff()
+        from backend.services.calibration.rolling_pf_gate import evaluate_rolling_pf_gate
+
+        pf_gate = evaluate_rolling_pf_gate(route="ALPACA")
+        if not pf_gate.allowed:
+            logger.warning(
+                "alpaca_bot.rolling_pf_block pf=%.3f floor=%.3f sample=%d",
+                pf_gate.profit_factor or 0.0,
+                pf_gate.floor,
+                pf_gate.sample_size,
+            )
+            allow_new_entries = False
         bars_map, klines_map = await self._gather_bars_and_klines(symbols_to_fetch)
         benchmark = bars_map.get(BENCHMARK_SYMBOL)
         benchmark_closes = benchmark.closes if benchmark else ()
@@ -433,7 +454,33 @@ class AlpacaBotService(
             concurrency=self._gather_concurrency,
         )
 
-        analyses = r1_analyses + r2_analyses
+        open_quant_analyses: dict[str, AlpacaCandidateAnalysis] = {}
+        try:
+            positions = await self._client.fetch_positions()
+            open_symbols = tuple(
+                str(pos.get("symbol", "")).upper().strip()
+                for pos in positions
+                if abs(float(pos.get("qty") or 0)) > 0 and str(pos.get("symbol", "")).strip()
+            )
+            if open_symbols:
+                open_quant_analyses = await build_open_position_quant_analyses(
+                    open_symbols,
+                    bars_map,
+                    klines_map,
+                    benchmark_closes,
+                    analysis_builder=analysis_from_bars,
+                    technical_builder=technical_builder,
+                    concurrency=self._gather_concurrency,
+                )
+        except Exception as exc:
+            logger.warning("alpaca_bot.open_quant_analyses_failed error=%s", exc)
+
+        self._open_quant_analyses = open_quant_analyses
+        open_quant_syms = set(open_quant_analyses.keys())
+        r2_analyses_deduped = [
+            analysis for analysis in r2_analyses if analysis.symbol.upper() not in open_quant_syms
+        ]
+        analyses = r1_analyses + r2_analyses_deduped + list(open_quant_analyses.values())
         decisions = r1_decisions + r2_decisions
         cycle_id = uuid4().hex[:8]
         journal = AlpacaEventJournal.instance()

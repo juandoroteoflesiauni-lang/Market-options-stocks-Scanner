@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Protocol, Literal, Any
+
+from typing import Any, Literal, Protocol
+
 """Dynamic BingX universe discovery and liquidity filtering.
 
 This service sits outside Layer 1 because it combines exchange metadata with
@@ -416,6 +418,14 @@ class BingXUniverseService:
             return False
 
     async def _has_massive_options(self, root: str) -> bool:
+        try:
+            from backend.services.alpaca_r1_options_context import load_route1_options_context
+
+            ctx = load_route1_options_context(root.upper().strip())
+            if ctx is not None and ctx.available:
+                return True
+        except Exception as exc:
+            logger.debug("bingx_universe.sqlite_options_check_failed symbol=%s error=%s", root, exc)
         if self._massive is None:
             return False
         try:

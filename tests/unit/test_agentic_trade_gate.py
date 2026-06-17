@@ -137,6 +137,10 @@ def test_apply_size_modifier_floor() -> None:
     assert AgenticTradeGate.apply_size_modifier(11, 0.5) == 5
 
 
+def test_apply_size_modifier_preserves_perp_fraction() -> None:
+    assert AgenticTradeGate.apply_size_modifier(0.55, 0.5) == 0.275
+
+
 def test_macro_risk_result_defaults() -> None:
     result = MacroRiskResult(
         assessment=MacroRiskAssessment(severity="NONE", rationale="ok"),

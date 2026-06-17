@@ -62,8 +62,15 @@ class MarketDataSettings(BaseSettings):
     alpaca_trading_mode: str = "paper"
     alpaca_paper_trading: bool = True
 
-    # LLM (Gemini) — optional; required only for AI audit / agent features
+    # Gemini (LLM) — optional; required only for AI audit / agent features
     gemini_api_key: SecretStr | None = None
+
+    # Binance API and Bot config
+    binance_api_key: SecretStr | None = None
+    binance_api_secret: SecretStr | None = None
+    binance_bot_enable_live: bool = False
+    binance_bot_trading_env: str = "paper"
+    binance_bot_paper_trading: bool = True
 
     # BingX API and Bot config
     bingx_api_key: SecretStr | None = None

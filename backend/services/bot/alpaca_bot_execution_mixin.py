@@ -152,10 +152,41 @@ class AlpacaBotExecutionMixin:
             )
             if telemetry.get("bur") is not None:
                 gate.update_bur(float(telemetry["bur"]))
+            decision_timestamp = datetime.now(UTC).isoformat()
             response = await self._client.place_order(request)
             if response.ok:
                 gate.record_order_sent()
+                gate.record_entry_fill(symbol)
                 self._risk_desk.record_fill(decision)
                 self._last_execution[symbol] = datetime.now(UTC)
+                from backend.services.tca.journal_tca import persist_equity_tca_execution
+
+                fill_price = float(
+                    response.price
+                    or (
+                        response.raw.get("filled_avg_price")
+                        if isinstance(response.raw, dict)
+                        else None
+                    )
+                    or decision.intent.reference_price
+                )
+                qty = float(
+                    response.requested_qty or decision.adjusted_quantity or decision.intent.quantity
+                )
+                route = "R1" if decision.intent.route == "priority" else "R2"
+                persist_equity_tca_execution(
+                    symbol=symbol,
+                    side="buy",
+                    quantity=qty,
+                    decision_price=float(decision.intent.reference_price),
+                    fill_price=fill_price,
+                    route=route,
+                    cycle_id=decision.intent.cycle_id or "unknown",
+                    venue_order_id=response.venue_order_id,
+                    dry_run=response.dry_run,
+                    decision_timestamp=decision_timestamp,
+                    execution_timestamp=datetime.now(UTC).isoformat(),
+                    notional_usd=float(decision.intent.notional_usd),
+                )
             out.append(response)
         return out

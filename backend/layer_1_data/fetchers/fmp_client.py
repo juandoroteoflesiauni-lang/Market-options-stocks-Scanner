@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Any
+
 """Async client para Financial Modeling Prep (FMP)."""
 
 
@@ -114,14 +116,28 @@ class FMPClient(
                 key = self._keys.get("STATEMENTS", "")
         return key
 
+    def _module_key_candidates(self, module: str) -> list[str]:
+        """Enterprise key rotation: MACRO/CALENDARS often share MARKET/QUOTES keys."""
+        priority: tuple[str, ...] = {
+            "MACRO": ("CALENDARS", "MARKET", "QUOTES", "TECHNICAL", "MACRO"),
+            "CALENDARS": ("CALENDARS", "MARKET", "QUOTES", "MACRO"),
+        }.get(module, (module, "QUOTES", "MARKET", "CALENDARS", "STATEMENTS", "TECHNICAL"))
+        seen: set[str] = set()
+        out: list[str] = []
+        for mod in priority:
+            key = self._keys.get(mod, "")
+            if key and key not in seen:
+                seen.add(key)
+                out.append(key)
+        return out
+
     async def _get(
         self, path: str, module: str, params: dict[str, Any] | None = None, ttl_secs: float = 60.0
     ) -> Any:
         if not self._is_active():
             return None
 
-        key = self._get_key_for_module(module)
-        if not key:
+        if not self._module_key_candidates(module):
             logger.warning(f"No key available for module {module} and no fallback.")
             return None
 
@@ -144,7 +160,9 @@ class FMPClient(
             return await asyncio.shield(inflight)
 
         task = asyncio.create_task(
-            self._get_uncached(path=path, module=module, params=safe_params, key=key)
+            self._get_with_key_rotation(
+                path=path, module=module, params=safe_params, ttl_secs=ttl_secs
+            )
         )
         _FMP_SHARED_INFLIGHT[cache_key] = task
         try:
@@ -158,6 +176,21 @@ class FMPClient(
             return data
         finally:
             _FMP_SHARED_INFLIGHT.pop(cache_key, None)
+
+    async def _get_with_key_rotation(
+        self,
+        *,
+        path: str,
+        module: str,
+        params: dict[str, Any],
+        ttl_secs: float,
+    ) -> Any:
+        """Try enterprise FMP keys in order until one returns data (403 → next key)."""
+        for key in self._module_key_candidates(module):
+            data = await self._get_uncached(path=path, module=module, params=params, key=key)
+            if data is not None:
+                return data
+        return None
 
     async def _get_uncached(
         self,

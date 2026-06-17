@@ -152,10 +152,14 @@ class AgenticTradeGate:
         )
 
     @staticmethod
-    def apply_size_modifier(quantity: int | float, modifier: float) -> int:
-        """Scale quantity by committee modifier (floor, min 0)."""
-        scaled = math.floor(float(quantity) * max(0.0, min(1.0, modifier)))
-        return max(0, scaled)
+    def apply_size_modifier(quantity: int | float, modifier: float) -> float:
+        """Scale quantity by committee modifier; preserve perp fractional sizes."""
+        scaled = float(quantity) * max(0.0, min(1.0, modifier))
+        if scaled <= 0:
+            return 0.0
+        if scaled < 1.0:
+            return round(scaled, 6)
+        return float(max(1, math.floor(scaled)))
 
     @staticmethod
     def _outcome_from_committee(

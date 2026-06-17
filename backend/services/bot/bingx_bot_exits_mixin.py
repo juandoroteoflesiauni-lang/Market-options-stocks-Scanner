@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from backend.services.bot.bingx_bot_types import *
 from backend.layer_1_data.datos.bingx_client import BingXPerpOrderRequest
+from backend.services.bot.bingx_bot_types import *
 
 """Mixin class for BingX Bot Exits."""
 
 import math
-from datetime import UTC, datetime
 from collections.abc import Mapping
+from datetime import UTC, datetime
 
 from backend.config.logger_setup import get_logger
+from backend.services.bingx_symbol_linker import underlying_from_bingx_symbol
 
 logger = get_logger(__name__)
 
@@ -184,9 +185,7 @@ class BingXBotExitsMixin:
             BingXPerpOrderRequest(
                 symbol=symbol,
                 side=close_side,
-
                 position_side=position_side,
-
                 order_type="MARKET",
                 quantity=qty,
                 reduce_only=True,
@@ -194,6 +193,7 @@ class BingXBotExitsMixin:
         )
         if resp.ok and pnl_pct is not None and pnl_usd is not None:
             from backend.audit.process_recorder import record_trade_result
+
             try:
                 await record_trade_result(
                     module="bingx",
@@ -300,6 +300,20 @@ class BingXBotExitsMixin:
             self._last_execution[symbol] = datetime.now(UTC)
         return executions
 
+    async def _open_position_underlying_roots(self) -> frozenset[str]:
+        """Roots subyacentes con posición abierta (tier quant completo)."""
+        try:
+            account_state = await self._account_service.get_account_state()
+        except Exception as exc:
+            logger.debug("bingx_bot.open_roots_skipped error=%s", exc)
+            return frozenset()
+        roots = {
+            underlying_from_bingx_symbol(pos.symbol)
+            for pos in account_state.open_positions
+            if pos.symbol
+        }
+        return frozenset(root for root in roots if root)
+
     async def _cycle_target_with_open_positions(self, target: tuple[str, ...]) -> tuple[str, ...]:
         """Union scan universe with symbols that currently have open positions."""
         try:
@@ -365,7 +379,10 @@ class BingXBotExitsMixin:
             if cycle_analyses is not None:
                 analysis = cycle_analyses.get(symbol)
             if analysis is None:
+                from backend.config.shared_options_tier_policy import is_full_quant_tier
                 from backend.services.bingx_bot_service import build_candidate_analysis
+
+                open_roots = await self._open_position_underlying_roots()
                 try:
                     analysis = await build_candidate_analysis(
                         symbol,
@@ -378,6 +395,10 @@ class BingXBotExitsMixin:
                         venue_technical_fn=self._venue_technical_fn,
                         kline_interval=self._scan_interval,
                         kline_limit=self._klines_per_symbol,
+                        full_quant_tier=is_full_quant_tier(
+                            symbol,
+                            open_position_roots=open_roots,
+                        ),
                     )
                 except Exception as exc:
                     logger.error(
@@ -534,8 +555,6 @@ class BingXBotExitsMixin:
             self._conviction_scores[symbol] = round(conv_score, 4)
             self._exit_reasons[symbol] = reasons
 
-
-
             # ── GEX Wall Proximity Exit ──────────────────────────────────────
             if current_spot is not None:
                 if pos.side == "LONG" and call_wall is not None and call_wall > 0:
@@ -550,7 +569,9 @@ class BingXBotExitsMixin:
                             call_wall,
                             distance_pct,
                         )
-                        trim_usd = (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
+                        trim_usd = (
+                            (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
+                        )
                         resp = await self._place_reduce_market(
                             symbol=symbol,
                             position_side=pos.side,
@@ -574,7 +595,9 @@ class BingXBotExitsMixin:
                             put_wall,
                             distance_pct,
                         )
-                        trim_usd = (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
+                        trim_usd = (
+                            (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
+                        )
                         resp = await self._place_reduce_market(
                             symbol=symbol,
                             position_side=pos.side,

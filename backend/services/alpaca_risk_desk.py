@@ -29,6 +29,7 @@ from backend.services.alpaca_pre_trade_risk_gate import PreTradeRiskGate
 from backend.services.options_strategy.sizing_engine import (
     atr_pct_to_vix_proxy,
     equity_confidence_multiplier,
+    resolve_equity_buying_power_pct,
     volatility_regime_scalar,
 )
 
@@ -77,10 +78,18 @@ def compute_bracket_levels(
     return (stop_loss if stop_loss > 0 else None), take_profit
 
 
-def _budget(policy: AlpacaRiskPolicy, buying_power: float | None) -> float:
-    """Notional objetivo por trade: el menor entre fijo y % del poder de compra."""
-    if buying_power is not None and buying_power > 0:
-        return min(policy.notional_per_trade_usd, buying_power * policy.buying_power_pct)
+def _budget(
+    policy: AlpacaRiskPolicy,
+    buying_power: float | None,
+    *,
+    score: float = 0.0,
+    probability: float | None = None,
+) -> float:
+    """Notional objetivo por trade: % buying power (alta prob) o fijo, el menor."""
+    pct = resolve_equity_buying_power_pct(score=score, probability=probability)
+    pct_budget = (buying_power * pct) if buying_power is not None and buying_power > 0 else None
+    if pct_budget is not None:
+        return min(policy.notional_per_trade_usd, pct_budget)
     return policy.notional_per_trade_usd
 
 
@@ -126,7 +135,16 @@ class AlpacaRiskDesk:
         price = analysis.latest_close or 0.0
         regime_mult = volatility_regime_scalar(atr_pct_to_vix_proxy(atr or 0.0, price))
         notional = (
-            _budget(self._policy, buying_power) * multiplier * route_mult * conf_mult * regime_mult
+            _budget(
+                self._policy,
+                buying_power,
+                score=decision.score,
+                probability=decision.probability,
+            )
+            * multiplier
+            * route_mult
+            * conf_mult
+            * regime_mult
         )
         quantity = math.floor(notional / price)
         if quantity <= 0:

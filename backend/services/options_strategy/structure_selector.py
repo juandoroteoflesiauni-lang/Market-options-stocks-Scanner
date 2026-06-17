@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from backend.config.logger_setup import get_logger
+from backend.config.options_defined_risk import normalize_structure_for_execution
 from backend.config.options_strategy_loader import (
     OptionsStrategyConfigBundle,
     get_options_strategy_config,
@@ -23,8 +24,8 @@ from backend.quant_engine.domain.options.strategy_models import (
 )
 from backend.quant_engine.engines.options.strategy_payoff import StrategyPayoffEngine
 from backend.services.options_strategy._bars import resolve_spot_price
-from backend.services.options_strategy._scoring import clamp01, clamp11
 from backend.services.options_strategy._chain import chain_rows
+from backend.services.options_strategy._scoring import clamp01, clamp11
 from backend.services.options_strategy.contract_selector import ContractSelector
 
 logger = get_logger(__name__)
@@ -60,7 +61,7 @@ def _resolve_structure_r2(features: NormalizedFeatures) -> OptionsStructure:
     if bias < 0.12:
         return OptionsStructure.LONG_CALL if bias > 0 else OptionsStructure.LONG_PUT
     if bias >= 0.30 and trend_q >= 0.45:
-        return OptionsStructure.SHORT_PUT
+        return OptionsStructure.PUT_CREDIT_SPREAD
     if trend_q >= 0.40 and align >= 0.35:
         return OptionsStructure.PUT_CREDIT_SPREAD
     return OptionsStructure.LONG_CALL
@@ -75,17 +76,23 @@ def _resolve_structure(
     if profile == "r2_basic":
         return _resolve_structure_r2(features)
     pref = options.structure_preference
-    if pref not in {OptionsStructure.NO_TRADE, OptionsStructure.LONG_CALL, OptionsStructure.LONG_PUT}:
-        if pref in {
-            OptionsStructure.CALL_DEBIT_SPREAD,
-            OptionsStructure.BULL_CALL_SPREAD,
-            OptionsStructure.CALL_BUTTERFLY,
-        }:
-            return pref
+    if pref not in {
+        OptionsStructure.NO_TRADE,
+        OptionsStructure.LONG_CALL,
+        OptionsStructure.LONG_PUT,
+    } and pref in {
+        OptionsStructure.CALL_DEBIT_SPREAD,
+        OptionsStructure.BULL_CALL_SPREAD,
+        OptionsStructure.CALL_BUTTERFLY,
+    }:
+        return pref
     bias = _composite_bias(features)
-    if options.dealer_regime == "pinning" and abs(bias) < 0.22:
-        if features.iv_state in {"fair", "rich", "extreme"}:
-            return OptionsStructure.CALL_BUTTERFLY
+    if (
+        options.dealer_regime == "pinning"
+        and abs(bias) < 0.22
+        and features.iv_state in {"fair", "rich", "extreme"}
+    ):
+        return OptionsStructure.CALL_BUTTERFLY
     if abs(bias) < 0.15:
         return OptionsStructure.NO_TRADE
     rich = features.iv_state in {"rich", "extreme"}
@@ -135,7 +142,8 @@ def _legs_to_payoff_strategy(
             continue
         option_legs.append(
             OptionLeg(
-                symbol=leg.contract_symbol or f"{leg.underlying}{leg.expiry:%y%m%d}{leg.right[0].upper()}{int(leg.strike * 1000):08d}",
+                symbol=leg.contract_symbol
+                or f"{leg.underlying}{leg.expiry:%y%m%d}{leg.right[0].upper()}{int(leg.strike * 1000):08d}",
                 expiry=leg.expiry,
                 strike=leg.strike,
                 right=leg.right,
@@ -190,7 +198,9 @@ class StructureSelector:
     ) -> OptionsStrategyCandidate:
         active = config or get_options_strategy_config()
         profile = active.structure_profile
-        structure = _resolve_structure(features, options, profile=profile)
+        raw_structure = _resolve_structure(features, options, profile=profile)
+        rich_iv = features.iv_state in {"rich", "extreme"}
+        structure = normalize_structure_for_execution(raw_structure, rich_iv=rich_iv)
         bias = _composite_bias(features)
         direction = _direction_from_bias(bias)
         confidence = clamp01(
@@ -230,7 +240,7 @@ class StructureSelector:
                 selection=selection.model_copy(
                     update={
                         "structure": OptionsStructure.NO_TRADE,
-                        "reason_codes": selection.reason_codes + ("chain_unavailable",),
+                        "reason_codes": (*selection.reason_codes, "chain_unavailable"),
                     }
                 ),
                 limitations=("chain_unavailable",),
@@ -244,7 +254,7 @@ class StructureSelector:
                 selection=selection.model_copy(
                     update={
                         "structure": OptionsStructure.NO_TRADE,
-                        "reason_codes": selection.reason_codes + ("contract_selection_failed",),
+                        "reason_codes": (*selection.reason_codes, "contract_selection_failed"),
                     }
                 ),
                 limitations=("contract_selection_failed",),

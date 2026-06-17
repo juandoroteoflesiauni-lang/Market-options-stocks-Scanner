@@ -1,17 +1,19 @@
 from __future__ import annotations
-from typing import Any
-# ruff: noqa: F403, F405
 
-import logging
-import time
 import json
+import logging
 import sqlite3
+import time
+from typing import Any
 
 import pandas as pd
 
+# ruff: noqa: F403, F405
+
+
 logger = logging.getLogger(__name__)
-from backend.services.research.research_types import *
 from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB
+from backend.services.research.research_types import *
 from backend.services.research.research_types import (
     _bucket_tail_risk,
     _now_iso,
@@ -386,7 +388,6 @@ async def _fetch_options_gex_desk(
                         net_sd = opt_flow.call_buy_vol_delta - opt_flow.put_buy_vol_delta
                         smag_res = smag_engine.update(
                             close=candle.close,
-                            iv_atm=opt_regime.iv_atm,
                             net_gex=opt_regime.net_gex,
                             timestamp=k_ts,
                         )
@@ -682,9 +683,7 @@ async def _fetch_options_gex_desk(
         # Build the real PredictiveOptionsBundleReport
         if predictive_report is None:
             # Build the real PredictiveOptionsBundleReport
-            from backend.domain.probabilistic_models import (
-                PredictiveOptionsBundleReport,
-            )
+            from backend.domain.probabilistic_models import PredictiveOptionsBundleReport
 
             predictive_report = PredictiveOptionsBundleReport(
                 gamma_flip_level=float(gamma_flip) if gamma_flip is not None else 0.0,

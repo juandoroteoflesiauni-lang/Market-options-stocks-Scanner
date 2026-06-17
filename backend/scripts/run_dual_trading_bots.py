@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import sys
 from datetime import UTC, datetime, time
@@ -31,7 +30,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     from backend.config.bot_relaxed_thresholds import (
         BOT_FAST_CYCLE_INTERVAL_S,
         BOT_SLOW_CYCLE_INTERVAL_S,
-        DEFAULT_BOT_CYCLE_INTERVAL_S,
     )
 
     parser = argparse.ArgumentParser(description="Dual trading bots daemon (Alpaca + BingX).")
@@ -64,6 +62,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Send real orders (Alpaca paper + BingX VST demo by default).",
     )
     parser.add_argument(
+        "--session-mode",
+        choices=("verification", "profit"),
+        default=None,
+        help="verification=max trades for data; profit=strict PF gate + Kelly.",
+    )
+    parser.add_argument(
         "--no-market-hours",
         action="store_true",
         help="Run 24/7 ignoring US equity session gate.",
@@ -93,15 +97,46 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 _MARKET_OPEN = time(9, 30)
 _MARKET_CLOSE = time(16, 0)
+_EOD_TRIGGER = time(16, 5)
 
 
 def _market_session_open(et_now_fn) -> bool:
-    """True si estamos dentro de la sesión regular ET (lun–vie 09:30–16:00)."""
+    """True si estamos dentro de la sesion regular ET (lun-vie 09:30-16:00)."""
     now_et = et_now_fn(datetime.now(UTC))
     if now_et.weekday() >= 5:
         return False
     now_time = now_et.time().replace(second=0, microsecond=0)
     return _MARKET_OPEN <= now_time < _MARKET_CLOSE
+
+
+def _eod_session_due(et_now_fn, *, already_ran: set[str]) -> bool:
+    """True una vez por día hábil tras 16:05 ET para calibración EOD."""
+    now_et = et_now_fn(datetime.now(UTC))
+    if now_et.weekday() >= 5:
+        return False
+    day_key = now_et.date().isoformat()
+    if day_key in already_ran:
+        return False
+    now_time = now_et.time().replace(second=0, microsecond=0)
+    return now_time >= _EOD_TRIGGER
+
+
+async def _run_eod_pipeline(
+    *,
+    alpaca_client: object,
+    bingx_client: object,
+    alpaca_audit_db: str,
+    bingx_audit_db: str,
+) -> None:
+    """EOD: auditoría reforzada + calibración + meta-learner."""
+    from backend.services.eod_session_pipeline import run_eod_session_pipeline
+
+    await run_eod_session_pipeline(
+        alpaca_client=alpaca_client,
+        bingx_client=bingx_client,
+        alpaca_audit_db=alpaca_audit_db,
+        bingx_audit_db=bingx_audit_db,
+    )
 
 
 async def _export_eod_audit(
@@ -111,81 +146,23 @@ async def _export_eod_audit(
     alpaca_audit_db: str,
     bingx_audit_db: str,
 ) -> None:
-    """Exporta snapshot EOD: balances, consumo API y rutas de auditoría."""
-    from backend.config.logger_setup import get_logger
-    from backend.hub.api_consumption_monitor import api_consumption_monitor
-
-    logger = get_logger(__name__)
-    out_dir = Path("data/eod_snapshots")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(UTC).strftime("%Y%m%d")
-    out_path = out_dir / f"eod_audit_{stamp}.json"
-
-    payload: dict[str, object] = {
-        "generated_at": datetime.now(UTC).isoformat(),
-        "alpaca_audit_db": alpaca_audit_db,
-        "bingx_audit_db": bingx_audit_db,
-        "audit_complex_db": os.getenv("AUDIT_DB_PATH", "data/audit_complex.duckdb"),
-        "trade_journal_db": "data/quantum_analyzer.duckdb",
-    }
-
-    try:
-        fetch_bal = getattr(alpaca_client, "fetch_account_balance", None)
-        if fetch_bal:
-            payload["alpaca_balance"] = await fetch_bal()
-    except Exception as exc:
-        payload["alpaca_balance_error"] = str(exc)
-
-    try:
-        fetch_perp = getattr(bingx_client, "fetch_perp_balance", None)
-        fetch_pos = getattr(bingx_client, "fetch_perp_positions", None)
-        if fetch_perp:
-            payload["bingx_perp_balance"] = await fetch_perp()
-        if fetch_pos:
-            payload["bingx_perp_positions"] = await fetch_pos()
-    except Exception as exc:
-        payload["bingx_balance_error"] = str(exc)
-
-    try:
-        reports = await api_consumption_monitor.get_report()
-        payload["api_consumption"] = [
-            {
-                "provider": r.provider_name,
-                "total_calls": r.stats.total_calls,
-                "total_cost_usd": round(r.stats.total_cost_usd, 6),
-                "cache_hit_rate": round(r.stats.cache_hit_rate, 4),
-                "error_rate": round(r.stats.error_rate, 4),
-            }
-            for r in reports
-        ]
-        payload["api_consumption_summary"] = await api_consumption_monitor.get_dashboard()
-    except Exception as exc:
-        payload["api_consumption_error"] = str(exc)
-
-    try:
-        from backend.audit.audit_complex_store import AuditComplexStore
-        from backend.config.settings import load_settings
-        from backend.hub.market_data_ttl_cache import cache_metrics
-
-        audit_store = AuditComplexStore(db_path=load_settings().audit_db_path)
-        payload["api_consumption_persisted"] = audit_store.get_api_call_stats_by_module()
-        payload["market_data_cache_metrics"] = cache_metrics()
-    except Exception as exc:
-        payload["api_consumption_persisted_error"] = str(exc)
-
-    out_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
-    logger.info("dual_bots.eod_audit_exported path=%s", out_path)
+    """Compat: delega al pipeline EOD completo."""
+    await _run_eod_pipeline(
+        alpaca_client=alpaca_client,
+        bingx_client=bingx_client,
+        alpaca_audit_db=alpaca_audit_db,
+        bingx_audit_db=bingx_audit_db,
+    )
 
 
 async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
-    from backend.api.routes.options_router import options_snapshot_service
     from backend.config.bot_relaxed_thresholds import (
         ALPACA_PAPER_EQUITY_USD,
         BINGX_DEMO_EQUITY_USDT,
         BINGX_NOTIONAL_PER_TRADE_USDT,
         VERIFICATION_ALPACA_NOTIONAL_USD,
         VERIFICATION_BINGX_NOTIONAL_USDT,
-        apply_verification_session_env,
+        apply_session_mode_env,
     )
     from backend.config.logger_setup import get_logger
     from backend.config.settings import load_settings
@@ -198,15 +175,20 @@ async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
     from backend.services.alpaca_risk_desk import AlpacaRiskDesk, AlpacaRiskPolicy
     from backend.services.bingx_bot_service import BingXBotService
     from backend.services.bingx_risk_desk import BingXRiskDeskPolicy
-    from backend.services.bot.bingx_bot_types import BingXRiskPolicy
     from backend.services.bingx_universe import BingXUniverseService
+    from backend.services.bot.bingx_bot_types import BingXRiskPolicy
+    from backend.services.shared_options_snapshot_resolver import shared_options_snapshot_service
     from backend.services.technical_terminal_payload import (
         build_technical_terminal_payload_from_candles,
     )
 
     logger = get_logger(__name__)
     settings = load_settings()
-    apply_verification_session_env(execute_orders=args.execute)
+    session_mode = (
+        args.session_mode or os.getenv("BOT_SESSION_MODE", "verification").strip().lower()
+    )
+    apply_session_mode_env(session_mode, execute_orders=args.execute)
+    logger.info("dual_bots.session_mode mode=%s execute=%s", session_mode, args.execute)
 
     if args.audit_complex_db:
         os.environ["AUDIT_DB_PATH"] = args.audit_complex_db
@@ -220,7 +202,9 @@ async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
     )
     alpaca_client = AlpacaClient(
         api_key=settings.alpaca_api_key.get_secret_value() if settings.alpaca_api_key else None,
-        secret_key=settings.alpaca_api_secret.get_secret_value() if settings.alpaca_api_secret else None,
+        secret_key=(
+            settings.alpaca_api_secret.get_secret_value() if settings.alpaca_api_secret else None
+        ),
         base_url=alpaca_base,
         dry_run=alpaca_dry,
     )
@@ -237,7 +221,11 @@ async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
     trading_env = os.getenv("BINGX_BOT_TRADING_ENV", "prod-vst").strip().lower()
     bx_key = settings.bingx_api_key.get_secret_value() if settings.bingx_api_key else None
     bx_secret = settings.bingx_secret.get_secret_value() if settings.bingx_secret else None
-    bingx_dry = not args.execute and os.getenv("BINGX_DRY_RUN", "true").lower() in {"1", "true", "yes"}
+    bingx_dry = not args.execute and os.getenv("BINGX_DRY_RUN", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
     if trading_env == "prod-vst" and args.execute:
         bingx_client = BingXClient(
             api_key=bx_key,
@@ -274,8 +262,7 @@ async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
     async def _venue_technical(sym: str, candles: list[dict], timeframe: str) -> dict:
         return await build_technical_terminal_payload_from_candles(sym, candles, timeframe)
 
-    skip_options = os.getenv("BINGX_SKIP_OPTIONS_SNAPSHOT", "").lower() in {"1", "true", "yes"}
-    options_fn = None if skip_options else options_snapshot_service
+    options_fn = shared_options_snapshot_service
 
     bingx_service = BingXBotService(
         client=bingx_client,
@@ -313,12 +300,8 @@ async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
 
 
 async def _run(args: argparse.Namespace) -> int:
-    from backend.config.bot_relaxed_thresholds import (
-        BINGX_NOTIONAL_PER_TRADE_USDT,
-        VERIFICATION_ALPACA_NOTIONAL_USD,
-    )
+    from backend.config.bot_relaxed_thresholds import VERIFICATION_ALPACA_NOTIONAL_USD
     from backend.config.logger_setup import get_logger
-    from backend.config.settings import load_settings
     from backend.services.alpaca_audit_store import AlpacaAuditStore
     from backend.services.bingx_audit_store import BingXAuditStore
     from backend.services.trade_journal_service import init_trade_journal_table
@@ -338,7 +321,7 @@ async def _run(args: argparse.Namespace) -> int:
         fast_interval_s=args.fast_interval,
         slow_interval_s=slow_s,
     )
-    sched_kw = dict(respect_market_hours=not args.no_market_hours)
+    sched_kw = {"respect_market_hours": not args.no_market_hours}
 
     alpaca_audit = AlpacaAuditStore(args.alpaca_audit_db)
     bingx_audit = BingXAuditStore(args.bingx_audit_db)
@@ -358,48 +341,77 @@ async def _run(args: argparse.Namespace) -> int:
         audit_store=bingx_audit,
     )
 
+    from backend.config.execution_policy import ExecutionPolicy
+    from backend.config.profit_calibration import ProfitCalibrationPolicy
+
+    exec_policy = ExecutionPolicy.from_env()
+    cal_policy = ProfitCalibrationPolicy.from_env()
+    session_mode = (
+        args.session_mode or os.getenv("BOT_SESSION_MODE", "verification").strip().lower()
+    )
+
     logger.info(
-        "dual_bots.starting dual_loop=%s fast_s=%d slow_s=%d execute=%s alpaca_dry=%s bingx_dry=%s "
-        "alpaca_notional=%.0f bingx_equity=%.2f bingx_notional=%.0f "
-        "alpaca_audit=%s bingx_audit=%s audit_complex=%s market_hours=%s verification=True",
+        "dual_bots.starting session_mode=%s dual_loop=%s fast_s=%d slow_s=%d execute=%s "
+        "alpaca_dry=%s bingx_dry=%s alpaca_notional=%.0f bingx_notional=%.0f "
+        "phase_ab_tca=on twap_bingx=%s elite_alpaca=%s price_collar=%s repeated_limit=%d "
+        "pf_gate=%s kelly=%s alpaca_audit=%s bingx_audit=%s market_hours=%s",
+        session_mode,
         dual.enabled,
         dual.fast_interval_s,
         dual.slow_interval_s,
         args.execute,
         alpaca_service.dry_run,
         bingx_service.dry_run,
-        VERIFICATION_ALPACA_NOTIONAL_USD,
-        bingx_service.risk_policy.equity_usdt,
+        float(os.getenv("ALPACA_NOTIONAL_PER_TRADE_USD", str(VERIFICATION_ALPACA_NOTIONAL_USD))),
         bingx_service.risk_policy.notional_per_trade_usdt,
+        exec_policy.bingx_twap_enabled,
+        exec_policy.alpaca_elite_enabled,
+        exec_policy.price_collar_enabled,
+        exec_policy.repeated_execution_max_per_symbol,
+        cal_policy.rolling_pf_enabled,
+        cal_policy.kelly_enabled,
         args.alpaca_audit_db,
         args.bingx_audit_db,
-        os.getenv("AUDIT_DB_PATH", load_settings().audit_db_path),
         not args.no_market_hours,
     )
 
     await alpaca_scheduler.start()
     await bingx_scheduler.start()
 
+    eod_ran_days: set[str] = set()
+    eod_ran_on_shutdown = False
+
     try:
         while (
-            alpaca_scheduler.state.value == "running"
-            and bingx_scheduler.state.value == "running"
+            alpaca_scheduler.state.value == "running" and bingx_scheduler.state.value == "running"
         ):
             if not args.no_market_hours and not _market_session_open(_et_now):
                 logger.info("dual_bots.market_closed stopping schedulers for EOD audit")
                 break
+            if _eod_session_due(_et_now, already_ran=eod_ran_days):
+                day_key = _et_now(datetime.now(UTC)).date().isoformat()
+                eod_ran_days.add(day_key)
+                logger.info("dual_bots.eod_session_trigger day=%s", day_key)
+                await _run_eod_pipeline(
+                    alpaca_client=alpaca_service._client,
+                    bingx_client=bingx_service._client,
+                    alpaca_audit_db=args.alpaca_audit_db,
+                    bingx_audit_db=args.bingx_audit_db,
+                )
+                eod_ran_on_shutdown = True
             await asyncio.sleep(10)
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
         await alpaca_scheduler.stop()
         await bingx_scheduler.stop()
-        await _export_eod_audit(
-            alpaca_client=alpaca_service._client,
-            bingx_client=bingx_service._client,
-            alpaca_audit_db=args.alpaca_audit_db,
-            bingx_audit_db=args.bingx_audit_db,
-        )
+        if not eod_ran_on_shutdown:
+            await _run_eod_pipeline(
+                alpaca_client=alpaca_service._client,
+                bingx_client=bingx_service._client,
+                alpaca_audit_db=args.alpaca_audit_db,
+                bingx_audit_db=args.bingx_audit_db,
+            )
         await alpaca_service._client.aclose()
         await bingx_service._client.aclose()
 
@@ -408,11 +420,14 @@ async def _run(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from backend.config.bot_relaxed_thresholds import apply_verification_session_env
+    from backend.config.bot_relaxed_thresholds import apply_session_mode_env
     from backend.config.logger_setup import get_logger
 
     args = _parse_args(argv)
-    apply_verification_session_env(execute_orders=args.execute)
+    session_mode = (
+        args.session_mode or os.getenv("BOT_SESSION_MODE", "verification").strip().lower()
+    )
+    apply_session_mode_env(session_mode, execute_orders=args.execute)
     logger = get_logger(__name__)
     try:
         return asyncio.run(_run(args))

@@ -222,6 +222,30 @@ class BingXPerpOrderRequest:
     take_profit_price: float | None = None
 
 
+def _bingx_omit_reduce_only() -> bool:
+    """When True, skip ``reduceOnly`` on closes (debug only — accumulates exposure)."""
+    return os.getenv("BINGX_OMIT_REDUCE_ONLY", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def resolve_one_way_position_side(order: BingXPerpOrderRequest) -> Literal["LONG", "SHORT"]:
+    """Resolve BingX one-way ``positionSide`` (LONG bull / SHORT bear).
+
+    In one-way mode, ``BOTH`` is invalid — infer from ``side`` for entries and
+    from the closing ``side`` for ``reduce_only`` exits.
+    """
+    ps = str(order.position_side).upper()
+    if ps in {"LONG", "SHORT"}:
+        return ps  # type: ignore[return-value]
+    if order.reduce_only:
+        return "LONG" if order.side.upper() == "SELL" else "SHORT"
+    return "LONG" if order.side.upper() == "BUY" else "SHORT"
+
+
 @dataclass(frozen=True)
 class BingXContractMetadata:
     """Precision + sizing constraints for one BingX perp contract.
@@ -259,6 +283,7 @@ class BingXOrderResponse:
     client_order_id: str | None
     raw: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
+    fill_price: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -270,6 +295,7 @@ class BingXOrderResponse:
             "requested_qty": self.requested_qty,
             "requested_quote_qty": self.requested_quote_qty,
             "price": self.price,
+            "fill_price": self.fill_price,
             "venue_order_id": self.venue_order_id,
             "client_order_id": self.client_order_id,
             "raw": dict(self.raw),
@@ -961,7 +987,7 @@ class BingXClient:
         params: dict[str, Any] = {
             "symbol": api_symbol,
             "side": order.side,
-            "positionSide": order.position_side,
+            "positionSide": resolve_one_way_position_side(order),
             "type": order.order_type,
             "newClientOrderId": client_order_id,
         }
@@ -974,14 +1000,21 @@ class BingXClient:
         if order.time_in_force is not None:
             params["timeInForce"] = order.time_in_force
         if order.reduce_only:
-            omit_reduce_only = os.getenv("BINGX_OMIT_REDUCE_ONLY", "true").strip().lower() in {
-                "1",
-                "true",
-                "yes",
-                "on",
-            }
-            if not omit_reduce_only:
+            if _bingx_omit_reduce_only():
+                logger.warning(
+                    "bingx_client.place_order_perp reduce_only_omitted symbol=%s "
+                    "(BINGX_OMIT_REDUCE_ONLY=true)",
+                    order.symbol,
+                )
+            else:
                 params["reduceOnly"] = "true"
+                logger.info(
+                    "bingx_client.place_order_perp reduce_only symbol=%s side=%s pos=%s qty=%s",
+                    order.symbol,
+                    order.side,
+                    params["positionSide"],
+                    order.quantity,
+                )
         if order.stop_loss_price is not None:
             params["stopLoss"] = json.dumps(
                 {
@@ -1052,6 +1085,9 @@ class BingXClient:
                 order.symbol,
                 data,
             )
+        from backend.layer_1_data.datos.bingx_fill_price import resolve_fill_price_from_row
+
+        fill_price = resolve_fill_price_from_row(data)
         return BingXOrderResponse(
             ok=True,
             dry_run=False,
@@ -1064,6 +1100,7 @@ class BingXClient:
             venue_order_id=venue_order_id,
             client_order_id=client_order_id,
             raw=data,
+            fill_price=fill_price,
         )
 
     # ── HTTP plumbing ─────────────────────────────────────────────────────────

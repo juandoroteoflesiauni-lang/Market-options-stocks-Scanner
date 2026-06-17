@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Any
+
 """BingX Audit Store — cycle-level persistence for audit, debug and analytics.
 
 Persists every bot cycle to DuckDB so that:
@@ -31,6 +33,11 @@ from pathlib import Path
 import duckdb
 
 from backend.config.logger_setup import get_logger
+from backend.services.audit_duckdb_utils import (
+    connect_audit_duckdb,
+    payload_json_for_audit,
+    prune_audit_cycles,
+)
 
 logger = get_logger(__name__)
 
@@ -174,11 +181,11 @@ class BingXAuditStore:
 
     def persist(self, entry: BingXAuditEntry) -> str:
         """Insert ``entry`` into the store.  Returns the ``cycle_id``."""
-        payload_json = json.dumps(entry.to_payload(), default=str)
+        payload_json = payload_json_for_audit(entry.to_payload())
         universe_json = json.dumps(entry.universe)
         created_at = datetime.now(UTC).isoformat()
 
-        with self._connect() as con:
+        with self._connect(read_only=False) as con:
             con.execute(
                 f"""
                 INSERT OR REPLACE INTO {_TABLE}
@@ -196,18 +203,23 @@ class BingXAuditStore:
                     created_at,
                 ),
             )
+            deleted = prune_audit_cycles(con, _TABLE)
+
+        if deleted > 0:
+            logger.info("audit_store.pruned table=%s deleted=%d", _TABLE, deleted)
 
         logger.info(
-            "audit_store.persisted cycle_id=%s dry_run=%s",
+            "audit_store.persisted cycle_id=%s dry_run=%s payload_bytes=%d",
             entry.cycle_id,
             entry.dry_run,
+            len(payload_json),
         )
         return entry.cycle_id
 
     def list_cycles(self, *, limit: int = 50) -> list[dict[str, Any]]:
         """Return the most recent ``limit`` cycles, newest first."""
         limit = max(1, min(int(limit), 500))
-        with self._connect() as con:
+        with self._connect(read_only=True) as con:
             rows = con.execute(
                 f"""
                 SELECT cycle_id, started_at, finished_at, dry_run, universe, created_at
@@ -238,7 +250,7 @@ class BingXAuditStore:
         why the bot did not trade.
         """
         limit = max(1, min(int(limit), 500))
-        with self._connect() as con:
+        with self._connect(read_only=True) as con:
             rows = con.execute(
                 f"""
                 SELECT payload
@@ -258,7 +270,7 @@ class BingXAuditStore:
 
     def get_cycle(self, cycle_id: str) -> dict[str, Any] | None:
         """Return the full audit payload for ``cycle_id``, or ``None``."""
-        with self._connect() as con:
+        with self._connect(read_only=True) as con:
             rows = con.execute(
                 f"SELECT payload FROM {_TABLE} WHERE cycle_id = ?",
                 (cycle_id,),
@@ -269,31 +281,32 @@ class BingXAuditStore:
 
     def count(self) -> int:
         """Return the total number of persisted cycles."""
-        with self._connect() as con:
+        with self._connect(read_only=True) as con:
             rows = con.execute(f"SELECT COUNT(*) FROM {_TABLE}").fetchall()
         return int(rows[0][0])
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
     @contextmanager
-    def _connect(self) -> Any:
+    def _connect(self, *, read_only: bool = False) -> Any:
         """Yield an active DuckDB connection.
 
         In-memory stores reuse the persistent ``_mem_conn`` and never close it.
         File-backed stores open and close a fresh connection on every call.
+        Readers use ``read_only=True`` so EOD/dashboard no bloquean al daemon.
         """
         if self._in_memory:
             assert self._mem_conn is not None
             yield self._mem_conn
         else:
-            con = duckdb.connect(self._db_path)
+            con = connect_audit_duckdb(self._db_path, read_only=read_only)
             try:
                 yield con
             finally:
                 con.close()
 
     def _ensure_schema(self) -> None:
-        with self._connect() as con:
+        with self._connect(read_only=False) as con:
             con.execute(_DDL)
 
 

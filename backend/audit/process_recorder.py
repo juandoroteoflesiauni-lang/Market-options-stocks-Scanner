@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Any
+
 """Process Recorder — captures full engine/indicator state at decision time.
 
 Central entry point for recording snapshots of the trading engine's internal
@@ -90,6 +92,7 @@ async def record_process_snapshot(
         engine_state=engine_state or {},
         context=context or {},
         operation_id=operation_id,
+        correlation_id=get_correlation_id() or "",
         timestamp=datetime.now(UTC).isoformat(),
     )
 

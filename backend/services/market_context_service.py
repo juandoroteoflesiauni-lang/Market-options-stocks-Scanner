@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Protocol, Any
+
+from typing import Any, Protocol, cast
+
 """Market context payload builder for technical and dashboard surfaces."""
 
 
@@ -190,6 +192,9 @@ async def _fetch_rates_context(fmp: _FMPClientLike) -> dict[str, Any]:
         "fmp_treasury",
     )
     if not isinstance(rows, list) or not rows:
+        fred_rates = await _fetch_rates_context_fred_fallback()
+        if fred_rates is not None:
+            return fred_rates
         return {
             "us_2y": None,
             "us_10y": None,
@@ -211,6 +216,35 @@ async def _fetch_rates_context(fmp: _FMPClientLike) -> dict[str, Any]:
         "curve_10y2y": curve,
         "as_of": getattr(latest, "date", None),
         "source": "fmp_treasury",
+        "freshness": "daily_snapshot",
+    }
+
+
+async def _fetch_rates_context_fred_fallback() -> dict[str, Any] | None:
+    from backend.layer_1_data.fetchers.macro_fallback_fetcher import (
+        fetch_treasury_rates_fred,
+        macro_fallback_enabled,
+    )
+
+    if not macro_fallback_enabled():
+        return None
+    today = datetime.now(tz=UTC).date()
+    from_date = today - timedelta(days=14)
+    rows = await fetch_treasury_rates_fred(from_date.isoformat(), today.isoformat())
+    if not rows:
+        return None
+    latest = max(rows, key=lambda row: str(row.date or ""))
+    year2 = _finite_float(latest.year2)
+    year10 = _finite_float(latest.year10)
+    year30 = _finite_float(latest.year30)
+    curve = _round4(year10 - year2) if year10 is not None and year2 is not None else None
+    return {
+        "us_2y": year2,
+        "us_10y": year10,
+        "us_30y": year30,
+        "curve_10y2y": curve,
+        "as_of": latest.date,
+        "source": "fred_treasury",
         "freshness": "daily_snapshot",
     }
 

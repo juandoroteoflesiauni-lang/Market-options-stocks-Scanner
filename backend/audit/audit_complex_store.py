@@ -154,6 +154,15 @@ _ALL_DDLS: list[str] = [
     _DDL_AGENTIC_TRADE_DECISIONS,
 ]
 
+# Columnas añadidas tras el primer deploy — migración idempotente (F10).
+_SCHEMA_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
+    ("audit_process_snapshots", "correlation_id", "VARCHAR DEFAULT ''"),
+    ("audit_api_calls", "correlation_id", "VARCHAR DEFAULT ''"),
+    ("audit_errors", "correlation_id", "VARCHAR DEFAULT ''"),
+    ("audit_logs", "correlation_id", "VARCHAR DEFAULT ''"),
+    ("audit_trade_results", "correlation_id", "VARCHAR DEFAULT ''"),
+)
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Data models
@@ -442,6 +451,31 @@ class AuditComplexStore:
         with self._connect() as con:
             for ddl in _ALL_DDLS:
                 con.execute(ddl)
+            self._migrate_schema(con)
+
+    def _migrate_schema(self, con: duckdb.DuckDBPyConnection) -> None:
+        """Añade columnas nuevas en DBs creadas antes de F10."""
+        for table, column, typedef in _SCHEMA_MIGRATIONS:
+            try:
+                rows = con.execute(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = ? AND column_name = ?
+                    """,
+                    [table, column],
+                ).fetchall()
+                if rows:
+                    continue
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {column} {typedef}")
+                logger.info("audit_schema.migrated table=%s column=%s", table, column)
+            except Exception as exc:
+                logger.warning(
+                    "audit_schema.migration_failed table=%s column=%s error=%s",
+                    table,
+                    column,
+                    exc,
+                )
 
     # ══════════════════════════════════════════════════════════════════════════
     # API CALLS

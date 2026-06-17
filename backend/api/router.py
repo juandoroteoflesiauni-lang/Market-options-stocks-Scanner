@@ -21,6 +21,7 @@ from backend.api.routes.monte_carlo_router import router as monte_carlo_router
 from backend.api.routes.options_router import router as options_router
 from backend.api.routes.options_strategy_router import router as options_strategy_router
 from backend.api.routes.risk_metrics_router import router as risk_metrics_router
+from backend.api.routes.route_pnl_router import router as route_pnl_router
 from backend.api.routes.scanner import router as scanner_router
 from backend.api.routes.signals import router as signals_router
 from backend.api.routes.signals import ws_router as signals_ws_router
@@ -47,6 +48,7 @@ api_router.include_router(options_strategy_router)
 api_router.include_router(consumption_router)
 api_router.include_router(audit_complex_router)
 api_router.include_router(risk_metrics_router)
+api_router.include_router(route_pnl_router)
 api_router.include_router(global_context_router)
 api_router.include_router(sizing_router)
 api_router.include_router(builder_router)

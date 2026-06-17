@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from backend.config.logger_setup import get_logger
+from backend.config.shared_options_tier_policy import is_full_quant_tier
 from backend.domain.market_scanner_models import (
     MarketScannerFilters,
     MarketScannerRequest,
@@ -276,6 +277,7 @@ class BingXBotService(
         limit: int = 200,
     ) -> dict[str, Any]:
         """Build the canonical drawer payload from ``BingXCandidateAnalysis``."""
+        open_roots = await self._open_position_underlying_roots()
         analysis = await build_candidate_analysis(
             symbol,
             bingx_client=self._client,
@@ -287,6 +289,10 @@ class BingXBotService(
             venue_technical_fn=self._venue_technical_fn,
             kline_interval=interval,
             kline_limit=limit,
+            full_quant_tier=is_full_quant_tier(
+                symbol,
+                open_position_roots=open_roots,
+            ),
         )
         return _analysis_snapshot_from_candidate(analysis, interval=interval)
 
@@ -390,6 +396,75 @@ class BingXBotService(
         )
         return 0.0
 
+    async def _resolve_entry_fill_price(
+        self,
+        response: BingXOrderResponse,
+        decision: RiskDeskDecision,
+    ) -> float:
+        """Resolve real fill price for journal (avgPrice), not MARKET limit price=0."""
+        from backend.layer_1_data.datos.bingx_fill_price import resolve_fill_price_from_row
+
+        if response.fill_price is not None and response.fill_price > 0:
+            return response.fill_price
+
+        if response.raw:
+            from_raw = resolve_fill_price_from_row(response.raw)
+            if from_raw is not None and from_raw > 0:
+                return from_raw
+
+        if response.venue_order_id and not getattr(self._client, "dry_run", True):
+            for attempt in range(3):
+                try:
+                    fills = await self._client.fetch_trade_history_perp(response.symbol, limit=30)
+                    for fill in fills:
+                        if str(fill.get("orderId")) != str(response.venue_order_id):
+                            continue
+                        fill_px = resolve_fill_price_from_row(fill)
+                        if fill_px is not None and fill_px > 0:
+                            logger.info(
+                                "bingx_bot.fill_price_reconciled symbol=%s order_id=%s "
+                                "fill_price=%.6f attempt=%d",
+                                response.symbol,
+                                response.venue_order_id,
+                                fill_px,
+                                attempt + 1,
+                            )
+                            return fill_px
+                except Exception as exc:
+                    logger.warning(
+                        "bingx_bot.fill_price_fetch_failed symbol=%s attempt=%d error=%s",
+                        response.symbol,
+                        attempt + 1,
+                        exc,
+                    )
+                await asyncio.sleep(0.5)
+
+        adjusted = decision.adjusted_entry_price
+        if adjusted is not None and adjusted > 0:
+            logger.info(
+                "bingx_bot.fill_price_fallback_adjusted symbol=%s price=%.6f",
+                response.symbol,
+                adjusted,
+            )
+            return float(adjusted)
+
+        try:
+            mark = await self._client.fetch_latest_price_perp(response.symbol)
+            if mark is not None and mark > 0:
+                logger.info(
+                    "bingx_bot.fill_price_fallback_mark symbol=%s price=%.6f",
+                    response.symbol,
+                    mark,
+                )
+                return float(mark)
+        except Exception as exc:
+            logger.warning(
+                "bingx_bot.fill_price_mark_failed symbol=%s error=%s",
+                response.symbol,
+                exc,
+            )
+        return 0.0
+
     async def _log_trade_execution_to_journal(
         self,
         response: BingXOrderResponse,
@@ -398,6 +473,8 @@ class BingXBotService(
         analysis: BingXCandidateAnalysis | None,
         engine_decision: BingXDecision | None,
         cycle_id: str | None,
+        *,
+        decision_timestamp: str | None = None,
     ) -> None:
         """Log successful trade execution to Trade Journal (Caja Negra).
 
@@ -484,14 +561,44 @@ class BingXBotService(
                     "reason_codes": engine_decision.reason_codes,
                 }
 
+            entry_fill_price = await self._resolve_entry_fill_price(response, decision)
+            exec_ts = _utc_iso_now()
+
+            from backend.services.tca.implementation_shortfall import (
+                compute_implementation_shortfall,
+            )
+            from backend.services.tca.journal_tca import (
+                metrics_to_journal_fields,
+                resolve_arrival_price,
+            )
+
+            arrival = resolve_arrival_price(
+                decision_price=decision.adjusted_entry_price,
+                reference_price=None,
+                fill_price=entry_fill_price,
+            )
+            fill_px = entry_fill_price if entry_fill_price > 0 else arrival
+            qty = float(response.requested_qty or 0.0)
+            tca_metrics = compute_implementation_shortfall(
+                route="BINGX",
+                side=response.side,
+                quantity=qty if qty > 0 else 1.0,
+                decision_price=arrival,
+                fill_price=fill_px,
+                decision_timestamp=decision_timestamp,
+                execution_timestamp=exec_ts,
+            )
+            tca_fields = metrics_to_journal_fields(tca_metrics)
+            engine_decision_payload["tca"] = tca_fields
+
             # Create trade journal entry
             entry = TradeJournalEntry(
-                execution_timestamp=_utc_iso_now(),
+                execution_timestamp=exec_ts,
                 symbol=symbol,
                 side=response.side.upper(),
                 quantity=response.requested_qty or 0.0,
                 notional_usdt=decision.intent.notional_usdt,
-                entry_price=response.price or 0.0,
+                entry_price=fill_px,
                 decision_score=engine_decision.score_total if engine_decision else 0.0,
                 reason_codes=decision.reason_codes,
                 venue_order_id=response.venue_order_id,
@@ -500,6 +607,7 @@ class BingXBotService(
                 engine_decision_payload=engine_decision_payload,
                 dry_run=self.dry_run,
                 cycle_id=cycle_id,
+                **tca_fields,
             )
 
             # Persist to DuckDB
@@ -512,9 +620,10 @@ class BingXBotService(
             persist_trade_execution_jsonl(entry, Path("backend/logs/trades"))
 
             logger.info(
-                "trade_journal.execution_logged symbol=%s pnl=%.4f cycle_id=%s venue_order_id=%s",
+                "trade_journal.execution_logged symbol=%s pnl=%.4f is_bps=%.2f cycle_id=%s venue_order_id=%s",
                 symbol,
                 realized_pnl,
+                tca_metrics.implementation_shortfall_bps,
                 cycle_id,
                 response.venue_order_id,
             )
@@ -532,6 +641,7 @@ class BingXBotService(
         symbols = _synthetic_stock_symbols(symbols)
         if not symbols:
             return []
+        open_roots = await self._open_position_underlying_roots()
         tasks = [
             build_candidate_analysis(
                 sym,
@@ -544,6 +654,10 @@ class BingXBotService(
                 venue_technical_fn=self._venue_technical_fn,
                 kline_interval=self._scan_interval,
                 kline_limit=self._klines_per_symbol,
+                full_quant_tier=is_full_quant_tier(
+                    sym,
+                    open_position_roots=open_roots,
+                ),
             )
             for sym in symbols
         ]
@@ -745,9 +859,7 @@ class BingXBotService(
             for a in await self._candidate_analyses_for_symbols(target)
         )
         cycle_analyses_by_symbol = {a.venue_symbol: a for a in analyses}
-        exit_executions = await self.evaluate_dynamic_exits(
-            cycle_analyses=cycle_analyses_by_symbol
-        )
+        exit_executions = await self.evaluate_dynamic_exits(cycle_analyses=cycle_analyses_by_symbol)
         logger.info(
             "bingx_bot.fast_cycle_finished symbols=%d exits=%d",
             len(target),
@@ -787,6 +899,26 @@ class BingXBotService(
 
         # Fetch dynamic notional based on real available balance (1% per trade)
         dynamic_notional = await self._get_dynamic_notional()
+        from backend.services.calibration.kelly_session_sizer import kelly_notional_scalar
+        from backend.services.calibration.rolling_pf_gate import evaluate_rolling_pf_gate
+
+        pf_gate = evaluate_rolling_pf_gate(route="BINGX")
+        allow_new_bingx_entries = pf_gate.allowed
+        if not allow_new_bingx_entries:
+            logger.warning(
+                "bingx_bot.rolling_pf_block pf=%.3f floor=%.3f sample=%d",
+                pf_gate.profit_factor or 0.0,
+                pf_gate.floor,
+                pf_gate.sample_size,
+            )
+        kelly_scalar = kelly_notional_scalar(route="BINGX")
+        if kelly_scalar < 1.0:
+            dynamic_notional = round(dynamic_notional * kelly_scalar, 2)
+            logger.info(
+                "bingx_bot.kelly_notional_scaled scalar=%.4f notional=%.2f",
+                kelly_scalar,
+                dynamic_notional,
+            )
 
         # Include open-position symbols so institutional GEX is loaded before exits.
         target = await self._cycle_target_with_open_positions(target)
@@ -851,7 +983,8 @@ class BingXBotService(
         order_intents = tuple(
             intent
             for analysis, decision in zip(analyses, engine_decisions, strict=True)
-            if (
+            if allow_new_bingx_entries
+            and (
                 intent := self._order_intent_from_decision(
                     analysis,
                     decision,
@@ -1166,9 +1299,7 @@ def _evaluate_l2_execution_quality(
     spread = lob_analysis.spread
     if spread is not None:
         mid = lob_analysis.mid_price
-        spread_pct = (
-            (spread / mid * 100.0) if (mid is not None and mid > 0.0) else max(0.0, spread)
-        )
+        spread_pct = (spread / mid * 100.0) if (mid is not None and mid > 0.0) else max(0.0, spread)
         if spread_pct > policy.max_spread_pct:
             reasons.append(REASON_L2_SPREAD_TOO_WIDE)
 

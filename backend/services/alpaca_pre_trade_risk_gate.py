@@ -19,6 +19,8 @@ REASON_MAX_POSITION_NOTIONAL = "max_position_notional_exceeded"
 REASON_ORDER_RATE_LIMIT = "order_rate_limit_exceeded"
 REASON_BUR_RED_ZONE = "bur_red_zone_block"
 REASON_BUR_YELLOW_SIZE_DOWN = "bur_yellow_zone_size_down"
+REASON_REPEATED_EXECUTION = "execution_repeated_limit_exceeded"
+REASON_PRICE_COLLAR = "execution_price_collar_violation"
 
 
 class PreTradeRiskVerdict(BaseModel):
@@ -43,6 +45,9 @@ class PreTradeRiskGate:
         self._order_timestamps: deque[float] = deque()
         self._bur: float = 0.0
         self._buffer_zone: BufferZone = "GREEN"
+        from backend.config.execution_policy import ExecutionPolicy
+
+        self._execution_policy = ExecutionPolicy.from_env()
 
     @classmethod
     def instance(cls) -> PreTradeRiskGate:
@@ -160,6 +165,38 @@ class PreTradeRiskGate:
             qty = max(1, qty // 2)
             reasons.append(REASON_BUR_YELLOW_SIZE_DOWN)
 
+        from backend.services.execution.price_collar import evaluate_price_collar
+        from backend.services.execution.repeated_execution_guard import (
+            SessionRepeatedExecutionGuard,
+        )
+
+        guard = SessionRepeatedExecutionGuard.instance()
+        if self._execution_policy.repeated_execution_enabled and not guard.can_execute_entry(
+            intent.symbol,
+            max_per_symbol=self._execution_policy.repeated_execution_max_per_symbol,
+        ):
+            return PreTradeRiskVerdict(
+                allowed=False,
+                reason_codes=(REASON_REPEATED_EXECUTION,),
+                buffer_zone=self._buffer_zone,
+                bur=self._bur,
+            )
+
+        collar = evaluate_price_collar(
+            reference_price=float(intent.reference_price),
+            order_price=float(intent.reference_price),
+            max_deviation_pct=self._execution_policy.price_collar_max_deviation_pct,
+            enabled=self._execution_policy.price_collar_enabled,
+            is_exit=False,
+        )
+        if not collar.allowed:
+            return PreTradeRiskVerdict(
+                allowed=False,
+                reason_codes=(REASON_PRICE_COLLAR,),
+                buffer_zone=self._buffer_zone,
+                bur=self._bur,
+            )
+
         return PreTradeRiskVerdict(
             allowed=True,
             adjusted_quantity=qty,
@@ -171,6 +208,14 @@ class PreTradeRiskGate:
     def record_order_sent(self) -> None:
         """Registra timestamp de orden enviada para rate limiting."""
         self._order_timestamps.append(time.monotonic())
+
+    def record_entry_fill(self, symbol: str) -> None:
+        """Registra fill de entrada para límite FIA de ejecuciones repetidas."""
+        from backend.services.execution.repeated_execution_guard import (
+            SessionRepeatedExecutionGuard,
+        )
+
+        SessionRepeatedExecutionGuard.instance().record_entry_fill(symbol)
 
     def apply_to_decision(
         self,
@@ -198,6 +243,8 @@ __all__ = [
     "REASON_KILL_SWITCH",
     "REASON_MAX_NOTIONAL",
     "REASON_ORDER_RATE_LIMIT",
+    "REASON_PRICE_COLLAR",
+    "REASON_REPEATED_EXECUTION",
     "PreTradeRiskGate",
     "PreTradeRiskVerdict",
 ]

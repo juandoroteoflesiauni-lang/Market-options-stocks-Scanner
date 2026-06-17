@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Protocol, Literal, Any
+
+from typing import Any, Literal, Protocol
+
 """BingX candidate data-context contract.
 
 Maps a BingX venue symbol to all data sources needed for analysis,
@@ -322,6 +324,15 @@ async def _build_underlying_ohlcv(
     )
 
 
+async def _skipped_options_block() -> OptionsSourceBlock:
+    """Placeholder when institutional bridge supplies options (evita Massive duplicado)."""
+    return OptionsSourceBlock(
+        status="unavailable",
+        source_name="none",
+        reason="skipped_light_options_institutional_tier",
+    )
+
+
 async def _build_options(
     underlying: str,
     market_type: MarketType,
@@ -412,6 +423,7 @@ async def build_candidate_context(
     meta_learner: MetaLearnerClient | None = None,
     kline_interval: str = "5m",
     kline_limit: int = 2000,
+    skip_light_options: bool = False,
 ) -> BingXCandidateContext:
     """Build a :class:`BingXCandidateContext` for *venue_symbol*.
 
@@ -427,7 +439,11 @@ async def build_candidate_context(
         _build_underlying_ohlcv(
             underlying, market_type, venue_symbol, fmp_client, alpaca_client, bingx_client
         ),
-        _build_options(underlying, market_type, massive_client),
+        (
+            _skipped_options_block()
+            if skip_light_options
+            else _build_options(underlying, market_type, massive_client)
+        ),
     )
 
     return BingXCandidateContext(

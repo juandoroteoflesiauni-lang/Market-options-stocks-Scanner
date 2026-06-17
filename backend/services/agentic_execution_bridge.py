@@ -58,6 +58,35 @@ async def _audit_outcome(
         pass
 
 
+async def _audit_agentic_passthrough(
+    *,
+    module: Literal["alpaca", "bingx"],
+    symbols: list[str],
+) -> None:
+    """Registra passthrough cuando el comité agentic está apagado (F10)."""
+    if not symbols:
+        return
+    try:
+        from backend.audit.hooks import audit_agentic_decision
+        from backend.audit.structured_logger import get_correlation_id
+
+        await audit_agentic_decision(
+            event={
+                "module": module,
+                "symbol": "BATCH",
+                "contract_symbol": "BATCH",
+                "correlation_id": get_correlation_id() or "",
+                "final_decision": "PASSTHROUGH_COMMITTEE_OFF",
+                "quant_default_used": True,
+                "count": len(symbols),
+                "symbols": symbols[:25],
+                "committee_mode": os.environ.get("AI_AGENTIC_COMMITTEE_MODE", "off"),
+            }
+        )
+    except Exception as exc:
+        logger.debug("agentic.passthrough_audit_failed module=%s error=%s", module, exc)
+
+
 async def apply_agentic_gate_to_equity_decisions(
     decisions: Iterable[EquityRiskDecision],
     *,
@@ -67,6 +96,13 @@ async def apply_agentic_gate_to_equity_decisions(
     """Filter/scale Alpaca equity decisions through agentic committee."""
     resolved_gate = gate or get_agentic_trade_gate()
     if resolved_gate is None:
+        authorized = [
+            d.intent.symbol
+            for d in decisions
+            if d.authorized and (d.adjusted_quantity or d.intent.quantity) > 0
+        ]
+        if authorized:
+            await _audit_agentic_passthrough(module="alpaca", symbols=authorized)
         return list(decisions)
 
     scores = signal_scores or {}
@@ -110,6 +146,13 @@ async def apply_agentic_gate_to_bingx_decisions(
     """Filter/scale BingX risk desk decisions through agentic committee."""
     resolved_gate = gate or get_agentic_trade_gate()
     if resolved_gate is None:
+        authorized = [
+            d.intent.venue_symbol
+            for d in decisions
+            if d.authorized and (d.adjusted_quantity or d.intent.quantity) > 0
+        ]
+        if authorized:
+            await _audit_agentic_passthrough(module="bingx", symbols=authorized)
         return list(decisions)
 
     scores = signal_scores or {}
@@ -139,6 +182,12 @@ async def apply_agentic_gate_to_bingx_decisions(
         qty = decision.adjusted_quantity or decision.intent.quantity
         scaled = resolved_gate.apply_size_modifier(qty, outcome.size_modifier)
         if scaled <= 0:
+            logger.info(
+                "agentic.gate_zero_qty module=bingx symbol=%s qty=%s modifier=%s",
+                symbol,
+                qty,
+                outcome.size_modifier,
+            )
             continue
         out.append(replace(decision, adjusted_quantity=float(scaled)))
     return out

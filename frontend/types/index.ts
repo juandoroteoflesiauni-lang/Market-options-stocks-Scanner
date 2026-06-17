@@ -237,7 +237,8 @@ export type TabId =
   | "technical"
   | "predictive"
   | "consumption"
-  | "audit";
+  | "audit"
+  | "route-pnl";
 
 export interface TabDef {
   id: TabId;
@@ -256,4 +257,5 @@ export const TABS: TabDef[] = [
   { id: "predictive", label: "08 PREDICTIVO", index: 7 },
   { id: "consumption", label: "09 CONSUMO", index: 8 },
   { id: "audit", label: "10 AUDIT", index: 9 },
+  { id: "route-pnl", label: "11 PnL RUTAS", index: 10 },
 ];
