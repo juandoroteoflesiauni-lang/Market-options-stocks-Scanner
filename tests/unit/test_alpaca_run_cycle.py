@@ -5,9 +5,10 @@ from __future__ import annotations
 import pytest
 
 from backend.layer_1_data.datos.alpaca_client import AlpacaClient
-from backend.services.alpaca_r1_options_context import Route1OptionsBundle
 from backend.services.alpaca_bot_service import AlpacaBotService
 from backend.services.alpaca_market_hours import AlpacaMarketHoursGuard
+from backend.services.alpaca_pre_trade_risk_gate import PreTradeRiskGate
+from backend.services.alpaca_r1_options_context import Route1OptionsBundle
 from backend.services.alpaca_universe_funnel import SymbolBars
 
 _BARS = 60
@@ -29,9 +30,7 @@ def _rising_bars(symbol: str, slope: float, last_volume_spike: bool) -> SymbolBa
     base = [1_000_000.0 + (i % 5) * 50_000.0 for i in range(_BARS)]
     if last_volume_spike:
         base[-1] = 8_000_000.0
-    return SymbolBars(
-        symbol=symbol, highs=highs, lows=lows, closes=closes, volumes=tuple(base)
-    )
+    return SymbolBars(symbol=symbol, highs=highs, lows=lows, closes=closes, volumes=tuple(base))
 
 
 def _bars_map() -> dict[str, SymbolBars]:
@@ -71,6 +70,15 @@ async def test_run_cycle_authorizes_long_intent_in_dry_run(
         "backend.services.alpaca_route1_context_service.fetch_route1_predictive_meta",
         _no_pred,
     )
+    monkeypatch.setattr(
+        "backend.services.alpaca_bot_service.is_eod_entry_cutoff",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        "backend.config.alpaca_options_route_config.alpaca_options_enabled",
+        lambda: False,
+    )
+    PreTradeRiskGate.reset_instance()
     # ACT
     result = await service.run_cycle()
     # ASSERT
@@ -79,7 +87,9 @@ async def test_run_cycle_authorizes_long_intent_in_dry_run(
 
 
 @pytest.mark.asyncio
-async def test_run_cycle_skips_when_market_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_run_cycle_skips_when_market_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # ARRANGE
     client = AlpacaClient(api_key="k", secret_key="s", dry_run=True)
     service = AlpacaBotService(

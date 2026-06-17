@@ -25,6 +25,7 @@ from backend.domain.alpaca_models import (
     EquityOrderIntent,
     EquityRiskDecision,
 )
+from backend.services.alpaca_pre_trade_risk_gate import PreTradeRiskGate
 from backend.services.options_strategy.sizing_engine import (
     atr_pct_to_vix_proxy,
     equity_confidence_multiplier,
@@ -147,7 +148,7 @@ class AlpacaRiskDesk:
         )
 
     def authorize_intent(self, intent: EquityOrderIntent) -> EquityRiskDecision:
-        """Aplica idempotencia y guardas de posición/cupo."""
+        """Aplica idempotencia, guardas de posición/cupo y pre-trade gate."""
         key = intent.client_order_id
         if key in self._seen_keys:
             return self._reject(intent, key, REASON_ALREADY_SEEN, already_seen=True)
@@ -156,12 +157,15 @@ class AlpacaRiskDesk:
         if len(self.open_positions) >= self._policy.max_open_positions:
             return self._reject(intent, key, REASON_MAX_POSITIONS_REACHED)
         self._seen_keys.add(key)
-        return EquityRiskDecision(
+        base = EquityRiskDecision(
             authorized=True,
             intent=intent,
             idempotency_key=key,
             adjusted_quantity=intent.quantity,
         )
+        gate = PreTradeRiskGate.instance()
+        verdict = gate.evaluate(base, open_position_count=len(self.open_positions))
+        return gate.apply_to_decision(base, verdict)
 
     @staticmethod
     def _reject(

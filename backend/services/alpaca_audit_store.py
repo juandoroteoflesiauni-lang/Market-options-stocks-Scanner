@@ -12,6 +12,7 @@ from typing import Any
 import duckdb
 
 from backend.config.logger_setup import get_logger
+from backend.services.alpaca_event_journal import AlpacaEventJournal
 
 logger = get_logger(__name__)
 
@@ -84,6 +85,34 @@ class AlpacaAuditStore:
             len(payload.get("executions", [])),
         )
         return cycle_id
+
+    def export_glass_box(
+        self,
+        cycle_id: str | None = None,
+        *,
+        lineage_tag: str = "alpaca_dual_route",
+    ) -> dict[str, Any]:
+        """Export glass-box audit: cycle payload + event journal trail."""
+        journal = AlpacaEventJournal.instance()
+        events = journal.export_glass_box(cycle_id)
+        cycle_payload: dict[str, Any] | None = None
+        if cycle_id is not None:
+            with self._connect() as conn:
+                row = conn.execute(
+                    f"SELECT payload FROM {_TABLE} WHERE cycle_id = ?",
+                    [cycle_id],
+                ).fetchone()
+            if row:
+                cycle_payload = json.loads(row[0])
+        return {
+            "lineage": lineage_tag,
+            "cycle_id": cycle_id,
+            "exported_at": datetime.now(UTC).isoformat(),
+            "state_hash": journal.state_hash,
+            "event_count": len(events),
+            "events": events,
+            "cycle_payload": cycle_payload,
+        }
 
 
 __all__ = ["AlpacaAuditStore"]

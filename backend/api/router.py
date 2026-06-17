@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from backend.api.routes.agents_stream_router import router as agents_stream_router
 from backend.api.routes.alpaca_bot_router import router as alpaca_bot_router
+from backend.api.routes.alpaca_risk_router import router as alpaca_risk_router
 from backend.api.routes.audit_complex_router import router as audit_complex_router
 from backend.api.routes.audit_export_router import router as audit_export_router
 from backend.api.routes.auth_router import router as auth_router
@@ -40,6 +41,7 @@ api_router.include_router(signals_ws_router)
 api_router.include_router(weights_router)
 api_router.include_router(bingx_bot_router)
 api_router.include_router(alpaca_bot_router)
+api_router.include_router(alpaca_risk_router)
 api_router.include_router(options_router)
 api_router.include_router(options_strategy_router)
 api_router.include_router(consumption_router)

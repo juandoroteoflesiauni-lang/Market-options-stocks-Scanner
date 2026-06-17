@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-
 from pathlib import Path
 
 OptionsFamilyKey = str
@@ -38,9 +37,7 @@ R1_MODERATE_BEARISH_FAMILIES: int = int(os.getenv("ALPACA_R1_MODERATE_BEARISH_FA
 R1_MODERATE_FAMILY_BEAR_THRESHOLD: float = float(
     os.getenv("ALPACA_R1_MODERATE_FAMILY_BEAR_THRESHOLD", "0.35")
 )
-R1_MODERATE_CONFLUENCE_MAX: float = float(
-    os.getenv("ALPACA_R1_MODERATE_CONFLUENCE_MAX", "0.40")
-)
+R1_MODERATE_CONFLUENCE_MAX: float = float(os.getenv("ALPACA_R1_MODERATE_CONFLUENCE_MAX", "0.40"))
 
 REASON_OPTIONS_CONFLUENCE_BULL = "options_confluence_bull"
 REASON_OPTIONS_CONFLUENCE_BEAR = "options_confluence_bear"
@@ -48,10 +45,9 @@ REASON_OPTIONS_CONFLUENCE_MOMENTUM = "options_confluence_momentum"
 REASON_OPTIONS_CONFLUENCE_VOLUME = "options_confluence_volume"
 REASON_OPTIONS_CONFLUENCE_STRUCTURE = "options_confluence_structure"
 REASON_OPTIONS_CONFLUENCE_DISTRIBUTION = "options_confluence_distribution"
+REASON_OPTIONS_OS_IMBALANCE = "options_os_imbalance_bullish"
 
-_DEFAULT_CALIBRATION_PATH = (
-    Path(__file__).resolve().parent / "alpaca_r1_options_calibrated.json"
-)
+_DEFAULT_CALIBRATION_PATH = Path(__file__).resolve().parent / "alpaca_r1_options_calibrated.json"
 
 
 def default_calibration_path() -> Path:
@@ -64,7 +60,11 @@ def default_calibrator_path() -> Path:
     return Path(
         os.getenv(
             "ALPACA_R1_CALIBRATOR_PATH",
-            str(Path(__file__).resolve().parent.parent / "data" / "alpaca_r1_engine_calibrators.joblib"),
+            str(
+                Path(__file__).resolve().parent.parent
+                / "data"
+                / "alpaca_r1_engine_calibrators.joblib"
+            ),
         )
     )
 

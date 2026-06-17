@@ -13,15 +13,12 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from backend.config.alpaca_priority_route import (
-    ALPACA_ROUTE1_WATCHLIST,
-    scan_pool_excluding_route1,
-)
+from backend.config.alpaca_eod_config import is_eod_entry_cutoff
 from backend.config.alpaca_options_route_config import (
     alpaca_options_enabled,
     alpaca_options_priority_over_equity,
 )
-from backend.config.alpaca_eod_config import is_eod_entry_cutoff
+from backend.config.alpaca_priority_route import ALPACA_ROUTE1_WATCHLIST, scan_pool_excluding_route1
 from backend.config.logger_setup import get_logger
 from backend.domain.alpaca_models import (
     AlpacaCandidateAnalysis,
@@ -38,14 +35,14 @@ from backend.services.alpaca_dual_route_service import (
     build_route2_batch,
     select_route2_symbols,
 )
+from backend.services.alpaca_dynamic_sizer import DynamicSizer
+from backend.services.alpaca_event_journal import AlpacaEventJournal
 from backend.services.alpaca_market_hours import AlpacaMarketHoursGuard
+from backend.services.alpaca_pre_trade_risk_gate import PreTradeRiskGate
 from backend.services.alpaca_risk_desk import AlpacaRiskDesk, AlpacaRiskPolicy
-from backend.services.alpaca_universe_funnel import FunnelConfig, SymbolBars, run_funnel
-from backend.services.equity_l2_gate_service import apply_equity_l2_gate
+from backend.services.alpaca_universe_funnel import FunnelConfig, SymbolBars
 from backend.services.bot.alpaca_bot_execution_mixin import AlpacaBotExecutionMixin
 from backend.services.bot.alpaca_bot_exits_mixin import AlpacaBotExitsMixin
-from backend.services.bot.alpaca_eod_flatten_mixin import AlpacaEodFlattenMixin
-from backend.services.bot.alpaca_options_cycle_mixin import AlpacaOptionsCycleMixin
 from backend.services.bot.alpaca_bot_scanner_mixin import AlpacaBotScannerMixin
 from backend.services.bot.alpaca_bot_types import (
     BENCHMARK_SYMBOL,
@@ -62,6 +59,9 @@ from backend.services.bot.alpaca_bot_types import (
     REDUCED_UNIVERSE,
     _ParametricExitState,
 )
+from backend.services.bot.alpaca_eod_flatten_mixin import AlpacaEodFlattenMixin
+from backend.services.bot.alpaca_options_cycle_mixin import AlpacaOptionsCycleMixin
+from backend.services.equity_l2_gate_service import apply_equity_l2_gate
 
 logger = get_logger(__name__)
 
@@ -202,7 +202,10 @@ class AlpacaBotService(
             return None
 
     def _build_decisions(
-        self, selected: list[str], bars_map: dict[str, SymbolBars], benchmark: tuple[float, ...]
+        self,
+        selected: list[str],
+        bars_map: dict[str, SymbolBars],
+        benchmark: tuple[float, ...],
     ) -> tuple[list[AlpacaCandidateAnalysis], list[AlpacaDecision]]:
         analyses: list[AlpacaCandidateAnalysis] = []
         decisions: list[AlpacaDecision] = []
@@ -228,6 +231,8 @@ class AlpacaBotService(
         analysis_map = {a.symbol: a for a in analyses}
         intents: list[EquityOrderIntent] = []
         risk_decisions: list[EquityRiskDecision] = []
+        journal = AlpacaEventJournal.instance()
+        gate = PreTradeRiskGate.instance()
         for decision in decisions:
             analysis = analysis_map.get(decision.symbol)
             if analysis is None:
@@ -241,8 +246,41 @@ class AlpacaBotService(
             )
             if intent is None:
                 continue
+            atr_pct = None
+            if analysis.atr and analysis.latest_close and analysis.latest_close > 0:
+                atr_pct = analysis.atr / analysis.latest_close
+            sized = DynamicSizer.size(
+                base_quantity=intent.quantity,
+                reference_price=intent.reference_price,
+                signal_score=decision.score,
+                stop_loss=intent.stop_loss,
+                take_profit=intent.take_profit,
+                atr_pct=atr_pct,
+                bur=gate.bur,
+            )
+            if sized.quantity <= 0:
+                continue
+            intent = intent.model_copy(
+                update={
+                    "quantity": sized.quantity,
+                    "notional_usd": sized.notional_usd,
+                    "reason_codes": sized.reason_codes,
+                }
+            )
             intents.append(intent)
-            risk_decisions.append(self._risk_desk.authorize_intent(intent))
+            risk = self._risk_desk.authorize_intent(intent)
+            risk_decisions.append(risk)
+            journal.append(
+                "risk_decision",
+                cycle_id=cycle_id,
+                symbol=decision.symbol,
+                payload={
+                    "authorized": risk.authorized,
+                    "route": decision.route,
+                    "quantity": risk.adjusted_quantity,
+                    "sizing": sized.model_dump(mode="json"),
+                },
+            )
         return intents, risk_decisions
 
     async def _build_technical_payload(
@@ -372,9 +410,7 @@ class AlpacaBotService(
             benchmark=BENCHMARK_SYMBOL,
         )
         scan_bars = [bars_map[s] for s in scan_pool if s in bars_map]
-        route2_selected = select_route2_symbols(
-            scan_bars, benchmark_closes, self._funnel_config
-        )
+        route2_selected = select_route2_symbols(scan_bars, benchmark_closes, self._funnel_config)
 
         technical_builder = self._build_technical_payload
         r1_analyses, r1_decisions = await build_route1_batch(
@@ -400,6 +436,8 @@ class AlpacaBotService(
         analyses = r1_analyses + r2_analyses
         decisions = r1_decisions + r2_decisions
         cycle_id = uuid4().hex[:8]
+        journal = AlpacaEventJournal.instance()
+        journal.append("cycle_start", cycle_id=cycle_id, payload={"mode": "slow"})
         buying_power = await self._buying_power()
 
         r1_intents, r1_risk = await self._authorize_decisions(
@@ -408,9 +446,7 @@ class AlpacaBotService(
         r1_reserved = sum(
             i.notional_usd for i, rd in zip(r1_intents, r1_risk, strict=False) if rd.authorized
         )
-        adjusted_bp = (
-            max(0.0, buying_power - r1_reserved) if buying_power is not None else None
-        )
+        adjusted_bp = max(0.0, buying_power - r1_reserved) if buying_power is not None else None
         r2_intents, r2_risk = await self._authorize_decisions(
             r2_analyses, r2_decisions, cycle_id=cycle_id, buying_power=adjusted_bp
         )
@@ -451,12 +487,21 @@ class AlpacaBotService(
 
         logger.info(
             "alpaca_bot.cycle_finished route1=%d route2=%d equity_executions=%d "
-            "options_entries=%d options_executed=%d",
+            "options_entries=%d options_executed=%d state_hash=%s",
             len(ALPACA_ROUTE1_WATCHLIST),
             len(route2_selected),
             len(executions),
             len(options_entries),
             len(options_executed),
+            journal.state_hash[:16],
+        )
+        journal.append(
+            "cycle_end",
+            cycle_id=cycle_id,
+            payload={
+                "executions": len(executions),
+                "state_hash": journal.state_hash,
+            },
         )
         return EquityCycleResult(
             started_at=started_at,
@@ -475,7 +520,5 @@ class AlpacaBotService(
             options_reserved_premium_usd=options_reserved,
             dry_run=self.dry_run,
             trading_environment=self._trading_mode,
-            blocked_reasons=(
-                {"eod": ["entry_cutoff"]} if not allow_new_entries else {}
-            ),
+            blocked_reasons=({"eod": ["entry_cutoff"]} if not allow_new_entries else {}),
         )

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
+from backend.config.alpaca_r1_options_scoring_config import REASON_OPTIONS_CONFLUENCE_DISTRIBUTION
 from backend.domain.alpaca_models import AlpacaCandidateAnalysis, AlpacaDecision
-from backend.domain.alpaca_options_models import (
-    OptionsConfluence,
-    OptionsEngineSignal,
-)
+from backend.domain.alpaca_options_models import OptionsConfluence, OptionsEngineSignal
 from backend.services.alpaca_decision_engine import decide
 from backend.services.alpaca_r1_options_confluence import (
     OptionsConfluenceScorer,
@@ -17,9 +17,6 @@ from backend.services.alpaca_r1_options_replay import (
     _merge_signals,
     _motor_direction,
     _signal_from_result,
-)
-from backend.config.alpaca_r1_options_scoring_config import (
-    REASON_OPTIONS_CONFLUENCE_DISTRIBUTION,
 )
 
 
@@ -44,15 +41,15 @@ def _bearish_signal(engine: str, family: str) -> OptionsEngineSignal:
 
 
 def test_options_engine_signal_frozen() -> None:
-  sig = OptionsEngineSignal(
-      engine="delta_rsi",
-      family="momentum",
-      direction="BULL",
-      score=0.7,
-  )
-  copy = sig.model_copy(update={"score": 0.8})
-  assert copy.score == 0.8
-  assert sig.score == 0.7
+    sig = OptionsEngineSignal(
+        engine="delta_rsi",
+        family="momentum",
+        direction="BULL",
+        score=0.7,
+    )
+    copy = sig.model_copy(update={"score": 0.8})
+    assert copy.score == 0.8
+    assert sig.score == 0.7
 
 
 def test_motor_direction_maps_long_and_short() -> None:
@@ -76,7 +73,11 @@ def test_merge_signals_averages_scores() -> None:
     assert merged.score == 0.7
 
 
-def test_scorer_bullish_confluence_high_score() -> None:
+def test_scorer_bullish_confluence_high_score(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "backend.services.alpaca_r1_options_confluence._get_calibrator",
+        lambda: None,
+    )
     signals = [
         _bullish_signal("delta_rsi", "momentum"),
         _bullish_signal("shadow_macd", "momentum"),

@@ -161,6 +161,25 @@ class AlpacaOptionsCycleMixin:
                     if result.execution is not None:
                         exec_ok = result.execution.ok
                         if exec_ok:
+                            from decimal import Decimal
+
+                            from backend.services.telemetry.fill_slippage_telemetry import (
+                                log_fill_slippage_telemetry,
+                            )
+
+                            log_fill_slippage_telemetry(
+                                module="alpaca_options",
+                                symbol=symbol,
+                                side="buy",
+                                quantity=Decimal("1"),
+                                limit_or_market_price=Decimal(
+                                    str(
+                                        log.execution_payload.limit_price
+                                        if log.execution_payload is not None
+                                        else 0
+                                    )
+                                ),
+                            )
                             executed_symbols.add(symbol)
                             premium = (
                                 float(log.execution_payload.max_premium_usd)
