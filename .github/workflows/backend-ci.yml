@@ -152,7 +152,7 @@ jobs:
           MASSIVE_WS_URL: "ws://localhost:9999"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           file: coverage.xml
           fail_ci_if_error: true
