@@ -7,9 +7,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from backend.config.alpaca_priority_route import (
-    ALPACA_ROUTE1_WATCHLIST,
     ROUTE2_FUNNEL_TOP_N,
     is_route1_symbol,
+    resolve_route1_watchlist,
 )
 from backend.config.logger_setup import get_logger
 from backend.domain.alpaca_models import AlpacaCandidateAnalysis, AlpacaDecision, AlpacaRoute
@@ -149,7 +149,7 @@ async def build_route1_batch(
         analyses.append(analysis)
         decisions.append(decision)
 
-    await asyncio.gather(*[_one(sym) for sym in ALPACA_ROUTE1_WATCHLIST if sym in bars_map])
+    await asyncio.gather(*[_one(sym) for sym in resolve_route1_watchlist() if sym in bars_map])
     return analyses, decisions
 
 

@@ -83,7 +83,7 @@ from backend.services.bot.bingx_bot_types import (
     ExecutionQualityPolicy,
     FilterDecision,
     MetaLearnerProvider,
-    _ParametricExitState,
+    _LeveragedExitState,
 )
 from backend.services.funding_lab_scanner_confirmation import ScannerConfirmationService
 from backend.services.market_scanner_service import MarketScannerService
@@ -180,7 +180,8 @@ class BingXBotService(
         self._last_execution: dict[str, datetime] = {}
         self._conviction_scores: dict[str, float] = {}
         self._exit_reasons: dict[str, list[str]] = {}
-        self._parametric_exit_state: dict[str, _ParametricExitState] = {}
+        self._parametric_exit_state: dict[str, _LeveragedExitState] = {}
+        self._confluence_cache: dict[str, Any] = {}
         self._options_snapshot_fn = options_snapshot_fn
         self._venue_technical_fn = venue_technical_fn
         self._fmp_client = fmp_client
@@ -638,30 +639,45 @@ class BingXBotService(
         self,
         symbols: tuple[str, ...],
     ) -> list[BingXCandidateAnalysis]:
+        from backend.config.dual_bot_core_universe import (
+            dual_bot_analysis_concurrency,
+            dual_bot_fixed_universe_enabled,
+        )
+
         symbols = _synthetic_stock_symbols(symbols)
         if not symbols:
             return []
         open_roots = await self._open_position_underlying_roots()
-        tasks = [
-            build_candidate_analysis(
-                sym,
-                bingx_client=self._client,
-                fmp_client=self._fmp_client,
-                massive_client=self._massive_client,
-                alpaca_client=self._alpaca_client,
-                ws_hub=self._ws_hub,
-                options_snapshot_fn=self._options_snapshot_fn,
-                venue_technical_fn=self._venue_technical_fn,
-                kline_interval=self._scan_interval,
-                kline_limit=self._klines_per_symbol,
-                full_quant_tier=is_full_quant_tier(
+        concurrency = (
+            dual_bot_analysis_concurrency()
+            if dual_bot_fixed_universe_enabled()
+            else max(1, len(symbols))
+        )
+        sem = asyncio.Semaphore(concurrency)
+
+        async def _one(sym: str) -> BingXCandidateAnalysis:
+            async with sem:
+                return await build_candidate_analysis(
                     sym,
-                    open_position_roots=open_roots,
-                ),
-            )
-            for sym in symbols
-        ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+                    bingx_client=self._client,
+                    fmp_client=self._fmp_client,
+                    massive_client=self._massive_client,
+                    alpaca_client=self._alpaca_client,
+                    ws_hub=self._ws_hub,
+                    options_snapshot_fn=self._options_snapshot_fn,
+                    venue_technical_fn=self._venue_technical_fn,
+                    kline_interval=self._scan_interval,
+                    kline_limit=self._klines_per_symbol,
+                    full_quant_tier=is_full_quant_tier(
+                        sym,
+                        open_position_roots=open_roots,
+                    ),
+                )
+
+        results = await asyncio.gather(
+            *[_one(sym) for sym in symbols],
+            return_exceptions=True,
+        )
         analyses: list[BingXCandidateAnalysis] = []
         for sym, result in zip(symbols, results, strict=True):
             if isinstance(result, BaseException):
@@ -854,12 +870,7 @@ class BingXBotService(
             )
 
         target = _synthetic_stock_symbols(open_symbols)
-        analyses = tuple(
-            self._hydrate_analysis_value_area(a)
-            for a in await self._candidate_analyses_for_symbols(target)
-        )
-        cycle_analyses_by_symbol = {a.venue_symbol: a for a in analyses}
-        exit_executions = await self.evaluate_dynamic_exits(cycle_analyses=cycle_analyses_by_symbol)
+        exit_executions = await self.evaluate_dynamic_exits(cycle_mode="fast")
         logger.info(
             "bingx_bot.fast_cycle_finished symbols=%d exits=%d",
             len(target),
@@ -876,7 +887,7 @@ class BingXBotService(
             executions=tuple(exit_executions),
             dry_run=self.dry_run,
             trading_environment=self.trading_environment,
-            analyses=analyses,
+            analyses=(),
             blocked_reasons={"_cycle": ["fast_monitor_only"]},
         )
 
@@ -888,7 +899,7 @@ class BingXBotService(
         """Run the production Analysis -> Decision -> Risk -> Execute pipeline once."""
         started_at = _utc_iso_now()
         cycle_id = _new_execution_cycle_id()
-        target = _synthetic_stock_symbols(tuple(symbols)) if symbols else self._universe
+        target = _full_cycle_analysis_universe(symbols, tradable_universe=self._universe)
 
         # Reconciliar posiciones reales del exchange antes de decidir
         try:
@@ -962,7 +973,11 @@ class BingXBotService(
         # Exits run after DIAGNOSTICO INSTITUCIONAL (inside decide) so gamma_flip,
         # confluence and shadow_delta come from the same cycle snapshot.
         cycle_analyses_by_symbol = {a.venue_symbol: a for a in analyses}
-        exit_executions = await self.evaluate_dynamic_exits(cycle_analyses=cycle_analyses_by_symbol)
+        self._update_confluence_cache_from_analyses(analyses)
+        exit_executions = await self.evaluate_dynamic_exits(
+            cycle_analyses=cycle_analyses_by_symbol,
+            cycle_mode="slow",
+        )
 
         snapshots = tuple(
             _snapshot_from_candidate_analysis(analysis, self._scan_interval)
@@ -983,7 +998,8 @@ class BingXBotService(
         order_intents = tuple(
             intent
             for analysis, decision in zip(analyses, engine_decisions, strict=True)
-            if allow_new_bingx_entries
+            if analysis.venue_symbol in self._universe
+            and allow_new_bingx_entries
             and (
                 intent := self._order_intent_from_decision(
                     analysis,
@@ -1329,6 +1345,27 @@ def _evaluate_l2_execution_quality(
 def _normalize_bingx_symbol_for_scanner(symbol: str) -> str:
     base = underlying_from_bingx_symbol(symbol)
     return base
+
+
+def _full_cycle_analysis_universe(
+    symbols: Iterable[str] | None,
+    *,
+    tradable_universe: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Símbolos a analizar en ciclo lento — 20 core con quant completo si universo fijo."""
+    if symbols:
+        return _synthetic_stock_symbols(tuple(symbols))
+    try:
+        from backend.config.dual_bot_core_universe import (
+            core_bingx_venue_symbols,
+            dual_bot_fixed_universe_enabled,
+        )
+
+        if dual_bot_fixed_universe_enabled():
+            return _synthetic_stock_symbols(core_bingx_venue_symbols())
+    except Exception:
+        pass
+    return tradable_universe
 
 
 def _is_synthetic_stock_symbol(symbol: str) -> bool:

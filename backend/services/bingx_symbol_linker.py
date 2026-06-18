@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Central BingX symbol-to-underlying mapper.
 
 Provides three canonical operations for resolving BingX venue symbols:
@@ -24,6 +25,24 @@ from backend.layer_1_data.datos.bingx_client import is_perp_symbol
 from backend.services.bingx_universe import MarketType, classify_instrument, is_stock_index_root
 
 logger = get_logger(__name__)
+
+# BingX venue roots that differ from the equity ticker (e.g. AMD → AMDUS-USDT).
+_VENUE_ROOT_TO_EQUITY: dict[str, str] = {
+    "AMDUS": "AMD",
+}
+_EQUITY_TO_VENUE_ROOT: dict[str, str] = {v: k for k, v in _VENUE_ROOT_TO_EQUITY.items()}
+
+
+def equity_to_bingx_venue_root(equity: str) -> str:
+    """Map equity ticker to BingX perp venue root (``AMD`` → ``AMDUS``)."""
+    upper = str(equity or "").strip().upper()
+    return _EQUITY_TO_VENUE_ROOT.get(upper, upper)
+
+
+def equity_to_bingx_venue_symbol(equity: str) -> str:
+    """Map equity ticker to BingX display symbol (``AMD`` → ``AMDUS-USDT``)."""
+    return f"{equity_to_bingx_venue_root(equity)}-USDT"
+
 
 # BingX VST / prod-vst internal API symbols for synthetic equity perps:
 # ``NCSKPLTR2USD-USDT`` → underlying ``PLTR``.
@@ -52,8 +71,8 @@ def normalize_venue_symbol(symbol: str) -> str:
 
 def display_name_from_bingx_symbol(symbol: str) -> str:
     """Convierte símbolo API (``NCSKAAPL2USD-USDT``) o venue a display (``AAPL-USDT``)."""
-    root = underlying_from_bingx_symbol(symbol)
-    return f"{root}-USDT"
+    equity = underlying_from_bingx_symbol(symbol)
+    return equity_to_bingx_venue_symbol(equity)
 
 
 def underlying_from_bingx_symbol(symbol: str) -> str:
@@ -84,7 +103,7 @@ def underlying_from_bingx_symbol(symbol: str) -> str:
         base = normalized[: -len("USDT")]
     else:
         base = normalized
-    return base.rstrip("-")
+    return _VENUE_ROOT_TO_EQUITY.get(base.rstrip("-"), base.rstrip("-"))
 
 
 def classify_underlying(symbol: str) -> MarketType:

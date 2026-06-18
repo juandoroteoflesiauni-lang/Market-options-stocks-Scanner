@@ -64,6 +64,8 @@ def persist_equity_tca_execution(
     decision_timestamp: str | None = None,
     execution_timestamp: str | None = None,
     notional_usd: float | None = None,
+    decision_score: float = 0.0,
+    correlation_id: str = "",
     db_path: Path | str = _DEFAULT_JOURNAL,
 ) -> bool:
     """Registra ejecución Alpaca con TCA en trade_journal."""
@@ -91,7 +93,7 @@ def persist_equity_tca_execution(
         quantity=quantity,
         notional_usdt=notional,
         entry_price=fill,
-        decision_score=0.0,
+        decision_score=max(0.0, min(1.0, decision_score)),
         reason_codes=["tca_equity_execution"],
         venue_order_id=venue_order_id,
         realized_pnl=0.0,
@@ -99,6 +101,7 @@ def persist_equity_tca_execution(
         engine_decision_payload={"tca": metrics_to_journal_fields(metrics)},
         dry_run=dry_run,
         cycle_id=cycle_id or "unknown",
+        correlation_id=correlation_id,
         **metrics_to_journal_fields(metrics),
     )
     ok = persist_trade_execution(entry, db_path)

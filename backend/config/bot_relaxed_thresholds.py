@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 
+from backend.config.dual_bot_core_universe import dual_bot_core_env_flags
 from backend.config.execution_policy import execution_phase_b_env_flags
 from backend.config.profit_calibration import profit_calibration_env_flags
 
@@ -328,6 +329,7 @@ def apply_verification_session_env(*, execute_orders: bool = True) -> None:
             "PROFIT_ROLLING_PF_GATE_ENABLED": "true",
             "VERIFICATION_ROLLING_PF_MIN": "0.85",
             "PROFIT_KELLY_SIZING_ENABLED": "false",
+            **dual_bot_core_env_flags(),
         }
     )
 

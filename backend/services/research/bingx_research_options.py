@@ -106,6 +106,26 @@ def _build_shadow_delta_portfolio_df_local(
     return pd.DataFrame(rows).sort_values("strike").reset_index(drop=True)
 
 
+def _fractal_chain_rows(chain: list[dict[str, Any]], spot: float) -> list[dict[str, Any]]:
+    """Convierte filas de chain snapshot al formato ``FractalOIEngine``."""
+    rows: list[dict[str, Any]] = []
+    for row in chain:
+        if not isinstance(row, dict):
+            continue
+        strike = _safe_float(row.get("strike")) or spot
+        call_oi = int(_safe_float(row.get("call_oi")) or 0)
+        put_oi = int(_safe_float(row.get("put_oi")) or 0)
+        if call_oi > 0:
+            rows.append(
+                {"strike": strike, "open_interest": call_oi, "option_type": "CALL"},
+            )
+        if put_oi > 0:
+            rows.append(
+                {"strike": strike, "open_interest": put_oi, "option_type": "PUT"},
+            )
+    return rows
+
+
 async def _fetch_options_gex_desk(
     underlying_symbol: str,
     market_type: str,
@@ -392,10 +412,18 @@ async def _fetch_options_gex_desk(
                             timestamp=k_ts,
                         )
                         fractal_res = fractal_engine.update(
-                            close=candle.close, chain_snap=chain_snap, timestamp=k_ts
+                            high=candle.high,
+                            low=candle.low,
+                            close=candle.close,
+                            chain=_fractal_chain_rows(chain, spot) if is_last else [],
+                            timestamp=k_ts,
                         )
                         hull_res = hull_engine.update(
-                            close=candle.close, iv_atm=opt_regime.iv_atm, timestamp=k_ts
+                            high=candle.high,
+                            low=candle.low,
+                            close=candle.close,
+                            iv_atm=opt_regime.iv_atm,
+                            timestamp=k_ts,
                         )
                         hybrid_res = hybrid_engine.update(
                             close=candle.close,
@@ -633,20 +661,24 @@ async def _fetch_options_gex_desk(
                             PredictiveOptionsBundleReport,
                         )
 
+                        gamma_neg = (
+                            spot is not None and gamma_flip is not None and spot < gamma_flip
+                        )
                         predictive_report = PredictiveOptionsBundleReport(
-                            symbol=underlying_symbol,
-                            as_of=_now_iso(),
-                            trend_direction=comb_res.direction.value,
-                            pr_long=comb_res.score / 100.0 if comb_res.score > 0 else 0.0,
-                            pr_short=abs(comb_res.score) / 100.0 if comb_res.score < 0 else 0.0,
-                            overall_score=comb_res.score,
-                            confidence=comb_res.confidence,
-                            shadow_delta_imbalance=smacd_res.get("ndde", 0.0),
-                            zomma_risk_score=0.0,
-                            gamma_flip_distance_pct=0.0,
-                            composite_directional_signal=comb_res.score,
-                            tail_risk_severity="LOW",
+                            gamma_flip_level=float(gamma_flip) if gamma_flip is not None else 0.0,
+                            is_gamma_negative_regime=bool(gamma_neg),
+                            shadow_delta_imbalance=(
+                                float(smacd_res.get("ndde", 0.0)) if smacd_res else 0.0
+                            ),
+                            zero_day_pinning_strike=(
+                                float(zero_day_pinning) if zero_day_pinning is not None else 0.0
+                            ),
                             speed_instability_warning=not comb_res.entry_allowed,
+                            tail_risk_severity=str(tail_risk_severity or "LOW"),
+                            zomma_risk_score=float(zomma_risk) if zomma_risk is not None else 0.0,
+                            pinning_probability=(
+                                float(pinning_prob) if pinning_prob is not None else 0.0
+                            ),
                         )
 
             except Exception as e:

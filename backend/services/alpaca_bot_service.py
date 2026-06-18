@@ -18,7 +18,16 @@ from backend.config.alpaca_options_route_config import (
     alpaca_options_enabled,
     alpaca_options_priority_over_equity,
 )
-from backend.config.alpaca_priority_route import ALPACA_ROUTE1_WATCHLIST, scan_pool_excluding_route1
+from backend.config.alpaca_priority_route import (
+    resolve_route1_watchlist,
+    scan_pool_excluding_route1,
+)
+from backend.config.dual_bot_core_universe import (
+    DUAL_BOT_CORE_UNIVERSE,
+    dual_bot_analysis_concurrency,
+    dual_bot_fixed_universe_enabled,
+    dual_bot_route2_enabled,
+)
 from backend.config.logger_setup import get_logger
 from backend.domain.alpaca_models import (
     AlpacaCandidateAnalysis,
@@ -133,7 +142,7 @@ class AlpacaBotService(
         market_hours_guard: AlpacaMarketHoursGuard | None = None,
         trading_mode: str = "paper",
         prefilter_pool_size: int = DEFAULT_PREFILTER_POOL_SIZE,
-        gather_concurrency: int = DEFAULT_GATHER_CONCURRENCY,
+        gather_concurrency: int | None = None,
     ) -> None:
         self._owns_client: bool = client is None
         self._client = client or AlpacaClient()
@@ -152,7 +161,15 @@ class AlpacaBotService(
         self._market_hours = market_hours_guard or AlpacaMarketHoursGuard(self._client)
         self._trading_mode = trading_mode.strip().lower()
         self._prefilter_pool_size = prefilter_pool_size
-        self._gather_concurrency = gather_concurrency
+        self._gather_concurrency = (
+            gather_concurrency
+            if gather_concurrency is not None
+            else (
+                dual_bot_analysis_concurrency()
+                if dual_bot_fixed_universe_enabled()
+                else DEFAULT_GATHER_CONCURRENCY
+            )
+        )
         self._last_execution: dict[str, datetime] = {}
         self._parametric_exit_state: dict[str, _ParametricExitState] = {}
         self._eod_flatten_date: str | None = None
@@ -175,12 +192,16 @@ class AlpacaBotService(
             await self._client.aclose()
 
     def _full_universe(self) -> tuple[str, ...]:
+        if dual_bot_fixed_universe_enabled():
+            return DUAL_BOT_CORE_UNIVERSE
         from backend.services.alpaca_universe_fetcher import ALPACA_EXTENDED_CACHE
 
         extended = tuple(ALPACA_EXTENDED_CACHE) or self._universe
         return extended
 
     def _working_pool(self, full: tuple[str, ...]) -> tuple[str, ...]:
+        if dual_bot_fixed_universe_enabled():
+            return DUAL_BOT_CORE_UNIVERSE
         seen: set[str] = set()
         pool: list[str] = []
         for sym in (*REDUCED_UNIVERSE, BENCHMARK_SYMBOL):
@@ -310,12 +331,15 @@ class AlpacaBotService(
         )
 
     def _dual_route_symbols(self, full_universe: tuple[str, ...]) -> tuple[str, ...]:
+        route1 = resolve_route1_watchlist()
+        if dual_bot_fixed_universe_enabled() and not dual_bot_route2_enabled():
+            return route1
         scan_pool = scan_pool_excluding_route1(
             full_universe,
             pool_size=self._prefilter_pool_size,
             benchmark=BENCHMARK_SYMBOL,
         )
-        ordered = (*ALPACA_ROUTE1_WATCHLIST, BENCHMARK_SYMBOL, *scan_pool)
+        ordered = (*route1, BENCHMARK_SYMBOL, *scan_pool)
         seen: set[str] = set()
         out: list[str] = []
         for sym in ordered:
@@ -431,7 +455,11 @@ class AlpacaBotService(
             benchmark=BENCHMARK_SYMBOL,
         )
         scan_bars = [bars_map[s] for s in scan_pool if s in bars_map]
-        route2_selected = select_route2_symbols(scan_bars, benchmark_closes, self._funnel_config)
+        route2_selected: list[str] = []
+        if dual_bot_route2_enabled() or not dual_bot_fixed_universe_enabled():
+            route2_selected = select_route2_symbols(
+                scan_bars, benchmark_closes, self._funnel_config
+            )
 
         technical_builder = self._build_technical_payload
         r1_analyses, r1_decisions = await build_route1_batch(
@@ -535,7 +563,7 @@ class AlpacaBotService(
         logger.info(
             "alpaca_bot.cycle_finished route1=%d route2=%d equity_executions=%d "
             "options_entries=%d options_executed=%d state_hash=%s",
-            len(ALPACA_ROUTE1_WATCHLIST),
+            len(resolve_route1_watchlist()),
             len(route2_selected),
             len(executions),
             len(options_entries),
@@ -555,7 +583,7 @@ class AlpacaBotService(
             finished_at=utc_iso_now(),
             universe=full_universe,
             prefiltered=tuple(route2_selected),
-            route1_symbols=ALPACA_ROUTE1_WATCHLIST,
+            route1_symbols=resolve_route1_watchlist(),
             route2_symbols=tuple(route2_selected),
             analyses=tuple(analyses),
             decisions=tuple(decisions),

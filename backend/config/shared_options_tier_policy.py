@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import os
 
-from backend.config.alpaca_priority_route import ROUTE1_SYMBOLS, is_route1_symbol
+from backend.config.alpaca_priority_route import is_route1_symbol
+from backend.config.dual_bot_core_universe import (
+    DUAL_BOT_CORE_UNIVERSE_SET,
+    core_symbol_has_full_quant,
+    dual_bot_fixed_universe_enabled,
+)
 from backend.services.bingx_options_bridge import INDEX_OPTIONS_PROXIES
 from backend.services.bingx_symbol_linker import underlying_from_bingx_symbol
 
@@ -52,9 +57,13 @@ def is_full_quant_tier(
     """
     if not shared_options_tier_enabled():
         return True
+    if core_symbol_has_full_quant(symbol):
+        return True
     root = normalize_equity_root(symbol)
     if not root:
         return False
+    if dual_bot_fixed_universe_enabled() and root in DUAL_BOT_CORE_UNIVERSE_SET:
+        return True
     if is_route1_symbol(root) or _route1_via_index_proxy(root):
         return True
     return bool(open_position_roots and root in open_position_roots)
@@ -73,7 +82,6 @@ def options_query_symbol_for_root(root: str) -> str:
 
 __all__ = [
     "REASON_TECHNICAL_TIER_ONLY",
-    "ROUTE1_SYMBOLS",
     "is_full_quant_tier",
     "normalize_equity_root",
     "options_query_symbol_for_root",

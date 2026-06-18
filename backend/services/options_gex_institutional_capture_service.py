@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
 
-from backend.config.alpaca_priority_route import ALPACA_ROUTE1_WATCHLIST
+from backend.config.alpaca_priority_route import resolve_route1_watchlist
 from backend.config.logger_setup import get_logger
 from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB
 from backend.services.options_gex_institutional_scheduler import (
@@ -60,7 +60,7 @@ class OptionsGexCaptureStats:
 class OptionsGexInstitutionalCaptureService:
     """Ejecuta el scheduler institucional y persiste snapshots vía options_snapshot_service."""
 
-    symbols: tuple[str, ...] = ALPACA_ROUTE1_WATCHLIST
+    symbols: tuple[str, ...] = field(default_factory=resolve_route1_watchlist)
     risk_free_rate: float = _DEFAULT_RISK_FREE
     poll_interval_s: int = _DEFAULT_POLL_S
     concurrency: int = _DEFAULT_CONCURRENCY
@@ -99,10 +99,8 @@ class OptionsGexInstitutionalCaptureService:
         self._stop.set()
         if self._task is not None:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             self._task = None
         logger.info("options_gex_capture.stopped")
 

@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Awaitable, Iterable
-from backend.services.bingx_risk_desk import BingXRiskDesk
-from backend.services.bingx_risk_desk import BingXRiskDeskPolicy
-from backend.services.funding_lab_scanner_confirmation import ScannerConfirmationService
-from backend.layer_1_data.datos.bingx_client import BingXClient, VALID_KLINE_INTERVAL
-from backend.services.bingx_universe import BingXUniverseService
-from backend.services.bingx_account_service import BingXAccountService
-from backend.layer_1_data.datos.bingx_ws_hub import BingXWebSocketHub
+from collections.abc import Awaitable, Callable
+from typing import Any, Literal
 
-from typing import Protocol, Literal, Any
+from backend.layer_1_data.datos.bingx_client import VALID_KLINE_INTERVAL
+
 """BingX Bot service — orchestrates Scan -> Filter -> Risk -> Execute.
 
 This service is intentionally decoupled from the Funding Lab pipeline. It targets
@@ -31,14 +26,12 @@ Design principles:
 """
 
 
-from collections.abc import Awaitable, Callable
+import os
 from dataclasses import asdict, dataclass, field
 
-import os
-
 from backend.config.logger_setup import get_logger
-from backend.domain.market_scanner_models import MarketScannerRequest, ScannerTimeframe, ScannerModuleKey
-from backend.layer_1_data.datos.bingx_client import VALID_KLINE_INTERVAL, BingXOrderResponse
+from backend.domain.market_scanner_models import ScannerModuleKey, ScannerTimeframe
+from backend.layer_1_data.datos.bingx_client import BingXOrderResponse
 from backend.quant_engine.engines.technical.lob_dynamics_engine import LOBDynamicsAnalysis
 from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
 from backend.services.bingx_decision_engine import BingXDecision
@@ -59,7 +52,11 @@ DEFAULT_VOLUME_Z_THRESHOLD: float = 2.0
 DEFAULT_HEURISTIC_PROB_FLOOR: float = 0.55
 DEFAULT_SCANNER_MIN_SCORE: float = 45.0
 SCANNER_CONFIRMATION_TIMEFRAMES: tuple[ScannerTimeframe, ...] = ("5m", "15m", "1h", "1D")
-SCANNER_CONFIRMATION_MODULES: tuple[ScannerModuleKey, ...] = ("technical", "probabilistic", "options_gex")
+SCANNER_CONFIRMATION_MODULES: tuple[ScannerModuleKey, ...] = (
+    "technical",
+    "probabilistic",
+    "options_gex",
+)
 DEFAULT_UNIVERSE: tuple[str, ...] = (
     "AMZN-USDT",
     "AAPL-USDT",
@@ -93,9 +90,7 @@ REASON_EXECUTION_COOLDOWN = "execution_cooldown"
 
 
 # Cooldown window for re-executing the same symbol (minutes).
-EXECUTION_COOLDOWN_MINUTES: float = float(
-    os.getenv("BOT_EXECUTION_COOLDOWN_MINUTES", "15.0")
-)
+EXECUTION_COOLDOWN_MINUTES: float = float(os.getenv("BOT_EXECUTION_COOLDOWN_MINUTES", "15.0"))
 
 # Parametric fade-and-flip exit ladder (unrealized PnL % vs entry, Massive/Polygon spot).
 PARAMETRIC_TP_TRIGGER_PCT: float = 3.0
@@ -113,12 +108,23 @@ Suitability = Literal["ALLOW", "SIZE_DOWN", "BLOCK", "INSUFFICIENT_DATA"]
 
 
 @dataclass
-class _ParametricExitState:
-    """Per-symbol ladder state for partial take-profits."""
+class _LeveragedExitState:
+    """Estado por símbolo de la escalera TP/SL en % PnL apalancado."""
 
     initial_size: float
-    half_tp_done: bool = False
-    last_adaptive_milestone: int = 0
+    tp1_done: bool = False
+    tp2_done: bool = False
+    sl_def_done: bool = False
+    entry_confluence_score: float | None = None
+
+    @property
+    def half_tp_done(self) -> bool:
+        """Alias retrocompatible con tests legacy."""
+        return self.tp1_done
+
+
+# Retrocompat — imports existentes
+_ParametricExitState = _LeveragedExitState
 
 
 # ── Typed contracts ──────────────────────────────────────────────────────────
@@ -217,6 +223,7 @@ class BingXOrderPlan:
         payload = asdict(self)
         payload["reason_codes"] = list(self.reason_codes)
         return payload
+
 
 def _order_intent_to_dict(intent: OrderIntent) -> dict[str, Any]:
     return {
@@ -337,7 +344,7 @@ class ExecutionQualityPolicy:
     max_imbalance_abs:
         ``None`` disables the imbalance gate. When set, the absolute value of
         ``LOBDynamicsResult.imbalance_rho`` is compared against the threshold
-        (e.g. ``0.8`` blocks one-sided books where one side is >9× the other).
+        (e.g. ``0.8`` blocks one-sided books where one side is >9x the other).
     """
 
     max_spread_pct: float = 0.5
@@ -348,11 +355,6 @@ class ExecutionQualityPolicy:
 
 # Pluggable meta-learner provider: maps a signal -> probability in [0, 1].
 MetaLearnerProvider = Callable[[BingXSignal], Awaitable[float | None]]
-
-
-class ScannerConfirmationService(Protocol):
-    async def scan(self, request: MarketScannerRequest) -> object:
-        """Return a scanner response-like object with a ``rows`` attribute."""
 
 
 __all__ = [name for name in dir() if not name.startswith("__")]

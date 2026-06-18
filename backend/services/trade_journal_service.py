@@ -88,6 +88,9 @@ class TradeJournalEntry:
     delay_ms: int = 0
     fill_rate: float = 1.0
 
+    # [Blueprint P0 Turno A] enlaza decisión ↔ outcome (audit_complex)
+    correlation_id: str = ""
+
     # Internal use
     _created_at: str = field(default_factory=lambda: _utc_iso_now())
 
@@ -116,6 +119,7 @@ class TradeJournalEntry:
             "slippage_usd": self.slippage_usd,
             "delay_ms": self.delay_ms,
             "fill_rate": self.fill_rate,
+            "correlation_id": self.correlation_id,
             "_created_at": self._created_at,
         }
 
@@ -166,6 +170,8 @@ _TCA_COLUMNS: tuple[tuple[str, str], ...] = (
     ("slippage_usd", "DOUBLE DEFAULT 0"),
     ("delay_ms", "INTEGER DEFAULT 0"),
     ("fill_rate", "DOUBLE DEFAULT 1.0"),
+    # [Blueprint P0 Turno A] une decisión↔outcome con audit_complex.audit_trade_results
+    ("correlation_id", "VARCHAR DEFAULT ''"),
 )
 
 
@@ -235,6 +241,7 @@ def init_trade_journal_table(db_path: str | Path) -> None:
                 slippage_usd DOUBLE DEFAULT 0,
                 delay_ms INTEGER DEFAULT 0,
                 fill_rate DOUBLE DEFAULT 1.0,
+                correlation_id VARCHAR DEFAULT '',
 
                 _created_at VARCHAR,
 
@@ -321,8 +328,9 @@ def persist_trade_execution(
                     slippage_usd,
                     delay_ms,
                     fill_rate,
+                    correlation_id,
                     _created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 [
                     entry.execution_timestamp,
@@ -347,6 +355,7 @@ def persist_trade_execution(
                     entry.slippage_usd,
                     entry.delay_ms,
                     entry.fill_rate,
+                    entry.correlation_id,
                     entry._created_at,
                 ],
             )

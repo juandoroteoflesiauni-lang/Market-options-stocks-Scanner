@@ -164,6 +164,11 @@ async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
         VERIFICATION_BINGX_NOTIONAL_USDT,
         apply_session_mode_env,
     )
+    from backend.config.dual_bot_core_universe import (
+        core_bingx_venue_symbols,
+        dual_bot_fixed_universe_enabled,
+        resolve_active_equity_universe,
+    )
     from backend.config.logger_setup import get_logger
     from backend.config.settings import load_settings
     from backend.layer_1_data.datos.alpaca_client import AlpacaClient
@@ -211,7 +216,7 @@ async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
     alpaca_risk = AlpacaRiskPolicy.from_env()
     alpaca_service = AlpacaBotService(
         client=alpaca_client,
-        universe=settings.default_universe,
+        universe=resolve_active_equity_universe(),
         trading_mode=alpaca_mode,
         risk_policy=alpaca_risk,
         decision_config=AlpacaDecisionConfig.from_env(),
@@ -264,8 +269,10 @@ async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
 
     options_fn = shared_options_snapshot_service
 
+    bingx_universe = core_bingx_venue_symbols() if dual_bot_fixed_universe_enabled() else None
     bingx_service = BingXBotService(
         client=bingx_client,
+        universe=bingx_universe,
         options_snapshot_fn=options_fn,
         venue_technical_fn=_venue_technical,
         fmp_client=fmp,
@@ -301,6 +308,11 @@ async def _build_services(args: argparse.Namespace) -> tuple[object, object]:
 
 async def _run(args: argparse.Namespace) -> int:
     from backend.config.bot_relaxed_thresholds import VERIFICATION_ALPACA_NOTIONAL_USD
+    from backend.config.dual_bot_core_universe import (
+        dual_bot_fixed_universe_enabled,
+        resolve_active_equity_universe,
+        warmup_core_quant_stack,
+    )
     from backend.config.logger_setup import get_logger
     from backend.services.alpaca_audit_store import AlpacaAuditStore
     from backend.services.bingx_audit_store import BingXAuditStore
@@ -314,6 +326,18 @@ async def _run(args: argparse.Namespace) -> int:
     journal_path.parent.mkdir(parents=True, exist_ok=True)
     init_trade_journal_table(journal_path)
     alpaca_service, bingx_service = await _build_services(args)
+
+    if dual_bot_fixed_universe_enabled():
+        try:
+            await bingx_service.refresh_universe()
+            warmup_stats = await warmup_core_quant_stack()
+            logger.info(
+                "dual_bots.core_quant_stack_ready symbols=%d warmup=%s",
+                len(resolve_active_equity_universe()),
+                warmup_stats,
+            )
+        except Exception as exc:
+            logger.warning("dual_bots.core_universe_warmup_failed error=%s", exc)
 
     slow_s = args.slow_interval if args.slow_interval is not None else args.cycle_interval
     dual = DualLoopConfig(

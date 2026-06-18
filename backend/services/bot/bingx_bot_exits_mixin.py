@@ -8,7 +8,18 @@ from backend.services.bot.bingx_bot_types import *
 import math
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import Literal
 
+from backend.config.bingx_exit_bucket_policy import (
+    EARLY_SL_LEVERAGED_PCT,
+    BingXConfluenceCacheEntry,
+    adapt_thresholds_for_leverage,
+    confluence_broken_for_tp,
+    confluence_is_healthy,
+    confluence_is_weakened,
+    leveraged_pnl_pct,
+    resolve_exit_bucket,
+)
 from backend.config.logger_setup import get_logger
 from backend.services.bingx_symbol_linker import underlying_from_bingx_symbol
 
@@ -191,6 +202,22 @@ class BingXBotExitsMixin:
                 reduce_only=True,
             )
         )
+        if not resp.ok and resp.error and "Hedge mode" in resp.error:
+            logger.warning(
+                "bingx_bot.evaluate_dynamic_exits hedge_retry symbol=%s reason=%s",
+                symbol,
+                reason,
+            )
+            resp = await self._client.place_order_perp(
+                BingXPerpOrderRequest(
+                    symbol=symbol,
+                    side=close_side,
+                    position_side=position_side,
+                    order_type="MARKET",
+                    quantity=qty,
+                    reduce_only=False,
+                )
+            )
         if resp.ok and pnl_pct is not None and pnl_usd is not None:
             from backend.audit.process_recorder import record_trade_result
 
@@ -233,12 +260,171 @@ class BingXBotExitsMixin:
         self._exit_reasons.pop(symbol, None)
         self._parametric_exit_state.pop(symbol, None)
 
-    def _parametric_state_for(self, symbol: str, position_size: float) -> _ParametricExitState:
+    def _leveraged_state_for(
+        self,
+        symbol: str,
+        position_size: float,
+        entry_confluence: float | None,
+    ) -> _LeveragedExitState:
         state = self._parametric_exit_state.get(symbol)
         if state is None or state.initial_size <= 0:
-            state = _ParametricExitState(initial_size=abs(position_size))
+            state = _LeveragedExitState(
+                initial_size=abs(position_size),
+                entry_confluence_score=entry_confluence,
+            )
             self._parametric_exit_state[symbol] = state
+        elif state.entry_confluence_score is None and entry_confluence is not None:
+            state.entry_confluence_score = entry_confluence
         return state
+
+    def _parametric_state_for(self, symbol: str, position_size: float) -> _LeveragedExitState:
+        return self._leveraged_state_for(symbol, position_size, None)
+
+    def _extract_institutional_risk_flags(
+        self,
+        analysis: BingXCandidateAnalysis | None,
+    ) -> tuple[bool, str]:
+        if analysis is None or analysis.institutional_research is None:
+            return False, "LOW"
+        gex = analysis.institutional_research.options_gex
+        return bool(gex.speed_instability_warning), str(gex.tail_risk_severity or "LOW")
+
+    def _build_confluence_cache_entry(
+        self,
+        symbol: str,
+        analysis: BingXCandidateAnalysis,
+    ) -> BingXConfluenceCacheEntry:
+        score, gamma_flip, signal, _, _, _ = self._extract_options_exit_signals(analysis)
+        speed_instability, tail_risk = self._extract_institutional_risk_flags(analysis)
+        return BingXConfluenceCacheEntry(
+            symbol=symbol,
+            underlying=underlying_from_bingx_symbol(symbol),
+            confluence_score=score,
+            confluence_signal=signal,
+            gamma_flip=gamma_flip,
+            speed_instability=speed_instability,
+            tail_risk_severity=tail_risk,
+            updated_at_iso=datetime.now(UTC).isoformat(),
+        )
+
+    def _update_confluence_cache_from_analyses(
+        self,
+        analyses: tuple[BingXCandidateAnalysis, ...] | list[BingXCandidateAnalysis],
+    ) -> None:
+        for analysis in analyses:
+            symbol = analysis.venue_symbol
+            if not symbol:
+                continue
+            self._confluence_cache[symbol] = self._build_confluence_cache_entry(symbol, analysis)
+
+    def _cached_confluence(self, symbol: str) -> BingXConfluenceCacheEntry | None:
+        entry = self._confluence_cache.get(symbol)
+        return entry if isinstance(entry, BingXConfluenceCacheEntry) else None
+
+    async def _evaluate_leveraged_exit_ladder(
+        self,
+        *,
+        symbol: str,
+        pos_side: str,
+        position_size: float,
+        entry_price: float,
+        pnl_pct: float | None,
+        pnl_leveraged: float | None,
+        leverage: float,
+        spot: float | None,
+        cache_entry: BingXConfluenceCacheEntry | None,
+        entry_confluence: float | None,
+    ) -> tuple[list[BingXOrderResponse], float]:
+        """Escalera TP1/TP2/SL defensivo en % PnL apalancado."""
+        executions: list[BingXOrderResponse] = []
+        if pnl_leveraged is None or position_size <= 0:
+            return executions, position_size
+
+        pnl_lev = round(pnl_leveraged, 2)
+        root = underlying_from_bingx_symbol(symbol)
+        thresholds = adapt_thresholds_for_leverage(resolve_exit_bucket(root), leverage)
+        side_norm = pos_side.upper()
+        if side_norm not in ("LONG", "SHORT"):
+            return executions, position_size
+
+        state = self._leveraged_state_for(symbol, position_size, entry_confluence)
+        remaining = position_size
+        weakened = confluence_is_weakened(
+            cache_entry,
+            side=side_norm,  # type: ignore[arg-type]
+            spot=spot,
+            entry_score_at_open=state.entry_confluence_score,
+        )
+        healthy = confluence_is_healthy(
+            cache_entry,
+            side=side_norm,  # type: ignore[arg-type]
+            spot=spot,
+        )
+        broken_tp = confluence_broken_for_tp(
+            cache_entry,
+            side=side_norm,  # type: ignore[arg-type]
+            spot=spot,
+        )
+
+        sl_trigger = (
+            pnl_lev <= EARLY_SL_LEVERAGED_PCT
+            if weakened
+            else pnl_lev <= thresholds.sl_def_leveraged_pct
+        )
+        if not state.sl_def_done and weakened and sl_trigger:
+            trim_qty = remaining * thresholds.sl_def_trim_ratio
+            trim_usd = (pnl_pct / 100.0) * (entry_price * trim_qty) if pnl_pct else None
+            resp = await self._place_reduce_market(
+                symbol=symbol,
+                position_side=pos_side,
+                quantity=trim_qty,
+                reason="leveraged_sl_def_confluence_weakened",
+                pnl_pct=pnl_pct,
+                pnl_usd=trim_usd,
+            )
+            if resp is not None:
+                executions.append(resp)
+                remaining -= trim_qty
+            state.sl_def_done = True
+
+        if not state.tp1_done and pnl_lev >= thresholds.tp1_leveraged_pct and not broken_tp:
+            trim_qty = remaining * thresholds.tp1_trim_ratio
+            trim_usd = (pnl_pct / 100.0) * (entry_price * trim_qty) if pnl_pct else None
+            resp = await self._place_reduce_market(
+                symbol=symbol,
+                position_side=pos_side,
+                quantity=trim_qty,
+                reason=f"leveraged_tp1_{thresholds.bucket}",
+                pnl_pct=pnl_pct,
+                pnl_usd=trim_usd,
+            )
+            if resp is not None:
+                executions.append(resp)
+                remaining -= trim_qty
+            state.tp1_done = True
+
+        if (
+            not state.tp2_done
+            and state.tp1_done
+            and pnl_lev >= thresholds.tp2_leveraged_pct
+            and healthy
+        ):
+            trim_qty = remaining * thresholds.tp2_trim_ratio
+            trim_usd = (pnl_pct / 100.0) * (entry_price * trim_qty) if pnl_pct else None
+            resp = await self._place_reduce_market(
+                symbol=symbol,
+                position_side=pos_side,
+                quantity=trim_qty,
+                reason=f"leveraged_tp2_{thresholds.bucket}",
+                pnl_pct=pnl_pct,
+                pnl_usd=trim_usd,
+            )
+            if resp is not None:
+                executions.append(resp)
+                remaining -= trim_qty
+            state.tp2_done = True
+
+        return executions, remaining
 
     async def _execute_fade_and_flip_short(
         self,
@@ -341,15 +527,12 @@ class BingXBotExitsMixin:
         self,
         *,
         cycle_analyses: Mapping[str, BingXCandidateAnalysis] | None = None,
+        cycle_mode: Literal["fast", "slow"] = "slow",
     ) -> list[BingXOrderResponse]:
-        """Parametric take-profit ladder + fade-and-flip reversal.
-
-        When ``cycle_analyses`` is supplied (production ``run_cycle`` path), reuses
-        the same institutional GEX snapshot that ``decide()`` already logged — avoids
-        a second partial fetch where ``gamma_flip`` / ``shadow_delta`` would be None.
-        """
+        """Escalera apalancada (fast/slow) + salidas estructurales solo en slow."""
         logger.info(
-            "bingx_bot.evaluate_dynamic_exits started cycle_analyses=%s",
+            "bingx_bot.evaluate_dynamic_exits started cycle_mode=%s cycle_analyses=%s",
+            cycle_mode,
             "yes" if cycle_analyses else "no",
         )
         try:
@@ -378,7 +561,7 @@ class BingXBotExitsMixin:
             analysis: BingXCandidateAnalysis | None = None
             if cycle_analyses is not None:
                 analysis = cycle_analyses.get(symbol)
-            if analysis is None:
+            if analysis is None and cycle_mode == "slow":
                 from backend.config.shared_options_tier_policy import is_full_quant_tier
                 from backend.services.bingx_bot_service import build_candidate_analysis
 
@@ -400,18 +583,26 @@ class BingXBotExitsMixin:
                             open_position_roots=open_roots,
                         ),
                     )
+                    self._confluence_cache[symbol] = self._build_confluence_cache_entry(
+                        symbol, analysis
+                    )
                 except Exception as exc:
                     logger.error(
                         "bingx_bot.evaluate_dynamic_exits analysis_failed symbol=%s error=%s",
                         symbol,
                         exc,
                     )
-                    continue
-            elif cycle_analyses is not None:
+                    analysis = None
+            elif analysis is not None and cycle_mode == "slow":
+                self._confluence_cache[symbol] = self._build_confluence_cache_entry(
+                    symbol, analysis
+                )
                 logger.debug(
                     "bingx_bot.evaluate_dynamic_exits reusing_cycle_analysis symbol=%s",
                     symbol,
                 )
+
+            cache_entry = self._cached_confluence(symbol)
 
             # Resolve current spot from the position's dynamic payload (truth of the Exchange)
             current_spot = (
@@ -431,8 +622,8 @@ class BingXBotExitsMixin:
                 if pnl_pct is not None:
                     pnl_usd = (pnl_pct / 100.0) * (pos.entry_price * position_size)
 
-            # ── Structural Stop Loss (Ruptura de Zona) ───────────────────────
-            if current_spot is not None and analysis is not None:
+            # ── Structural Stop Loss (slow only) ─────────────────────────────
+            if cycle_mode == "slow" and current_spot is not None and analysis is not None:
                 # Find support/resistance limits
                 venue_tech = analysis.technical.venue_technical if analysis.technical else None
                 payload = venue_tech.get("payload") if isinstance(venue_tech, dict) else {}
@@ -518,7 +709,19 @@ class BingXBotExitsMixin:
 
             confluence_score, gamma_flip, confluence_signal, shadow_delta, call_wall, put_wall = (
                 self._extract_options_exit_signals(analysis)
+                if analysis is not None
+                else (
+                    cache_entry.confluence_score if cache_entry else None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
             )
+            if analysis is None and cache_entry is not None:
+                gamma_flip = cache_entry.gamma_flip
+                confluence_signal = cache_entry.confluence_signal
 
             conv_score = confluence_score if confluence_score is not None else 0.5
             reasons: list[str] = []
@@ -555,8 +758,8 @@ class BingXBotExitsMixin:
             self._conviction_scores[symbol] = round(conv_score, 4)
             self._exit_reasons[symbol] = reasons
 
-            # ── GEX Wall Proximity Exit ──────────────────────────────────────
-            if current_spot is not None:
+            # ── GEX Wall Proximity Exit (slow only) ──────────────────────────
+            if cycle_mode == "slow" and current_spot is not None:
                 if pos.side == "LONG" and call_wall is not None and call_wall > 0:
                     distance_pct = (call_wall - current_spot) / current_spot * 100.0
                     if 0.0 < distance_pct <= 1.5:
@@ -610,9 +813,10 @@ class BingXBotExitsMixin:
                             executions.append(resp)
                             position_size -= trim_qty
 
-            # ── Shadow Delta Reversal Hedge ──────────────────────────────────
+            # ── Shadow Delta Reversal Hedge (slow only) ──────────────────────
             if (
-                current_spot is not None
+                cycle_mode == "slow"
+                and current_spot is not None
                 and pnl_pct is not None
                 and pnl_pct >= 1.0
                 and (
@@ -642,15 +846,22 @@ class BingXBotExitsMixin:
                     executions.append(resp)
                     position_size -= trim_qty
 
-            # Consolidate pnl_real_apalancado by multiplying net result by position leverage (or fallback to 5X)
-            pnl_real_apalancado = None
-            if pnl_pct is not None:
-                leverage_factor = pos.leverage if (hasattr(pos, "leverage") and pos.leverage) else 5
+            leverage_factor = float(
+                pos.leverage if (hasattr(pos, "leverage") and pos.leverage) else 5.0
+            )
+            pnl_real_apalancado = leveraged_pnl_pct(
+                side=pos.side,  # type: ignore[arg-type]
+                entry_price=pos.entry_price,
+                mark_price=current_spot or pos.mark_price or 0.0,
+                leverage=leverage_factor,
+            )
+            if pnl_real_apalancado is None and pnl_pct is not None:
                 pnl_real_apalancado = pnl_pct * leverage_factor
 
             logger.info(
                 "bingx_bot.evaluate_dynamic_exits symbol=%s side=%s entry=%s current_spot=%s "
-                "pnl_pct=%s pnl_real_apalancado=%s gamma_flip=%s confluence=%s shadow_delta=%s",
+                "pnl_pct=%s pnl_real_apalancado=%s gamma_flip=%s confluence=%s shadow_delta=%s "
+                "cycle_mode=%s cache=%s",
                 symbol,
                 pos.side,
                 pos.entry_price,
@@ -660,11 +871,14 @@ class BingXBotExitsMixin:
                 gamma_flip,
                 confluence_score,
                 shadow_delta,
+                cycle_mode,
+                "yes" if cache_entry else "no",
             )
 
-            # 1) Fade-and-flip (LONG only): profit zone + structural breakdown + negative shadow delta.
+            # Fade-and-flip (slow only)
             if (
-                pos.side == "LONG"
+                cycle_mode == "slow"
+                and pos.side == "LONG"
                 and pnl_pct is not None
                 and pnl_pct >= PARAMETRIC_PROFIT_ZONE_MIN_PCT
                 and confluence_score is not None
@@ -686,75 +900,18 @@ class BingXBotExitsMixin:
                 executions.extend(flip_execs)
                 continue
 
-            # 2) Legacy structural full exit (gamma/signal/confluence degradation).
-            if (
-                gamma_contradicts
-                or signal_opposes
-                or (
-                    confluence_score is not None
-                    and confluence_score < PARAMETRIC_FLIP_CONFLUENCE_CEILING
-                )
-            ):
-                close_resp = await self._place_full_close(
-                    symbol=symbol,
-                    position_side=pos.side,
-                    quantity=position_size,
-                    reason="structural_exit",
-                    pnl_pct=pnl_pct,
-                    pnl_usd=pnl_usd,
-                )
-                if close_resp is not None:
-                    executions.append(close_resp)
-                continue
-
-            # 3) Parametric partial take-profit ladder (ignores confluence for the +3% 50% gate).
-            if pnl_pct is None or pnl_pct < PARAMETRIC_TP_TRIGGER_PCT:
-                continue
-
-            state = self._parametric_state_for(symbol, position_size)
-            milestone = int((pnl_pct - PARAMETRIC_TP_TRIGGER_PCT) // PARAMETRIC_TP_STEP_PCT)
-            remaining = position_size
-
-            if not state.half_tp_done:
-                half_qty = remaining * PARAMETRIC_HALF_EXIT_RATIO
-                trim_usd = (pnl_pct / 100.0) * (pos.entry_price * half_qty) if pnl_pct else None
-                resp = await self._place_reduce_market(
-                    symbol=symbol,
-                    position_side=pos.side,
-                    quantity=half_qty,
-                    reason="parametric_half_tp_3pct",
-                    pnl_pct=pnl_pct,
-                    pnl_usd=trim_usd,
-                )
-                if resp is not None:
-                    executions.append(resp)
-                state.half_tp_done = True
-                state.last_adaptive_milestone = max(state.last_adaptive_milestone, 0)
-                remaining *= 1.0 - PARAMETRIC_HALF_EXIT_RATIO
-
-            trim_ratio = (
-                PARAMETRIC_STRONG_CONFLUENCE_TRIM_RATIO
-                if (confluence_score or 0.0) >= PARAMETRIC_STRONG_CONFLUENCE_FLOOR
-                else PARAMETRIC_FATIGUE_TRIM_RATIO
+            ladder_execs, position_size = await self._evaluate_leveraged_exit_ladder(
+                symbol=symbol,
+                pos_side=pos.side,
+                position_size=position_size,
+                entry_price=pos.entry_price,
+                pnl_pct=pnl_pct,
+                pnl_leveraged=pnl_real_apalancado,
+                leverage=leverage_factor,
+                spot=current_spot,
+                cache_entry=cache_entry,
+                entry_confluence=confluence_score,
             )
-
-            while state.last_adaptive_milestone < milestone:
-                state.last_adaptive_milestone += 1
-                trim_qty = remaining * trim_ratio
-                trim_usd = (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
-                resp = await self._place_reduce_market(
-                    symbol=symbol,
-                    position_side=pos.side,
-                    quantity=trim_qty,
-                    reason=(
-                        f"parametric_step_{state.last_adaptive_milestone}_"
-                        f"{'trend' if trim_ratio == PARAMETRIC_STRONG_CONFLUENCE_TRIM_RATIO else 'fatigue'}"
-                    ),
-                    pnl_pct=pnl_pct,
-                    pnl_usd=trim_usd,
-                )
-                if resp is not None:
-                    executions.append(resp)
-                remaining *= 1.0 - trim_ratio
+            executions.extend(ladder_execs)
 
         return executions
