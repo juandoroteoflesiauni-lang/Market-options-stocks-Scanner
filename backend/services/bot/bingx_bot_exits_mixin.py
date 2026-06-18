@@ -382,10 +382,16 @@ class BingXBotExitsMixin:
                 pnl_pct=pnl_pct,
                 pnl_usd=trim_usd,
             )
-            if resp is not None:
+            if resp is not None and resp.ok:
                 executions.append(resp)
                 remaining -= trim_qty
-            state.sl_def_done = True
+                state.sl_def_done = True
+            elif resp is not None:
+                logger.error(
+                    "bingx_bot.leveraged_sl_failed symbol=%s error=%s",
+                    symbol,
+                    resp.error,
+                )
 
         if not state.tp1_done and pnl_lev >= thresholds.tp1_leveraged_pct and not broken_tp:
             trim_qty = remaining * thresholds.tp1_trim_ratio
@@ -398,10 +404,16 @@ class BingXBotExitsMixin:
                 pnl_pct=pnl_pct,
                 pnl_usd=trim_usd,
             )
-            if resp is not None:
+            if resp is not None and resp.ok:
                 executions.append(resp)
                 remaining -= trim_qty
-            state.tp1_done = True
+                state.tp1_done = True
+            elif resp is not None:
+                logger.error(
+                    "bingx_bot.leveraged_tp1_failed symbol=%s error=%s",
+                    symbol,
+                    resp.error,
+                )
 
         if (
             not state.tp2_done
@@ -419,10 +431,16 @@ class BingXBotExitsMixin:
                 pnl_pct=pnl_pct,
                 pnl_usd=trim_usd,
             )
-            if resp is not None:
+            if resp is not None and resp.ok:
                 executions.append(resp)
                 remaining -= trim_qty
-            state.tp2_done = True
+                state.tp2_done = True
+            elif resp is not None:
+                logger.error(
+                    "bingx_bot.leveraged_tp2_failed symbol=%s error=%s",
+                    symbol,
+                    resp.error,
+                )
 
         return executions, remaining
 

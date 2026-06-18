@@ -116,6 +116,7 @@ def dual_bot_core_env_flags() -> dict[str, str]:
         "TECHNICAL_ENABLE_FOOTPRINT_ENGINE": "true",
         "TECHNICAL_CPU_TIMEOUT_SEC": "20",
         "MARKET_SCANNER_INSTITUTIONAL_SCORING": "true",
+        "BINGX_OMIT_REDUCE_ONLY": "true",
     }
 
 

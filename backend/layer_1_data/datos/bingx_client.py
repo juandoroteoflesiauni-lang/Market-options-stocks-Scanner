@@ -225,13 +225,16 @@ class BingXPerpOrderRequest:
 
 
 def _bingx_omit_reduce_only() -> bool:
-    """When True, skip ``reduceOnly`` on closes (debug only — accumulates exposure)."""
-    return os.getenv("BINGX_OMIT_REDUCE_ONLY", "false").strip().lower() in {
+    """Skip ``reduceOnly`` — required on BingX Hedge mode (VST demo)."""
+    if os.getenv("BINGX_OMIT_REDUCE_ONLY", "false").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
-    }
+    }:
+        return True
+    env = os.getenv("BINGX_TRADING_ENVIRONMENT", os.getenv("TRADING_ENVIRONMENT", "")).lower()
+    return env in {"prod-vst", "vst", "demo"}
 
 
 def resolve_one_way_position_side(order: BingXPerpOrderRequest) -> Literal["LONG", "SHORT"]:
@@ -1059,6 +1062,22 @@ class BingXClient:
 
         api_ok, api_err = _bingx_api_ok(payload)
         if not api_ok:
+            if order.reduce_only and api_err and "Hedge mode" in api_err:
+                logger.warning(
+                    "bingx_client.place_order_perp hedge_retry symbol=%s side=%s pos=%s qty=%s",
+                    order.symbol,
+                    order.side,
+                    params["positionSide"],
+                    order.quantity,
+                )
+                from dataclasses import replace
+
+                retry_order = replace(
+                    order,
+                    reduce_only=False,
+                    client_order_id=f"qa-{uuid.uuid4().hex[:16]}",
+                )
+                return await self.place_order_perp(retry_order)
             logger.error(
                 "bingx_client.place_order_perp api_error symbol=%s code=%s",
                 order.symbol,
