@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Literal, Any
 
 import math
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from backend.domain.probabilistic_models import (
@@ -149,7 +149,7 @@ class OptionsGexDeskState:
         skew + convexity percentile).  ``"CRITICAL"`` is a hard-block trigger
         in the decision engine.
     zomma_risk_score : float | None
-        Normalised third-order Greek ∂Γ/∂σ score in ``[0, 1]``.  Values > 0.8
+        Normalised third-order Greek dGamma/dsigma score in ``[0, 1]``.  Values > 0.8
         trigger a SIZE_DOWN gate.
     """
 
@@ -183,6 +183,7 @@ class OptionsGexDeskState:
     net_gex_total: float | None = None
     dealer_bias: str = "NEUTRAL"
     predictive_report: PredictiveOptionsBundleReport | None = None
+    combiner: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

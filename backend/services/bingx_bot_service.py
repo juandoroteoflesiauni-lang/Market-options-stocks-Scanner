@@ -1525,7 +1525,10 @@ def _order_plan_from_engine_decision(
         and reference_price is not None
         and reference_price > 0
     )
-    multiplier = getattr(decision, "sizing_multiplier", 1.0)
+    multiplier = float(getattr(decision, "sizing_multiplier", 1.0) or 1.0)
+    combiner_pct = getattr(decision, "combiner_size_pct", None)
+    if combiner_pct is not None and 0.0 < float(combiner_pct) < 1.0:
+        multiplier = min(multiplier, float(combiner_pct))
     if decision.decision == "SIZE_DOWN" and multiplier >= 1.0:
         multiplier = 0.5
     notional = policy.effective_notional() * multiplier if authorized else 0.0

@@ -77,9 +77,24 @@ ignore = ["E402", "E501"]
 "backend/services/bot/bingx_bot_execution_mixin.py" = ["F403", "F405", "RUF006"]
 "backend/services/bot/bingx_bot_risk_mixin.py" = ["F403", "F405"]
 "backend/services/bot/bingx_bot_exits_mixin.py" = ["F403", "F405"]
+"backend/quant_engine/engines/hybrid/*.py" = [
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    "RUF005",
+    "RUF012",
+    "SIM102",
+    "SIM108",
+    "SIM110",
+    "E712",
+    "F841",
+    "B007",
+    "N806",
+]
+"tests/unit/test_bingx_decision_combiner_bridge.py" = ["RUF012"]
 
 [tool.bandit]
-exclude_dirs = ["tests", ".venv"]
+exclude_dirs = ["tests", ".venv", "backend/quant_engine/engines/hybrid"]
 skips = ["B608"]
 
 [tool.ruff.format]

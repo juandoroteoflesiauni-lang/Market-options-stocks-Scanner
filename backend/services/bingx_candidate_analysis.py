@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 from backend.config.logger_setup import get_logger
 from backend.config.shared_options_tier_policy import REASON_TECHNICAL_TIER_ONLY
 from backend.layer_1_data.datos.bingx_client import BingXClient, BingXKline
+from backend.services.avwap_hybrid_bridge import fetch_avwap_hybrid_blocks
 from backend.services.bingx_candidate_context import (
     AlpacaBarsClient,
     BingXCandidateContext,
@@ -49,11 +50,23 @@ from backend.services.bingx_l2_integration import analyze_bingx_l2
 from backend.services.bingx_options_bridge import OptionsSnapshotFn, build_options_bridge
 from backend.services.bingx_predictive_bridge import EquitySummaryFn, build_predictive_bridge
 from backend.services.bingx_symbol_linker import classify_underlying, underlying_from_bingx_symbol
-from backend.services.bingx_technical_bridge import TechnicalCandlesFn, build_venue_technical
+from backend.services.bingx_technical_bridge import (
+    MIN_BARS_FOR_SMC,
+    SOURCE_VENUE,
+    SOURCE_VENUE_FMP,
+    TechnicalCandlesFn,
+    build_venue_technical,
+    fetch_fmp_motor_candles,
+    klines_to_candles,
+)
 from backend.services.bingx_universe import MarketType
 from backend.services.equity_ta_snapshot_service import (
     EquityTASnapshotService,
     equity_probabilistic_summary,
+)
+from backend.services.hybrid_motors_service import (
+    merge_hybrid_blocks_into_payload,
+    run_hybrid_motors,
 )
 
 logger = get_logger(__name__)
@@ -112,6 +125,7 @@ class BingXOptionsBlock:
     quality_score: float | None = None
     reason: str | None = None
     predictive_report: PredictiveOptionsBundleReport | None = None
+    options_combiner: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -487,6 +501,8 @@ async def _attach_venue_technical(
     block: BingXTechnicalBlock,
     *,
     venue_symbol: str,
+    underlying_symbol: str,
+    market_type: str,
     ctx: BingXCandidateContext,
     l2_block: BingXL2Block,
     timeframe: str,
@@ -494,24 +510,71 @@ async def _attach_venue_technical(
 ) -> BingXTechnicalBlock:
     """Run the venue technical bridge and attach its result to ``block``.
 
-    The bridge degrades cleanly when ``technical_fn`` is None or when the
-    venue has insufficient klines — the returned block has the same
-    underlying-side fields as ``block`` and a populated ``venue_technical``
-    sub-dict with the bridge's status / reason / summary / quality.
-
-    The L2 snapshot is injected so the venue technical payload's
-    ``lob_dynamics`` block reflects the actual BingX L2 result rather than
-    the technical terminal's default unavailable stub.
+    Stock/index perps: 16-engine stack uses FMP underlying intraday bars
+    (500-1000). BingX venue klines remain in ``ctx`` for execution pricing.
+    Crypto keeps BingX perp klines for motors.
     """
     venue_src = ctx.venue_ohlcv_source
-    klines: tuple[Any, ...] = venue_src.klines if venue_src.status == "available" else ()
-    venue_result = await build_venue_technical(
-        venue_symbol,
-        klines,
-        timeframe=timeframe,
-        l2_snapshot=l2_block.lob_analysis,
-        technical_fn=technical_fn,
-    )
+    bingx_klines: tuple[Any, ...] = venue_src.klines if venue_src.status == "available" else ()
+
+    if market_type in ("stock_perp", "stock_index_perp"):
+        motor_candles, fmp_source, bar_count = await fetch_fmp_motor_candles(
+            underlying_symbol,
+            timeframe,
+        )
+        logger.info(
+            "bingx_candidate_analysis.motor_candles_fmp underlying=%s venue=%s bars=%d source=%s",
+            underlying_symbol,
+            venue_symbol,
+            bar_count,
+            fmp_source,
+        )
+        if len(motor_candles) >= MIN_BARS_FOR_SMC:
+            venue_result = await build_venue_technical(
+                venue_symbol,
+                motor_candles,
+                timeframe=timeframe,
+                l2_snapshot=l2_block.lob_analysis,
+                technical_fn=technical_fn,
+                payload_symbol=underlying_symbol,
+                result_source=SOURCE_VENUE_FMP,
+                candle_source=fmp_source or "fmp_intraday",
+            )
+        else:
+            venue_result = await build_venue_technical(
+                venue_symbol,
+                (),
+                timeframe=timeframe,
+                l2_snapshot=l2_block.lob_analysis,
+                technical_fn=technical_fn,
+                result_source=SOURCE_VENUE_FMP,
+                candle_source=fmp_source or "fmp_intraday",
+            )
+        if venue_result.status != "available" and bingx_klines:
+            logger.warning(
+                "bingx_candidate_analysis.motor_candles_fmp_fallback venue=%s reason=%s",
+                venue_symbol,
+                venue_result.reason,
+            )
+            venue_result = await build_venue_technical(
+                venue_symbol,
+                bingx_klines,
+                timeframe=timeframe,
+                l2_snapshot=l2_block.lob_analysis,
+                technical_fn=technical_fn,
+                result_source=SOURCE_VENUE,
+                candle_source="bingx_venue_fallback",
+            )
+    else:
+        venue_result = await build_venue_technical(
+            venue_symbol,
+            bingx_klines,
+            timeframe=timeframe,
+            l2_snapshot=l2_block.lob_analysis,
+            technical_fn=technical_fn,
+            result_source=SOURCE_VENUE,
+            candle_source="bingx_venue",
+        )
     return BingXTechnicalBlock(
         metrics=block.metrics,
         status=block.status,
@@ -519,6 +582,145 @@ async def _attach_venue_technical(
         quality_score=block.quality_score,
         reason=block.reason,
         venue_technical=venue_result.to_dict(),
+    )
+
+
+def _options_metrics_for_hybrid(
+    options_block: BingXOptionsBlock,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Extract flat metrics dict and raw chain snapshot for hybrid motors."""
+    payload = options_block.metrics if isinstance(options_block.metrics, dict) else {}
+    raw_snapshot = (
+        payload.get("raw_snapshot") if isinstance(payload.get("raw_snapshot"), dict) else None
+    )
+    nested = payload.get("metrics")
+    if isinstance(nested, dict):
+        return nested, raw_snapshot
+    return payload, raw_snapshot
+
+
+async def _attach_hybrid_motors(
+    block: BingXTechnicalBlock,
+    *,
+    venue_symbol: str,
+    underlying_symbol: str,
+    market_type: str,
+    ctx: BingXCandidateContext,
+    options_block: BingXOptionsBlock,
+    timeframe: str,
+) -> BingXTechnicalBlock:
+    """Run hybrid price+options motors and merge into venue_technical payload."""
+    venue_tech = block.venue_technical
+    if not isinstance(venue_tech, dict) or venue_tech.get("status") != "available":
+        return block
+    payload = venue_tech.get("payload")
+    if not isinstance(payload, dict):
+        return block
+
+    venue_src = ctx.venue_ohlcv_source
+    bingx_klines: tuple[Any, ...] = venue_src.klines if venue_src.status == "available" else ()
+    motor_candles: list[dict[str, Any]] = []
+
+    if market_type in ("stock_perp", "stock_index_perp"):
+        fmp_candles, _, _bar_count = await fetch_fmp_motor_candles(underlying_symbol, timeframe)
+        if len(fmp_candles) >= MIN_BARS_FOR_SMC:
+            motor_candles = fmp_candles
+        elif bingx_klines:
+            motor_candles = klines_to_candles(bingx_klines)
+        logger.debug(
+            "bingx_candidate_analysis.hybrid_motors_candles venue=%s bars=%d",
+            venue_symbol,
+            len(motor_candles),
+        )
+    elif bingx_klines:
+        motor_candles = klines_to_candles(bingx_klines)
+
+    if len(motor_candles) < MIN_BARS_FOR_SMC:
+        return block
+
+    opt_metrics, raw_snapshot = _options_metrics_for_hybrid(options_block)
+    try:
+        hybrid_blocks = run_hybrid_motors(
+            ticker=underlying_symbol,
+            candles=motor_candles,
+            options_metrics=opt_metrics,
+            raw_options_snapshot=raw_snapshot,
+        )
+        merged_payload = merge_hybrid_blocks_into_payload(payload, hybrid_blocks)
+        active = sum(1 for b in hybrid_blocks.values() if b.get("ok"))
+        logger.info(
+            "bingx_candidate_analysis.hybrid_motors_attached venue=%s active=%d/7",
+            venue_symbol,
+            active,
+        )
+    except Exception as exc:
+        logger.warning(
+            "bingx_candidate_analysis.hybrid_motors_failed venue=%s error=%s",
+            venue_symbol,
+            str(exc)[:180],
+        )
+        return block
+
+    updated_venue = dict(venue_tech)
+    updated_venue["payload"] = merged_payload
+    return BingXTechnicalBlock(
+        metrics=block.metrics,
+        status=block.status,
+        source=block.source,
+        quality_score=block.quality_score,
+        reason=block.reason,
+        venue_technical=updated_venue,
+    )
+
+
+async def _attach_avwap_hybrid(
+    block: BingXTechnicalBlock,
+    *,
+    underlying_symbol: str,
+    ctx: BingXCandidateContext,
+) -> tuple[BingXTechnicalBlock, dict[str, Any] | None]:
+    """Attach AVWAP M13-M18 blocks for technical consensus."""
+    venue_tech = block.venue_technical
+    if not isinstance(venue_tech, dict) or venue_tech.get("status") != "available":
+        return block, None
+
+    venue_src = ctx.venue_ohlcv_source
+    if venue_src.status != "available" or not venue_src.klines:
+        return block, None
+
+    last = venue_src.klines[-1]
+    try:
+        close = float(last[4])
+        volume = float(last[5]) if len(last) > 5 else 0.0
+    except (TypeError, ValueError, IndexError):
+        return block, None
+
+    avwap_blocks = await fetch_avwap_hybrid_blocks(
+        underlying_symbol,
+        close=close,
+        volume=volume,
+    )
+    if not avwap_blocks:
+        return block, None
+
+    payload = venue_tech.get("payload")
+    if not isinstance(payload, dict):
+        return block, avwap_blocks
+
+    merged = dict(payload)
+    merged.update(avwap_blocks)
+    updated_venue = dict(venue_tech)
+    updated_venue["payload"] = merged
+    return (
+        BingXTechnicalBlock(
+            metrics=block.metrics,
+            status=block.status,
+            source=block.source,
+            quality_score=block.quality_score,
+            reason=block.reason,
+            venue_technical=updated_venue,
+        ),
+        avwap_blocks,
     )
 
 
@@ -832,10 +1034,28 @@ async def build_candidate_analysis(
     technical = await _attach_venue_technical(
         technical,
         venue_symbol=venue_symbol,
+        underlying_symbol=underlying,
+        market_type=market_type,
         ctx=ctx,
         l2_block=l2,
         timeframe=kline_interval,
         technical_fn=venue_technical_fn,
+    )
+
+    technical = await _attach_hybrid_motors(
+        technical,
+        venue_symbol=venue_symbol,
+        underlying_symbol=underlying,
+        market_type=market_type,
+        ctx=ctx,
+        options_block=options,
+        timeframe=kline_interval,
+    )
+
+    technical, avwap_hybrid_signals = await _attach_avwap_hybrid(
+        technical,
+        underlying_symbol=underlying,
+        ctx=ctx,
     )
 
     # ── Institutional Research Snapshot ──────────────────────────────────────
@@ -882,6 +1102,17 @@ async def build_candidate_analysis(
                 "predictive_report",
                 institutional_research.options_gex.predictive_report,
             )
+            combiner = institutional_research.options_gex.combiner
+            if isinstance(combiner, dict):
+                object.__setattr__(options, "options_combiner", combiner)
+                logger.info(
+                    "bingx_candidate_analysis.combiner_attached venue=%s direction=%s "
+                    "score=%s entry_allowed=%s",
+                    venue_symbol,
+                    combiner.get("direction"),
+                    combiner.get("score"),
+                    combiner.get("entry_allowed"),
+                )
 
     data_sources = _collect_data_sources(
         venue, underlying_block, options, technical, predictive, l2, exchange_derivatives
@@ -909,6 +1140,7 @@ async def build_candidate_analysis(
         errors=errors,
         readiness_score=readiness,
         captured_at=datetime.now(UTC).isoformat(),
+        avwap_hybrid_signals=avwap_hybrid_signals,
     )
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Literal, Any
+
+from typing import Any, Literal
+
 """BingX multi-module decision engine.
 
 Replaces the historical VSA/heuristic filter with a rule-based engine that
@@ -35,12 +37,26 @@ import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
-from backend.config.logger_setup import get_logger
-from backend.domain.probabilistic_models import (
-    PredictiveOptions2Bundle,
-    PredictiveOptionsBundleReport,
+from backend.config.bingx_hybrid_motors_calibration import (
+    HYBRID_CONSENSUS_LONG,
+    HYBRID_CONSENSUS_SHORT,
 )
+from backend.config.bingx_hybrid_motors_calibration import (
+    TECHNICAL_WEIGHT_MATRIX as _HYBRID_CALIB_WEIGHT_MATRIX,
+)
+from backend.config.bingx_options_combiner_calibration import (
+    combiner_contradiction_penalty,
+    combiner_entry_score,
+    combiner_extreme_blocks,
+    combiner_extreme_risk_penalty,
+    combiner_options_score_weight,
+    combiner_quality_weight,
+)
+from backend.config.logger_setup import get_logger
+from backend.domain.probabilistic_models import PredictiveOptionsBundleReport
 from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
+from backend.services.bingx_risk_sizing_v2 import risk_sizing_multiplier
+from backend.services.hybrid_motors_service import hybrid_bias_from_block
 
 logger = get_logger(__name__)
 
@@ -94,6 +110,10 @@ REASON_ZOMMA_RISK_SIZE_DOWN = "zomma_risk_size_down"
 REASON_NDDE_CONTRADICTS_DIRECTION = "ndde_contradicts_direction"
 REASON_CHARM_FLOW_PENALTY = "charm_flow_penalty"
 REASON_CONFLUENCE_DIVERGENCE = "confluence_divergence"
+REASON_COMBINER_ENTRY_BLOCKED = "combiner_entry_blocked"
+REASON_COMBINER_EXTREME_RISK = "combiner_extreme_risk"
+REASON_COMBINER_CONTRADICTION = "combiner_contradiction"
+REASON_COMBINER_DIRECTION = "combiner_direction_used"
 REASON_CRYPTO_DERIVATIVES_OVERHEATING = "crypto_derivatives_overheating"
 REASON_VOLATILITY_PANIC_SIZE_DOWN = "volatility_panic_size_down"
 REASON_DEX_ZGL_INVALIDATION = "dex_zgl_invalidation"
@@ -127,6 +147,7 @@ class BingXDecision:
     reason_codes: list[str] = field(default_factory=list)
     market_type: str = ""
     sizing_multiplier: float = 1.0
+    combiner_size_pct: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         out = asdict(self)
@@ -216,29 +237,8 @@ def _clamp_unit(value: float | None) -> float:
 
 # ── Weighted institutional consensus (16-engine voting) ──────────────────────
 
-# Weight matrix for the full technical terminal engine suite. Sums to 1.0.
-# Priority: microstructure (HMM, OFI) and volume/price anchors.
-_TECHNICAL_WEIGHT_MATRIX: dict[str, float] = {
-    "hmm_regime": 0.12,
-    "ofi": 0.12,
-    "volume_profile": 0.08,
-    "vwap_advanced": 0.08,
-    "lob_dynamics": 0.08,
-    "vsa": 0.08,
-    "fvg": 0.08,
-    "order_flow_delta": 0.06,
-    "delta_volume": 0.05,
-    "vpoc_migration": 0.04,
-    "tpo_skewness": 0.03,
-    "single_prints": 0.02,
-    "vsa_footprint": 0.02,
-    "avwap_m13": 0.04,
-    "avwap_m14": 0.02,
-    "avwap_m15": 0.02,
-    "avwap_m16": 0.02,
-    "avwap_m17": 0.02,
-    "avwap_m18": 0.02,
-}
+# Weight matrix: 16 venue engines + 7 hybrid motors (sums to 1.0 via calibration).
+_TECHNICAL_WEIGHT_MATRIX: dict[str, float] = dict(_HYBRID_CALIB_WEIGHT_MATRIX)
 
 
 def _engine_is_ok(block: dict[str, Any] | None) -> bool:
@@ -406,13 +406,21 @@ def _engine_bias_vote(
             return "BEARISH"
         return "NEUTRAL"
 
+    if engine.startswith("hybrid_"):
+        vote = hybrid_bias_from_block(block)
+        if vote == "BULLISH":
+            return "BULLISH"
+        if vote == "BEARISH":
+            return "BEARISH"
+        return "NEUTRAL"
+
     return "NEUTRAL"
 
 
 def _technical_consensus(
     analysis: BingXCandidateAnalysis,
 ) -> tuple[float, Direction, dict[str, Any]]:
-    """Run weighted institutional consensus across all 16 technical engines.
+    """Run weighted institutional consensus across venue + hybrid engines.
 
     Returns
     -------
@@ -459,10 +467,10 @@ def _technical_consensus(
 
     raw_consensus = weighted_sum  # range [-1.0, 1.0]
 
-    # 60 % threshold for a valid directional signal
-    if raw_consensus > 0.60:
+    # Directional threshold — calibrated for verification (0.55) vs legacy 0.60
+    if raw_consensus > HYBRID_CONSENSUS_LONG:
         direction: Direction = "LONG"
-    elif raw_consensus < -0.60:
+    elif raw_consensus < HYBRID_CONSENSUS_SHORT:
         direction = "SHORT"
     else:
         direction = "FLAT"
@@ -537,8 +545,64 @@ def _technical_direction(analysis: BingXCandidateAnalysis) -> Direction:
     return "FLAT"
 
 
+def _combiner_payload(analysis: BingXCandidateAnalysis) -> dict[str, Any] | None:
+    """Read SignalCombiner output attached during candidate analysis."""
+    combiner = getattr(analysis.options, "options_combiner", None)
+    if isinstance(combiner, dict) and combiner.get("direction") is not None:
+        return combiner
+    metrics = analysis.options.metrics or {}
+    if isinstance(metrics, dict):
+        nested = metrics.get("combiner")
+        if isinstance(nested, dict):
+            return nested
+    return None
+
+
+def _combiner_size_pct(analysis: BingXCandidateAnalysis) -> float | None:
+    combiner = _combiner_payload(analysis)
+    if not combiner:
+        return None
+    return _safe_float(combiner.get("size_pct"))
+
+
+def _confluence_direction(analysis: BingXCandidateAnalysis) -> Direction:
+    metrics = analysis.options.metrics or {}
+    inner = metrics.get("metrics") if isinstance(metrics.get("metrics"), dict) else metrics
+    if not isinstance(inner, dict):
+        return "FLAT"
+    sig = inner.get("confluence_signal")
+    if sig is None:
+        return "FLAT"
+    conf_sig_str = str(sig).upper().strip()
+    if conf_sig_str in ("BULLISH", "LONG", "BUY"):
+        return "LONG"
+    if conf_sig_str in ("BEARISH", "SHORT", "SELL"):
+        return "SHORT"
+    return "FLAT"
+
+
+def _combiner_direction(analysis: BingXCandidateAnalysis) -> Direction:
+    """Direction from SignalCombiner when score exceeds entry threshold."""
+    combiner = _combiner_payload(analysis)
+    if not combiner:
+        return "FLAT"
+    score = _safe_float(combiner.get("score"))
+    if score is None:
+        return "FLAT"
+    threshold = combiner_entry_score()
+    direction = str(combiner.get("direction") or "NEUTRAL").upper()
+    if direction == "LONG" and score >= threshold:
+        return "LONG"
+    if direction == "SHORT" and score <= -threshold:
+        return "SHORT"
+    return "FLAT"
+
+
 def _options_direction(analysis: BingXCandidateAnalysis) -> Direction:
-    """Read dealer_bias from the options bridge metrics."""
+    """Read direction from SignalCombiner, then dealer_bias fallback."""
+    combiner_dir = _combiner_direction(analysis)
+    if combiner_dir != "FLAT":
+        return combiner_dir
     metrics = analysis.options.metrics or {}
     if not isinstance(metrics, dict):
         return "FLAT"
@@ -594,7 +658,17 @@ def _technical_score(analysis: BingXCandidateAnalysis) -> float:
 def _options_score(analysis: BingXCandidateAnalysis) -> float:
     if _block_status(analysis.options) != "available":
         return 0.0
-    return _clamp_unit(_safe_float(analysis.options.quality_score))
+    quality = _clamp_unit(_safe_float(analysis.options.quality_score))
+    combiner = _combiner_payload(analysis)
+    if not combiner:
+        return quality
+    score = _safe_float(combiner.get("score"))
+    if score is None:
+        return quality
+    directional = _clamp_unit(abs(score) / 100.0)
+    qw = combiner_quality_weight()
+    ow = combiner_options_score_weight()
+    return _clamp_unit(qw * quality + ow * directional)
 
 
 def _predictive_score(analysis: BingXCandidateAnalysis) -> float:
@@ -711,15 +785,19 @@ def decide(
     predictive_dir = _predictive_direction(analysis)
     technical_dir = _technical_direction(analysis)
     options_dir = _options_direction(analysis)
+    combiner_dir = _combiner_direction(analysis)
 
-    # Direction: predictive is authoritative when present; otherwise fall
-    # back to technical alone (only if it's directional — never invent FLAT).
+    # Direction priority: predictivo > técnico (23 motores) > combiner > confluencia
     if predictive_dir != "FLAT":
         direction: Direction = predictive_dir
     elif technical_dir != "FLAT":
         direction = technical_dir
+    elif combiner_dir != "FLAT":
+        direction = combiner_dir
+        reason_codes.append(REASON_COMBINER_DIRECTION)
     else:
-        direction = "FLAT"
+        conf_dir = _confluence_direction(analysis)
+        direction = conf_dir if conf_dir != "FLAT" else "FLAT"
 
     # Log when the 16-engine consensus ran but produced no clear signal
     if _has_full_technical_payload(analysis):
@@ -808,6 +886,7 @@ def decide(
     # --- ML SCORE BLEND ---
     try:
         from backend.ml_engine.models.random_forest_classifier import TradePredictor
+
         predictor = TradePredictor()
         if predictor.load():
             indicators = {
@@ -817,7 +896,7 @@ def decide(
                 "predictive_score": predictive_score_val,
                 "l2_score": l2_score_val,
                 "risk_score": risk_score_val,
-                "score_total": score_total
+                "score_total": score_total,
             }
             ml_prob = predictor.predict_prob(indicators)
             score_total = round(0.80 * score_total + 0.20 * ml_prob, 4)
@@ -913,7 +992,46 @@ def decide(
         reason_codes.append(REASON_DIRECTION_CONFLICT)
 
     needs_legacy_size_down = False
-    greek_sizing_multiplier = 1.0
+    combiner_size = _combiner_size_pct(analysis)
+    combiner_cap: float | None = None
+
+    # ── SignalCombiner gates ───────────────────────────────────────────────
+    combiner_data = _combiner_payload(analysis)
+    if combiner_data:
+        agreement = str(combiner_data.get("agreement_level") or "").lower()
+        if agreement == "contradiction":
+            score_total = max(
+                0.0,
+                round(score_total - combiner_contradiction_penalty(), 4),
+            )
+            reason_codes.append(REASON_COMBINER_CONTRADICTION)
+
+        risk_level = str(combiner_data.get("risk_level") or "").upper()
+        if risk_level == "EXTREME":
+            reason_codes.append(REASON_COMBINER_EXTREME_RISK)
+            if combiner_extreme_blocks():
+                return BingXDecision(
+                    symbol=analysis.venue_symbol,
+                    decision="BLOCK",
+                    direction="FLAT",
+                    confidence=0.0,
+                    score_total=score_total,
+                    module_scores=module_scores,
+                    reason_codes=reason_codes,
+                    market_type=analysis.market_type,
+                    combiner_size_pct=combiner_size,
+                )
+            score_total = max(
+                0.0,
+                round(score_total - combiner_extreme_risk_penalty(), 4),
+            )
+
+        if combiner_data.get("entry_allowed") is False:
+            needs_legacy_size_down = True
+            reason_codes.append(REASON_COMBINER_ENTRY_BLOCKED)
+
+        if combiner_size is not None and 0.0 < combiner_size < 1.0:
+            combiner_cap = combiner_size
 
     # ── Volatility Sizing Adjustments (VRP & Skew) ──────────────────────────
     vrp_val = _safe_float(inner_metrics.get("vrp")) if isinstance(inner_metrics, dict) else None
@@ -1151,7 +1269,15 @@ def decide(
     if dte is not None and dte <= 1 and pin_prob > 0.70:
         pinning_factor = max(0.1, min(1.0, 1.5 - 1.5 * pin_prob))
 
-    greek_sizing_multiplier = max(0.1, min(1.0, speed_factor * zomma_factor * pinning_factor))
+    greek_base = max(0.1, min(1.0, speed_factor * zomma_factor * pinning_factor))
+    risk_v2_mult = risk_sizing_multiplier(analysis, direction=direction)
+    greek_sizing_multiplier = greek_base * risk_v2_mult
+    if combiner_cap is not None:
+        greek_sizing_multiplier = min(greek_sizing_multiplier, combiner_cap)
+    greek_sizing_multiplier = max(0.1, min(1.5, greek_sizing_multiplier))
+
+    if risk_v2_mult < 0.85:
+        reason_codes.append("risk_sizing_v2_size_down")
 
     if bundle_report.speed_instability_warning:
         reason_codes.append(REASON_SPEED_INSTABILITY_SIZE_DOWN)
@@ -1291,6 +1417,7 @@ def decide(
             reason_codes=reason_codes,
             market_type=analysis.market_type,
             sizing_multiplier=final_multiplier,
+            combiner_size_pct=combiner_size,
         )
 
     # ── ALLOW ───────────────────────────────────────────────────────────────
@@ -1313,6 +1440,7 @@ def decide(
         reason_codes=reason_codes,
         market_type=analysis.market_type,
         sizing_multiplier=final_multiplier,
+        combiner_size_pct=combiner_size,
     )
 
 
