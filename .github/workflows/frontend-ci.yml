@@ -94,7 +94,7 @@ jobs:
           NEXT_PUBLIC_WS_URL: "ws://localhost:8001"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nextjs-build
           path: frontend/.next/
