@@ -15,17 +15,19 @@ from backend.config.execution_policy import execution_phase_b_env_flags
 from backend.config.profit_calibration import profit_calibration_env_flags
 
 # Alpaca decision engine
-ALPACA_RELAXED_MIN_VOLUME_Z: float = 0.30
-ALPACA_RELAXED_MIN_CLOSE_POSITION: float = 0.35
-ALPACA_RELAXED_PROB_FLOOR: float = 0.35
+# [Fase 5 P0/P1 2026-06-17] Endurecidos para que los gates de verification tengan
+# edge mínimo (memo §2/H4): con prob=0.50+0.45·score el floor 0.35 nunca vinculaba.
+ALPACA_RELAXED_MIN_VOLUME_Z: float = 0.50  # antes 0.30
+ALPACA_RELAXED_MIN_CLOSE_POSITION: float = 0.45  # antes 0.35
+ALPACA_RELAXED_PROB_FLOOR: float = 0.45  # antes 0.35
 ALPACA_RELAXED_SIZE_DOWN_BAND: float = 0.15
-ALPACA_RELAXED_R2_MIN_SCORE: float = 32.0
-ALPACA_RELAXED_R2_GATE_VETO: float = 0.05
-ALPACA_RELAXED_R2_CONFLUENCE_MIN: int = 1
+ALPACA_RELAXED_R2_MIN_SCORE: float = 40.0  # antes 32.0
+ALPACA_RELAXED_R2_GATE_VETO: float = 0.10  # antes 0.05
+ALPACA_RELAXED_R2_CONFLUENCE_MIN: int = 2  # antes 1 (nunca dirección de 1 solo motor)
 
 # BingX decision engine
-BINGX_RELAXED_MIN_DECISION_SCORE: float = 0.30
-BINGX_RELAXED_MIN_PREDICTIVE_CONF: float = 0.35
+BINGX_RELAXED_MIN_DECISION_SCORE: float = 0.40  # antes 0.30
+BINGX_RELAXED_MIN_PREDICTIVE_CONF: float = 0.40  # antes 0.35
 
 # Predictive gate — reactivado en modo verificación (F9), umbral bajo
 ALPACA_PREDICTIVE_GATE_DISABLED: bool = False
@@ -51,6 +53,13 @@ AUDIT_RETAIN_MAX_CYCLES: int = 1500
 VERIFICATION_ALPACA_NOTIONAL_USD: float = 2_000.0
 VERIFICATION_BINGX_NOTIONAL_USDT: float = 500.0
 VERIFICATION_EXECUTION_COOLDOWN_MINUTES: float = 3.0
+# [Fase 5 P1 2026-06-17] Caps risk desk BingX específicos de verification (H5):
+# deshacen el inflado ~2500x del default compartido. Solo aplican a verification
+# (override en apply_verification_session_env, no en profit).
+VERIFICATION_RISK_MAX_DAILY_LOSS_USDT: float = 2_000.0  # 2% de ~100k (antes 5000)
+VERIFICATION_RISK_MAX_POSITION_NOTIONAL_USDT: float = 8_000.0  # antes 75000
+VERIFICATION_RISK_MAX_SYMBOL_EXPOSURE_USDT: float = 1_500.0  # antes 15000
+VERIFICATION_RISK_COOLDOWN_AFTER_LOSS_MINUTES: float = 5.0  # antes 2
 OPTIONS_CONTRACT_QTY: int = 2
 OPTIONS_PREMIUM_SCALE_MULT: float = 1.5
 ALPACA_OPTIONS_R1_MAX_PER_CYCLE: int = 6
@@ -235,7 +244,7 @@ def apply_verification_session_env(*, execute_orders: bool = True) -> None:
             "ALPACA_R2_HMM_BULLISH_ONLY": "false",
             "ALPACA_R2_VSA_VOLUME_GATE": "false",
             "ALPACA_R2_ACCEPT_S1": "true",
-            "ALPACA_VERIFICATION_RELAXED_BULLISH": "true",
+            "ALPACA_VERIFICATION_RELAXED_BULLISH": "false",
             "ALPACA_PREDICTIVE_GATE_DISABLED": str(ALPACA_PREDICTIVE_GATE_DISABLED).lower(),
             "EQUITY_OPTIONS_GATE_RELAXED": "true",
             "EQUITY_L2_GATE_ENABLED": "false",
@@ -257,7 +266,10 @@ def apply_verification_session_env(*, execute_orders: bool = True) -> None:
             "BOT_FAST_CYCLE_INTERVAL_S": str(BOT_FAST_CYCLE_INTERVAL_S),
             "BOT_SLOW_CYCLE_INTERVAL_S": str(BOT_SLOW_CYCLE_INTERVAL_S),
             "BOT_CYCLE_INTERVAL_S": str(BOT_SLOW_CYCLE_INTERVAL_S),
-            "RISK_COOLDOWN_AFTER_LOSS_MINUTES": "2",
+            "RISK_COOLDOWN_AFTER_LOSS_MINUTES": str(VERIFICATION_RISK_COOLDOWN_AFTER_LOSS_MINUTES),
+            "RISK_MAX_DAILY_LOSS_USDT": str(VERIFICATION_RISK_MAX_DAILY_LOSS_USDT),
+            "RISK_MAX_POSITION_NOTIONAL_USDT": str(VERIFICATION_RISK_MAX_POSITION_NOTIONAL_USDT),
+            "RISK_MAX_SYMBOL_EXPOSURE_USDT": str(VERIFICATION_RISK_MAX_SYMBOL_EXPOSURE_USDT),
             "ALPACA_NOTIONAL_PER_TRADE_USD": str(VERIFICATION_ALPACA_NOTIONAL_USD),
             "BINGX_NOTIONAL_PER_TRADE_USDT": str(VERIFICATION_BINGX_NOTIONAL_USDT),
             "BINGX_USE_STATIC_NOTIONAL": "true",
