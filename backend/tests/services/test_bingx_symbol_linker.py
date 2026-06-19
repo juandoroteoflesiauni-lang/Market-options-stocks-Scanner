@@ -36,6 +36,7 @@ def test_normalize_venue_symbol(raw: str, expected: str) -> None:
         ("NCSKPLTR2USD-USDT", "PLTR"),
         ("NCSKAAPL2USD-USDT", "AAPL"),
         ("ncskgoogl2usd-usdt", "GOOGL"),
+        ("AMDUS-USDT", "AMD"),
         ("BTC-USDT", "BTC"),
         ("ETH-USDT", "ETH"),
         ("SOL-USDT", "SOL"),
@@ -91,6 +92,7 @@ def test_is_ncsk_vst_stock_perp_symbol_false_for_display_name() -> None:
     [
         ("NCSKAAPL2USD-USDT", "AAPL-USDT"),
         ("NCSKGOOGL2USD-USDT", "GOOGL-USDT"),
+        ("NCSKAMD2USD-USDT", "AMDUS-USDT"),
         ("MSFT-USDT", "MSFT-USDT"),
         ("MSFTON-USDT", "MSFT-USDT"),
     ],

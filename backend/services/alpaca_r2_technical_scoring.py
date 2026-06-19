@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import os
-
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from backend.config.alpaca_institutional_config import ivpin_enabled
 from backend.config.alpaca_r2_scoring_config import (
     R2_CONFLUENCE_CORE_ENGINES,
     R2_L1_ENGINE_KEYS,
@@ -24,6 +24,7 @@ from backend.config.alpaca_r2_scoring_config import (
 )
 from backend.config.logger_setup import get_logger
 from backend.domain.alpaca_models import AlpacaCandidateAnalysis
+from backend.quant_engine.math.technical.ivpin import compute_ivpin
 
 logger = get_logger(__name__)
 
@@ -53,6 +54,8 @@ class R2TechnicalScoreResult(BaseModel):
     bullish_engines: tuple[str, ...] = ()
     engine_votes: dict[str, str] = Field(default_factory=dict)
     reason_codes: tuple[str, ...] = ()
+    ivpin: float | None = None
+    ivpin_gate: float = 1.0
 
 
 def _safe_float(value: object) -> float | None:
@@ -268,6 +271,31 @@ def _confluence_tier(count: int) -> ConfluenceTier:
     return "NONE"
 
 
+def _ivpin_from_payload(payload: dict[str, Any]) -> tuple[float | None, float]:
+    """Extract iVPIN from microstructure block and return (ivpin, gate multiplier)."""
+    if not ivpin_enabled():
+        return None, 1.0
+    micro = payload.get("microstructure") or payload.get("vpin") or {}
+    if not isinstance(micro, dict):
+        return None, 1.0
+    buy = micro.get("buy_volumes") or micro.get("buy_volume_buckets")
+    sell = micro.get("sell_volumes") or micro.get("sell_volume_buckets")
+    if isinstance(buy, list) and isinstance(sell, list) and buy and sell:
+        result = compute_ivpin([float(x) for x in buy], [float(x) for x in sell])
+        ivpin_val = result.get("ivpin")
+        if ivpin_val is None:
+            return None, 1.0
+        # High toxicity reduces score; gate in [0.5, 1.0]
+        gate = max(0.5, 1.0 - float(ivpin_val) * 0.5)
+        return float(ivpin_val), gate
+    raw = micro.get("ivpin") or micro.get("vpin") or micro.get("vpin_proxy")
+    if raw is not None:
+        ivpin_val = float(raw)
+        gate = max(0.5, 1.0 - ivpin_val * 0.5)
+        return ivpin_val, gate
+    return None, 1.0
+
+
 def score_route2_technical(payload: dict[str, Any]) -> R2TechnicalScoreResult:
     """Calcula score 0-100, gates y tier de confluencia desde technical_payload."""
     if not payload or payload.get("ok") is False:
@@ -295,9 +323,10 @@ def score_route2_technical(payload: dict[str, Any]) -> R2TechnicalScoreResult:
     structure_votes = [votes[e] for e in R2_STRUCTURE_GATE_ENGINES if e in votes]
     structure_gate = _mean_gate(structure_votes)
 
-    active_votes = [v for e, v in votes.items() if v != "NEUTRAL"]
+    ivpin_val, ivpin_gate = _ivpin_from_payload(payload)
+
     raw_confluence = (confluence_count / max(len(R2_L1_ENGINE_KEYS), 1)) * 100.0
-    gate_product = regime_gate * volume_gate * structure_gate
+    gate_product = regime_gate * volume_gate * structure_gate * ivpin_gate
     score = round(min(100.0, raw_confluence * gate_product), 2)
 
     reasons = list(regime_reasons)
@@ -331,12 +360,16 @@ def score_route2_technical(payload: dict[str, Any]) -> R2TechnicalScoreResult:
         structure_gate=round(structure_gate, 4),
         veto=veto,
         bullish_engines=bullish,
-        engine_votes={k: v for k, v in votes.items()},
+        engine_votes=dict(votes),
         reason_codes=tuple(dict.fromkeys(reasons)),
+        ivpin=ivpin_val,
+        ivpin_gate=round(ivpin_gate, 4),
     )
 
 
-def enrich_route2_analysis(analysis: AlpacaCandidateAnalysis) -> AlpacaCandidateAnalysis:
+def enrich_route2_analysis(
+    analysis: AlpacaCandidateAnalysis,
+) -> AlpacaCandidateAnalysis:
     """Adjunta scoring L1 al análisis de Ruta 2."""
     if analysis.route != "scan":
         return analysis
@@ -350,11 +383,11 @@ def enrich_route2_analysis(analysis: AlpacaCandidateAnalysis) -> AlpacaCandidate
 
 
 __all__ = [
-    "R2TechnicalScoreResult",
-    "enrich_route2_analysis",
-    "score_route2_technical",
     "REASON_R2_BEARISH_REGIME",
     "REASON_R2_GATE_VETO",
     "REASON_R2_LOW_CONFLUENCE",
     "REASON_R2_LOW_TECH_SCORE",
+    "R2TechnicalScoreResult",
+    "enrich_route2_analysis",
+    "score_route2_technical",
 ]

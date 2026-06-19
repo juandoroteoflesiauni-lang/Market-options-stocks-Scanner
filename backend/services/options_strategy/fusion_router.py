@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import os
 import statistics
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from backend.config.options_strategy_loader import (
     OptionsStrategyConfigBundle,
     get_options_strategy_config,
 )
-from backend.config.r1_enrichment_thresholds import (
-    FUSION_HYBRID_CONF_WEIGHT,
-    FUSION_L2_CONF_WEIGHT,
-)
+from backend.config.r1_enrichment_thresholds import FUSION_HYBRID_CONF_WEIGHT, FUSION_L2_CONF_WEIGHT
 from backend.models.options_strategy import (
     NormalizedFeatures,
     OptionsExecutionPayload,
@@ -28,6 +25,10 @@ from backend.services.options_strategy._scoring import clamp01, clamp11
 from backend.services.options_strategy.contract_selector import (
     DEFAULT_DELTA_BUY,
     DEFAULT_DELTA_SELL,
+)
+from backend.services.options_strategy.limit_price import (
+    compute_limit_price_per_contract,
+    validate_options_execution_ready,
 )
 from backend.services.options_strategy.playbook_matcher import PlaybookMatcher, direction_from_bias
 from backend.services.options_strategy.sizing_engine import compute_risk_budget_pct
@@ -76,9 +77,7 @@ def fuse_features(
             (1.0 - FUSION_L2_CONF_WEIGHT) * tech_conf
             + FUSION_L2_CONF_WEIGHT * features.l2_microstructure_score
         )
-    pred_conf = features.expected_move_confidence * (
-        1.0 - features.forecast_dispersion_score
-    )
+    pred_conf = features.expected_move_confidence * (1.0 - features.forecast_dispersion_score)
     opt_conf = features.flow_conviction_score * features.chain_liquidity_score
     if features.hybrid_confluence_score > 0:
         opt_conf = clamp01(
@@ -116,9 +115,7 @@ def _max_premium_usd(candidate: OptionsStrategyCandidate) -> Decimal:
     }
 
     def _scaled(value: Decimal) -> Decimal:
-        return max(value * scale, Decimal("1.00")).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        return max(value * scale, Decimal("1.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     if (
         candidate.max_loss is not None
@@ -126,9 +123,7 @@ def _max_premium_usd(candidate: OptionsStrategyCandidate) -> Decimal:
         and structure not in credit_structures
     ):
         return _scaled(
-            Decimal(str(candidate.max_loss)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
+            Decimal(str(candidate.max_loss)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         )
     net = Decimal("0")
     for leg in candidate.legs:
@@ -140,12 +135,12 @@ def _max_premium_usd(candidate: OptionsStrategyCandidate) -> Decimal:
         else:
             net -= premium
     if net < 0:
-        return _scaled(max(abs(net), Decimal("1.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        return _scaled(
+            max(abs(net), Decimal("1.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        )
     if candidate.max_loss is not None and candidate.max_loss > 0:
         return _scaled(
-            Decimal(str(candidate.max_loss)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
+            Decimal(str(candidate.max_loss)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         )
     return _scaled(max(net, Decimal("1.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
@@ -181,6 +176,14 @@ def _dte_target(candidate: OptionsStrategyCandidate) -> int:
     if not candidate.legs:
         return 14
     return max(leg.dte for leg in candidate.legs)
+
+
+def payload_slippage_pct(config: OptionsStrategyConfigBundle) -> float:
+    """Slippage máximo aplicado al limit neto antes de enviar orden."""
+    try:
+        return float(os.getenv("OPTIONS_LIMIT_SLIPPAGE_PCT", "2.0"))
+    except ValueError:
+        return 2.0
 
 
 class FusionRouter:
@@ -224,7 +227,7 @@ class FusionRouter:
                     recommended_structure=OptionsStructure.NO_TRADE,
                     direction=direction_from_bias(fused.global_bias),
                     confidence=fused.global_confidence,
-                    reason_codes=tuple(reason_codes + ["insufficient_global_confidence"]),
+                    reason_codes=(*reason_codes, "insufficient_global_confidence"),
                 ),
                 None,
             )
@@ -258,7 +261,32 @@ class FusionRouter:
                     recommended_structure=structure,
                     direction=candidate.selection.direction,
                     confidence=fused.global_confidence,
-                    reason_codes=tuple(reason_codes + ["missing_contract_legs"]),
+                    reason_codes=(*reason_codes, "missing_contract_legs"),
+                ),
+                None,
+            )
+
+        limit_price = compute_limit_price_per_contract(
+            candidate.legs,
+            structure=structure,
+            slippage_pct=payload_slippage_pct(active),
+        )
+        guard_reason = validate_options_execution_ready(
+            structure,
+            candidate.legs,
+            limit_price=limit_price,
+        )
+        if guard_reason:
+            return (
+                PlaybookDecision(
+                    symbol=inp.symbol,
+                    as_of=inp.as_of,
+                    decision=StrategyDecision.NO_TRADE,
+                    playbook_family=match.playbook_family,
+                    recommended_structure=structure,
+                    direction=candidate.selection.direction,
+                    confidence=fused.global_confidence,
+                    reason_codes=(*reason_codes, guard_reason),
                 ),
                 None,
             )
@@ -293,6 +321,7 @@ class FusionRouter:
             delta_buy_target=DEFAULT_DELTA_BUY,
             delta_sell_target=_delta_sell_target(structure),
             max_premium_usd=_max_premium_usd(candidate),
+            limit_price_per_contract=limit_price,
             risk_budget_pct=risk_pct,
             reason_codes=decision.reason_codes,
             legs=_legs_to_specs(candidate),

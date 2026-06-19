@@ -45,26 +45,41 @@ class AlpacaEodFlattenMixin:
 
         # Trigger ML retrain in background
         import asyncio
-        asyncio.create_task(self._retrain_ml_model())
+
+        self._ml_retrain_task = asyncio.create_task(self._retrain_ml_model())
 
         return result
 
     async def _retrain_ml_model(self) -> None:
         """Re-entrena el modelo de Machine Learning en background sin bloquear el bot."""
         import asyncio
+        import sys
+
         from backend.scripts.train_ml_model import main as train_main
+
+        def _run_train() -> None:
+            old_argv = sys.argv
+            try:
+                sys.argv = ["train_ml_model.py"]
+                train_main()
+            finally:
+                sys.argv = old_argv
+
         try:
             logger.info("alpaca_bot.ml_retrain_starting")
-            await asyncio.to_thread(train_main)
+            await asyncio.to_thread(_run_train)
             logger.info("alpaca_bot.ml_retrain_success")
+        except SystemExit as exc:
+            logger.error("alpaca_bot.ml_retrain_failed exit_code=%s", exc.code)
         except Exception as exc:
             logger.error("alpaca_bot.ml_retrain_failed error=%s", exc)
 
     async def _flatten_entire_book(self) -> dict[str, Any]:
         """Cierra todas las posiciones abiertas (acciones + opciones OCC)."""
         positions = await self._client.fetch_positions()
-        
+
         from backend.audit.process_recorder import record_trade_result
+
         for pos in positions:
             try:
                 symbol = str(pos.get("symbol", ""))

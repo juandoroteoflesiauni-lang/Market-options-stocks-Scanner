@@ -8,14 +8,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from backend.config.alpaca_institutional_config import ml_direction_classifier_enabled
 from backend.config.logger_setup import get_logger
+from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB
 from backend.domain.alpaca_options_models import Route1OptionsSnapshotContext
 from backend.domain.probabilistic_models import PredictiveOptionsBundleReport
-from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB
-from backend.services.research.research_types import (
-    _bucket_tail_risk,
-    _safe_float,
-)
+from backend.services.research.research_types import _bucket_tail_risk, _safe_float
 
 logger = get_logger(__name__)
 
@@ -51,7 +49,9 @@ def _cache_key(symbol: str, as_of: str) -> str:
     return f"{symbol.upper()}:{_as_of_bucket_5min(as_of)}"
 
 
-def _read_snapshot_row(symbol: str) -> tuple[dict[str, Any], dict[str, Any], str] | None:
+def _read_snapshot_row(
+    symbol: str,
+) -> tuple[dict[str, Any], dict[str, Any], str] | None:
     if not OPTIONS_GEX_SNAPSHOTS_DB.exists():
         return None
     uri = f"file:{OPTIONS_GEX_SNAPSHOTS_DB.as_posix()}?mode=ro"
@@ -83,6 +83,45 @@ def _read_snapshot_row(symbol: str) -> tuple[dict[str, Any], dict[str, Any], str
     return features, snapshot, str(as_of)
 
 
+def classify_trade_direction(
+    features: dict[str, Any],
+    *,
+    fallback_tick_rule: bool = True,
+) -> str:
+    """Lightweight ML direction stub; XGBoost behind feature flag, else tick-rule.
+
+    Returns: ``BUY``, ``SELL``, or ``NEUTRAL``.
+    """
+    if ml_direction_classifier_enabled():
+        try:
+            import numpy as np
+
+            call_flow = _safe_float(features.get("call_flow")) or 0.0
+            put_flow = _safe_float(features.get("put_flow")) or 0.0
+            composite = _safe_float(features.get("composite_directional_signal")) or 0.0
+            vec = np.array([[call_flow, put_flow, composite]], dtype=np.float64)
+            # Stub weights (no trained model dependency); replace with joblib when calibrated
+            weights = np.array([0.4, -0.35, 0.25])
+            score = float(vec @ weights.T)
+            if score > 0.05:
+                return "BUY"
+            if score < -0.05:
+                return "SELL"
+            return "NEUTRAL"
+        except Exception as exc:
+            logger.debug("route1_options.ml_direction_fallback error=%s", exc)
+
+    if not fallback_tick_rule:
+        return "NEUTRAL"
+    call_flow = _safe_float(features.get("call_flow")) or 0.0
+    put_flow = _safe_float(features.get("put_flow")) or 0.0
+    if call_flow > put_flow:
+        return "BUY"
+    if put_flow > call_flow:
+        return "SELL"
+    return "NEUTRAL"
+
+
 def _build_predictive_report(
     features: dict[str, Any],
     snapshot: dict[str, Any],
@@ -104,14 +143,12 @@ def _build_predictive_report(
         if net_gex is not None and spot is not None and spot > 0
         else 0.0
     )
-    is_gamma_negative = (
-        spot is not None and gamma_flip is not None and spot < gamma_flip
-    )
+    is_gamma_negative = spot is not None and gamma_flip is not None and spot < gamma_flip
     return PredictiveOptionsBundleReport(
         gamma_flip_level=float(gamma_flip) if gamma_flip is not None else 0.0,
         is_gamma_negative_regime=bool(is_gamma_negative),
-        shadow_delta_imbalance=float(shadow_delta_raw) if shadow_delta_raw is not None else 0.0,
-        zero_day_pinning_strike=float(zero_day_pinning) if zero_day_pinning is not None else 0.0,
+        shadow_delta_imbalance=(float(shadow_delta_raw) if shadow_delta_raw is not None else 0.0),
+        zero_day_pinning_strike=(float(zero_day_pinning) if zero_day_pinning is not None else 0.0),
         speed_instability_warning=bool(speed_instability),
         tail_risk_severity=str(tail_risk_severity or "LOW"),
         zomma_risk_score=float(zomma_risk),
@@ -197,6 +234,7 @@ async def fetch_route1_options_bundle(symbol: str) -> Route1OptionsBundle:
 
 __all__ = [
     "Route1OptionsBundle",
+    "classify_trade_direction",
     "clear_route1_options_cache",
     "fetch_route1_options_bundle",
     "load_route1_options_context",

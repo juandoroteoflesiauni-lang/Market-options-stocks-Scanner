@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Any
+
 """Unified rate limiter with per-provider token buckets and optional Redis distribution."""
 
 
@@ -39,6 +41,7 @@ DEFAULT_RATE_LIMITS: dict[str, float] = {
     "hypertracker": 5.0,
     "sec": 5.0,
     "yahoo": 10.0,
+    "unusual_whales": 5.0,
 }
 
 KEY_SPECIFIC_LIMITS: dict[str, dict[str, float]] = {

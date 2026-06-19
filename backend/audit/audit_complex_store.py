@@ -1,5 +1,3 @@
-from __future__ import annotations
-from typing import Any
 """Audit Complex Store — DuckDB-backed unified audit subsystem.
 
 Extends the existing BingXAuditStore with four new tables for comprehensive
@@ -24,6 +22,7 @@ Design notes
   locks.  In-memory stores keep a single persistent connection.
 """
 
+from __future__ import annotations
 
 import json
 import uuid
@@ -32,6 +31,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import duckdb
 
@@ -131,13 +131,37 @@ CREATE TABLE IF NOT EXISTS audit_trade_results (
 )
 """
 
+_DDL_AGENTIC_TRADE_DECISIONS = """
+CREATE TABLE IF NOT EXISTS audit_agentic_trade_decisions (
+    event_id            VARCHAR PRIMARY KEY,
+    timestamp           VARCHAR NOT NULL,
+    module              VARCHAR NOT NULL,
+    symbol              VARCHAR NOT NULL,
+    contract_symbol     VARCHAR NOT NULL,
+    correlation_id      VARCHAR DEFAULT '',
+    final_decision      VARCHAR NOT NULL,
+    quant_default_used  BOOLEAN DEFAULT FALSE,
+    payload             VARCHAR NOT NULL
+)
+"""
+
 _ALL_DDLS: list[str] = [
     _DDL_API_CALLS,
     _DDL_PROCESS_SNAPSHOTS,
     _DDL_ERRORS,
     _DDL_LOGS,
     _DDL_TRADE_RESULTS,
+    _DDL_AGENTIC_TRADE_DECISIONS,
 ]
+
+# Columnas añadidas tras el primer deploy — migración idempotente (F10).
+_SCHEMA_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
+    ("audit_process_snapshots", "correlation_id", "VARCHAR DEFAULT ''"),
+    ("audit_api_calls", "correlation_id", "VARCHAR DEFAULT ''"),
+    ("audit_errors", "correlation_id", "VARCHAR DEFAULT ''"),
+    ("audit_logs", "correlation_id", "VARCHAR DEFAULT ''"),
+    ("audit_trade_results", "correlation_id", "VARCHAR DEFAULT ''"),
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -347,6 +371,34 @@ class TradeResultAuditEntry:
         )
 
 
+@dataclass
+class AgenticDecisionAuditEntry:
+    """Agentic trade decision record for audit_agentic_trade_decisions."""
+
+    module: str
+    symbol: str
+    contract_symbol: str
+    final_decision: str
+    payload: dict[str, Any]
+    correlation_id: str = ""
+    quant_default_used: bool = False
+    event_id: str = field(default_factory=lambda: _new_id("agt_"))
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def to_row(self) -> tuple[Any, ...]:
+        return (
+            self.event_id,
+            self.timestamp,
+            self.module,
+            self.symbol,
+            self.contract_symbol,
+            self.correlation_id,
+            self.final_decision,
+            self.quant_default_used,
+            json.dumps(self.payload, default=str),
+        )
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Store
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -399,6 +451,31 @@ class AuditComplexStore:
         with self._connect() as con:
             for ddl in _ALL_DDLS:
                 con.execute(ddl)
+            self._migrate_schema(con)
+
+    def _migrate_schema(self, con: duckdb.DuckDBPyConnection) -> None:
+        """Añade columnas nuevas en DBs creadas antes de F10."""
+        for table, column, typedef in _SCHEMA_MIGRATIONS:
+            try:
+                rows = con.execute(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = ? AND column_name = ?
+                    """,
+                    [table, column],
+                ).fetchall()
+                if rows:
+                    continue
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {column} {typedef}")
+                logger.info("audit_schema.migrated table=%s column=%s", table, column)
+            except Exception as exc:
+                logger.warning(
+                    "audit_schema.migration_failed table=%s column=%s error=%s",
+                    table,
+                    column,
+                    exc,
+                )
 
     # ══════════════════════════════════════════════════════════════════════════
     # API CALLS
@@ -445,7 +522,7 @@ class AuditComplexStore:
 
         with self._connect() as con:
             rows = con.execute(
-                f"""
+                f"""  # nosec B608
                 SELECT call_id, timestamp, module, provider, endpoint,
                        api_key_label, status, duration_ms, estimated_cost,
                        cache_hit, bytes_received, retry_count,
@@ -608,7 +685,7 @@ class AuditComplexStore:
 
         with self._connect() as con:
             rows = con.execute(
-                f"""
+                f"""  # nosec B608
                 SELECT snapshot_id, timestamp, module, symbol, operation_id,
                        correlation_id, indicators, orderbook, market_data, signals,
                        decisions, risk_metrics, engine_state, context
@@ -721,7 +798,7 @@ class AuditComplexStore:
 
         with self._connect() as con:
             rows = con.execute(
-                f"""
+                f"""  # nosec B608
                 SELECT error_id, timestamp, module, severity, error_type,
                        message, stack_trace, context, correlation_id,
                        resolved, resolved_at, resolved_by, notes
@@ -908,7 +985,7 @@ class AuditComplexStore:
 
         with self._connect() as con:
             rows = con.execute(
-                f"""
+                f"""  # nosec B608
                 SELECT log_id, timestamp, level, module, logger_name,
                        message, correlation_id, context_data, stack_trace, tags
                 FROM audit_logs
@@ -1010,7 +1087,7 @@ class AuditComplexStore:
 
         with self._connect() as con:
             rows = con.execute(
-                f"""
+                f"""  # nosec B608
                 SELECT trade_id, timestamp, module, symbol, operation_id,
                        correlation_id, pnl_pct, pnl_usd, exit_reason, context
                 FROM audit_trade_results
@@ -1036,6 +1113,48 @@ class AuditComplexStore:
             }
             for r in rows
         ]
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # AGENTIC TRADE DECISIONS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def persist_agentic_decision(self, entry: AgenticDecisionAuditEntry) -> str:
+        with self._connect() as con:
+            con.execute(
+                """
+                INSERT OR REPLACE INTO audit_agentic_trade_decisions
+                    (event_id, timestamp, module, symbol, contract_symbol,
+                     correlation_id, final_decision, quant_default_used, payload)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                """,
+                entry.to_row(),
+            )
+        return entry.event_id
+
+    def get_agentic_decision(self, event_id: str) -> dict[str, Any] | None:
+        with self._connect() as con:
+            row = con.execute(
+                """
+                SELECT event_id, timestamp, module, symbol, contract_symbol,
+                       correlation_id, final_decision, quant_default_used, payload
+                FROM audit_agentic_trade_decisions
+                WHERE event_id = ?
+                """,
+                (event_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "event_id": row[0],
+            "timestamp": row[1],
+            "module": row[2],
+            "symbol": row[3],
+            "contract_symbol": row[4],
+            "correlation_id": row[5],
+            "final_decision": row[6],
+            "quant_default_used": bool(row[7]),
+            "payload": json.loads(row[8]) if row[8] else {},
+        }
 
     # ══════════════════════════════════════════════════════════════════════════
     # CROSS-TABLE QUERIES

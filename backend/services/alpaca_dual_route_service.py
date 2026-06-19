@@ -7,28 +7,28 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from backend.config.alpaca_priority_route import (
-    ALPACA_ROUTE1_WATCHLIST,
     ROUTE2_FUNNEL_TOP_N,
     is_route1_symbol,
+    resolve_route1_watchlist,
 )
 from backend.config.logger_setup import get_logger
 from backend.domain.alpaca_models import AlpacaCandidateAnalysis, AlpacaDecision, AlpacaRoute
 from backend.domain.volatility import compute_relative_strength
 from backend.services.alpaca_decision_engine import AlpacaDecisionConfig, decide
-from backend.services.alpaca_route1_context_service import (
-    apply_predictive_gate,
-    fetch_route1_predictive_meta,
+from backend.services.alpaca_r1_options_confluence import (
+    OptionsConfluenceScorer,
+    apply_equity_options_confluence_gate,
 )
 from backend.services.alpaca_r1_options_context import (
     clear_route1_options_cache,
     fetch_route1_options_bundle,
 )
-from backend.services.alpaca_r1_options_confluence import (
-    OptionsConfluenceScorer,
-    apply_equity_options_confluence_gate,
-)
 from backend.services.alpaca_r1_options_replay import AlpacaR1OptionsReplay
 from backend.services.alpaca_r2_technical_scoring import enrich_route2_analysis
+from backend.services.alpaca_route1_context_service import (
+    apply_predictive_gate,
+    fetch_route1_predictive_meta,
+)
 from backend.services.alpaca_universe_funnel import FunnelConfig, SymbolBars, run_funnel
 from backend.services.equity_l2_gate_service import apply_equity_l2_gate
 from backend.services.equity_options_gate_service import apply_equity_options_gate
@@ -149,7 +149,7 @@ async def build_route1_batch(
         analyses.append(analysis)
         decisions.append(decision)
 
-    await asyncio.gather(*[_one(sym) for sym in ALPACA_ROUTE1_WATCHLIST if sym in bars_map])
+    await asyncio.gather(*[_one(sym) for sym in resolve_route1_watchlist() if sym in bars_map])
     return analyses, decisions
 
 
@@ -192,6 +192,56 @@ async def build_route2_batch(
     return analyses, decisions
 
 
+async def build_open_position_quant_analyses(
+    open_symbols: tuple[str, ...],
+    bars_map: dict[str, SymbolBars],
+    klines_map: dict[str, list[dict[str, Any]]],
+    benchmark: tuple[float, ...],
+    *,
+    analysis_builder: Callable[[SymbolBars], AlpacaCandidateAnalysis],
+    technical_builder: TechnicalBuilder,
+    concurrency: int = 4,
+) -> dict[str, AlpacaCandidateAnalysis]:
+    """Quant completo (como R1) para posiciones abiertas fuera del watchlist R1."""
+    from backend.config.shared_options_tier_policy import is_full_quant_tier
+
+    sem = asyncio.Semaphore(max(1, concurrency))
+    open_roots = frozenset(s.upper().strip() for s in open_symbols if s)
+    targets = [
+        sym.upper().strip()
+        for sym in open_symbols
+        if sym
+        and not is_route1_symbol(sym)
+        and is_full_quant_tier(sym, open_position_roots=open_roots)
+        and sym.upper().strip() in bars_map
+    ]
+    out: dict[str, AlpacaCandidateAnalysis] = {}
+
+    async def _one(sym: str) -> None:
+        bars = bars_map.get(sym)
+        if bars is None:
+            return
+        async with sem:
+            analysis = bars_to_analysis(
+                bars, benchmark, route="scan", analysis_builder=analysis_builder
+            )
+            try:
+                payload = await technical_builder(sym, klines_map.get(sym, []), False)
+                analysis = analysis.model_copy(update={"technical_payload": payload})
+            except Exception as exc:
+                logger.warning("dual_route.open_pos_technical_failed symbol=%s error=%s", sym, exc)
+
+            options_bundle = await fetch_route1_options_bundle(sym)
+            signals = AlpacaR1OptionsReplay.run(klines_map.get(sym, []), options_bundle.context)
+            confluence = OptionsConfluenceScorer.score(signals)
+            if confluence is not None:
+                analysis = analysis.model_copy(update={"options_confluence": confluence})
+            out[sym] = analysis
+
+    await asyncio.gather(*[_one(sym) for sym in targets])
+    return out
+
+
 def select_route2_symbols(
     bars_values: list[SymbolBars],
     benchmark: tuple[float, ...],
@@ -204,6 +254,7 @@ def select_route2_symbols(
 
 
 __all__ = [
+    "build_open_position_quant_analyses",
     "build_route1_batch",
     "build_route2_batch",
     "select_route2_symbols",

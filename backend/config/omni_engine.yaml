@@ -13,5 +13,4 @@ omni_engine:
   disagreement_penalty: 0.15
   veto_rules:
     - tail_risk_critical
-    - chain_liquidity_poor
     - symbol_not_in_route1_universe

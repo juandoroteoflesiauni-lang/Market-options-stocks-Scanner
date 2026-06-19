@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Modelo de pesos estratégicos para el Asymmetric Data Funnel de 4 fases.
 
 Cada fase del funnel (A → B → C → D) tiene un peso de contribución al score
@@ -52,19 +53,21 @@ class PhaseAWeights(BaseModel):
 
     # ── Filtro 2: ATR Volatility Gate (20%) ────────────────────────────────
     atr_gate_min_score: float = Field(default=50.0, ge=0.0, le=100.0)
-    min_atr_pct: float = Field(default=0.003, ge=0.0, le=0.10)
+    min_atr_pct: float = Field(default=0.005, ge=0.0, le=0.10)  # [Fase 5 P1] antes 0.003
     max_atr_pct: float = Field(default=0.05, ge=0.001, le=0.50)
     atr_period: int = Field(default=14, ge=5, le=100)
 
     # ── Filtro 3: RSI Extreme Filter (15%) ─────────────────────────────────
     rsi_extreme_min_score: float = Field(default=50.0, ge=0.0, le=100.0)
-    rsi_oversold_threshold: float = Field(default=15.0, ge=0.0, le=50.0)
-    rsi_overbought_threshold: float = Field(default=85.0, ge=50.0, le=100.0)
+    rsi_oversold_threshold: float = Field(default=25.0, ge=0.0, le=50.0)  # [Fase 5 P1] antes 15.0
+    rsi_overbought_threshold: float = Field(
+        default=75.0, ge=50.0, le=100.0
+    )  # [Fase 5 P1] antes 85.0
     rsi_period: int = Field(default=14, ge=5, le=50)
 
     # ── Filtro 4: VWAP Distance Z-Score (15%) ──────────────────────────────
     vwap_zscore_min_score: float = Field(default=50.0, ge=0.0, le=100.0)
-    vwap_max_zscore: float = Field(default=3.0, ge=0.5, le=10.0)
+    vwap_max_zscore: float = Field(default=2.5, ge=0.5, le=10.0)  # [Fase 5 P1] antes 3.0
 
     # ── Filtro 5: Shannon Entropy (15%) ────────────────────────────────────
     entropy_min_score: float = Field(default=50.0, ge=0.0, le=100.0)

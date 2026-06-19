@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Any
+
+from typing import Any, Final
+
 """
 backend/layer_1_data/fetchers/massive_client.py
 ════════════════════════════════════════════════════════════════════════════════
@@ -154,8 +156,29 @@ class MassiveClient:
         Fetch real-time options chain for a ticker using Massive Advanced keys.
         Returns the raw 'results' list from the Polygon v3 snapshot.
         """
-        data = await self._get(f"/v3/snapshot/options/{ticker.upper()}", endpoint_type)
+        sym = ticker.upper().strip()
+        try:
+            from backend.hub.market_data_ttl_cache import (
+                get_massive_options_chain,
+                put_massive_options_chain,
+            )
+
+            cached = get_massive_options_chain(sym)
+            if cached is not None:
+                shaped, _src, _meta = cached
+                if shaped and isinstance(shaped.get("data"), list):
+                    return shaped["data"]
+        except Exception as exc:
+            logger.debug("massive_client.options_cache_read_failed sym=%s error=%s", sym, exc)
+
+        data = await self._get(f"/v3/snapshot/options/{sym}", endpoint_type)
         if data and "results" in data:
+            try:
+                from backend.hub.market_data_ttl_cache import put_massive_options_chain
+
+                put_massive_options_chain(sym, ({"data": data["results"]}, "massive_client", {}))
+            except Exception as exc:
+                logger.debug("massive_client.options_cache_write_failed sym=%s error=%s", sym, exc)
             return data["results"]
         return None
 

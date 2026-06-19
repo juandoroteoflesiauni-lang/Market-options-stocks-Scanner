@@ -1,0 +1,13 @@
+# Gitleaks config — deep-funnel-station
+# Docs: https://github.com/gitleaks/gitleaks#configuration
+
+title = "deep-funnel-station"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known false positives (Pydantic field names, test fixtures)"
+paths = [
+  '''backend/api/routes/options_router\.py''',
+]

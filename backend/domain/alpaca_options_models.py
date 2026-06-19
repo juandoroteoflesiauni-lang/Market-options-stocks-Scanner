@@ -34,6 +34,7 @@ class OptionsConfluence(BaseModel):
     critical: bool = False
     moderate: bool = False
     reason_codes: tuple[str, ...] = ()
+    os_imbalance: float | None = None
 
 
 class Route1OptionsSnapshotContext(BaseModel):

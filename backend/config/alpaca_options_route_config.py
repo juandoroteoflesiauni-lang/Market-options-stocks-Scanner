@@ -5,6 +5,10 @@ from __future__ import annotations
 import os
 from typing import Literal
 
+from backend.config.options_defined_risk import (
+    filter_allowed_structure_values,
+    options_defined_risk_only,
+)
 from backend.config.options_strategy_loader import (
     OmniEngineConfig,
     OptionsStrategyConfigBundle,
@@ -23,11 +27,15 @@ _R2_RISK_MULT_ENV = "ALPACA_OPTIONS_R2_RISK_MULT"
 _R2_MIN_CONF_ENV = "ALPACA_OPTIONS_R2_MIN_GLOBAL_CONFIDENCE"
 _OPTIONS_MIN_CONF_ENV = "OPTIONS_STRATEGY_MIN_GLOBAL_CONFIDENCE"
 
-_R2_BASIC_STRUCTURES: tuple[str, ...] = (
-    OptionsStructure.LONG_CALL,
-    OptionsStructure.LONG_PUT,
-    OptionsStructure.SHORT_PUT,
-    OptionsStructure.PUT_CREDIT_SPREAD,
+_R2_BASIC_STRUCTURES: tuple[str, ...] = filter_allowed_structure_values(
+    (
+        OptionsStructure.LONG_CALL.value,
+        OptionsStructure.LONG_PUT.value,
+        OptionsStructure.PUT_CREDIT_SPREAD.value,
+        OptionsStructure.CALL_DEBIT_SPREAD.value,
+        OptionsStructure.PUT_DEBIT_SPREAD.value,
+        OptionsStructure.BULL_CALL_SPREAD.value,
+    )
 )
 
 
@@ -44,6 +52,26 @@ def alpaca_options_enabled() -> bool:
 def alpaca_options_priority_over_equity() -> bool:
     """Si hay ejecución de opciones exitosa, omitir equity en el mismo símbolo/ciclo."""
     return os.getenv("ALPACA_OPTIONS_PRIORITY_EQUITY", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def alpaca_options_r2_enabled() -> bool:
+    """True si R2 (scan) puede ejecutar estrategias de opciones."""
+    return os.getenv("ALPACA_OPTIONS_R2_ENABLED", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def alpaca_options_r2_standalone() -> bool:
+    """Permite opciones R2 aunque equity esté BLOCK (pipeline propio de opciones)."""
+    return os.getenv("ALPACA_OPTIONS_R2_STANDALONE", "true").strip().lower() in {
         "1",
         "true",
         "yes",
@@ -100,6 +128,17 @@ def _route1_universe_overrides(universe: OptionsUniverseConfig) -> OptionsUniver
     )
 
 
+def _apply_defined_risk_to_playbooks(playbooks: PlaybooksConfig) -> PlaybooksConfig:
+    """Quita estructuras naked/credit desnudo cuando ``OPTIONS_DEFINED_RISK_ONLY``."""
+    if not options_defined_risk_only():
+        return playbooks
+    updated: dict[str, PlaybookConfig] = {}
+    for name, pb in playbooks.playbooks.items():
+        filtered = filter_allowed_structure_values(pb.allowed_structures)
+        updated[name] = pb.model_copy(update={"allowed_structures": filtered})  # type: ignore[arg-type]
+    return PlaybooksConfig(playbooks=updated)
+
+
 def _route1_catchall_playbook(base: PlaybooksConfig) -> PlaybooksConfig:
     """Playbook de respaldo para señales direccionales sin match estricto."""
     if not _route1_lenient_enabled():
@@ -107,19 +146,21 @@ def _route1_catchall_playbook(base: PlaybooksConfig) -> PlaybooksConfig:
     updated = dict(base.playbooks)
     updated["route1_directional"] = PlaybookConfig(
         enabled=True,
-        allowed_structures=(
-            OptionsStructure.LONG_CALL.value,
-            OptionsStructure.LONG_PUT.value,
-            OptionsStructure.CALL_DEBIT_SPREAD.value,
-            OptionsStructure.PUT_DEBIT_SPREAD.value,
-            OptionsStructure.BULL_CALL_SPREAD.value,
-            OptionsStructure.CALL_BUTTERFLY.value,
+        allowed_structures=filter_allowed_structure_values(
+            (
+                OptionsStructure.LONG_CALL.value,
+                OptionsStructure.LONG_PUT.value,
+                OptionsStructure.CALL_DEBIT_SPREAD.value,
+                OptionsStructure.PUT_DEBIT_SPREAD.value,
+                OptionsStructure.BULL_CALL_SPREAD.value,
+                OptionsStructure.CALL_BUTTERFLY.value,
+            )
         ),
         min_trend_quality=0.28,
         min_predictive_bias=0.05,
         min_options_bias=0.05,
     )
-    return PlaybooksConfig(playbooks=updated)
+    return _apply_defined_risk_to_playbooks(PlaybooksConfig(playbooks=updated))
 
 
 def _scale_risk(base: RiskRulesConfig, multiplier: float) -> RiskRulesConfig:
@@ -135,7 +176,7 @@ def _scale_risk(base: RiskRulesConfig, multiplier: float) -> RiskRulesConfig:
 
 
 def _r2_playbooks(base: PlaybooksConfig) -> PlaybooksConfig:
-    """Playbook R2: long call/put, short put y vertical credit (put)."""
+    """Playbook R2: verticales debit/credit y long directional (sin short put desnudo)."""
     trend = base.playbooks.get("trend_continuation")
     if trend is None:
         playbooks = {
@@ -165,7 +206,7 @@ def _r2_playbooks(base: PlaybooksConfig) -> PlaybooksConfig:
         min_predictive_bias=None,
         min_options_bias=None,
     )
-    return PlaybooksConfig(playbooks=playbooks)
+    return _apply_defined_risk_to_playbooks(PlaybooksConfig(playbooks=playbooks))
 
 
 def _relaxed_r1_playbooks(base: PlaybooksConfig) -> PlaybooksConfig:
@@ -224,7 +265,7 @@ def get_options_config_for_route(
             update={
                 "omni_engine": omni,
                 "universe": _route1_universe_overrides(base.universe),
-                "playbooks": playbooks,
+                "playbooks": _apply_defined_risk_to_playbooks(playbooks),
                 "risk": _scale_risk(base.risk, risk_mult),
                 "structure_profile": "full",
             },
@@ -232,17 +273,19 @@ def get_options_config_for_route(
 
     r2_min_conf = _env_float(
         _R2_MIN_CONF_ENV,
-        0.35
-        if os.getenv("OPTIONS_STRATEGY_RELAXED_VETOS", "").strip().lower()
-        in {"1", "true", "yes", "on"}
-        else 0.48,
+        (
+            0.35
+            if os.getenv("OPTIONS_STRATEGY_RELAXED_VETOS", "").strip().lower()
+            in {"1", "true", "yes", "on"}
+            else 0.48
+        ),
     )
     risk_mult = _env_float(_R2_RISK_MULT_ENV, 0.85)
     omni = OmniEngineConfig(
-        enabled_layers=("technical",),
+        enabled_layers=("technical", "options"),
         fusion_mode=base.omni_engine.fusion_mode,
         min_global_confidence=r2_min_conf,
-        weights={"technical": 1.0},
+        weights={"technical": 0.55, "options": 0.45},
         disagreement_penalty=0.05,
         veto_rules=tuple(
             rule
@@ -278,5 +321,7 @@ __all__ = [
     "AlpacaOptionsRoute",
     "alpaca_options_enabled",
     "alpaca_options_priority_over_equity",
+    "alpaca_options_r2_enabled",
+    "alpaca_options_r2_standalone",
     "get_options_config_for_route",
 ]

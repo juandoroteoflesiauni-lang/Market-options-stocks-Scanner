@@ -97,7 +97,9 @@ _SYNTHETIC_STOCK_ROOTS: frozenset[str] = frozenset(
         "BAC",
         "GS",
         "AMD",
+        "AMDUS",
         "INTC",
+        "MU",
         "DIS",
         "PYPL",
         "SQ",
@@ -222,6 +224,33 @@ class BingXPerpOrderRequest:
     take_profit_price: float | None = None
 
 
+def _bingx_omit_reduce_only() -> bool:
+    """Skip ``reduceOnly`` — required on BingX Hedge mode (VST demo)."""
+    if os.getenv("BINGX_OMIT_REDUCE_ONLY", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return True
+    env = os.getenv("BINGX_TRADING_ENVIRONMENT", os.getenv("TRADING_ENVIRONMENT", "")).lower()
+    return env in {"prod-vst", "vst", "demo"}
+
+
+def resolve_one_way_position_side(order: BingXPerpOrderRequest) -> Literal["LONG", "SHORT"]:
+    """Resolve BingX one-way ``positionSide`` (LONG bull / SHORT bear).
+
+    In one-way mode, ``BOTH`` is invalid — infer from ``side`` for entries and
+    from the closing ``side`` for ``reduce_only`` exits.
+    """
+    ps = str(order.position_side).upper()
+    if ps in {"LONG", "SHORT"}:
+        return ps  # type: ignore[return-value]
+    if order.reduce_only:
+        return "LONG" if order.side.upper() == "SELL" else "SHORT"
+    return "LONG" if order.side.upper() == "BUY" else "SHORT"
+
+
 @dataclass(frozen=True)
 class BingXContractMetadata:
     """Precision + sizing constraints for one BingX perp contract.
@@ -259,6 +288,7 @@ class BingXOrderResponse:
     client_order_id: str | None
     raw: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
+    fill_price: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -270,6 +300,7 @@ class BingXOrderResponse:
             "requested_qty": self.requested_qty,
             "requested_quote_qty": self.requested_quote_qty,
             "price": self.price,
+            "fill_price": self.fill_price,
             "venue_order_id": self.venue_order_id,
             "client_order_id": self.client_order_id,
             "raw": dict(self.raw),
@@ -961,7 +992,7 @@ class BingXClient:
         params: dict[str, Any] = {
             "symbol": api_symbol,
             "side": order.side,
-            "positionSide": order.position_side,
+            "positionSide": resolve_one_way_position_side(order),
             "type": order.order_type,
             "newClientOrderId": client_order_id,
         }
@@ -974,14 +1005,21 @@ class BingXClient:
         if order.time_in_force is not None:
             params["timeInForce"] = order.time_in_force
         if order.reduce_only:
-            omit_reduce_only = os.getenv("BINGX_OMIT_REDUCE_ONLY", "true").strip().lower() in {
-                "1",
-                "true",
-                "yes",
-                "on",
-            }
-            if not omit_reduce_only:
+            if _bingx_omit_reduce_only():
+                logger.warning(
+                    "bingx_client.place_order_perp reduce_only_omitted symbol=%s "
+                    "(BINGX_OMIT_REDUCE_ONLY=true)",
+                    order.symbol,
+                )
+            else:
                 params["reduceOnly"] = "true"
+                logger.info(
+                    "bingx_client.place_order_perp reduce_only symbol=%s side=%s pos=%s qty=%s",
+                    order.symbol,
+                    order.side,
+                    params["positionSide"],
+                    order.quantity,
+                )
         if order.stop_loss_price is not None:
             params["stopLoss"] = json.dumps(
                 {
@@ -1024,6 +1062,22 @@ class BingXClient:
 
         api_ok, api_err = _bingx_api_ok(payload)
         if not api_ok:
+            if order.reduce_only and api_err and "Hedge mode" in api_err:
+                logger.warning(
+                    "bingx_client.place_order_perp hedge_retry symbol=%s side=%s pos=%s qty=%s",
+                    order.symbol,
+                    order.side,
+                    params["positionSide"],
+                    order.quantity,
+                )
+                from dataclasses import replace
+
+                retry_order = replace(
+                    order,
+                    reduce_only=False,
+                    client_order_id=f"qa-{uuid.uuid4().hex[:16]}",
+                )
+                return await self.place_order_perp(retry_order)
             logger.error(
                 "bingx_client.place_order_perp api_error symbol=%s code=%s",
                 order.symbol,
@@ -1052,6 +1106,9 @@ class BingXClient:
                 order.symbol,
                 data,
             )
+        from backend.layer_1_data.datos.bingx_fill_price import resolve_fill_price_from_row
+
+        fill_price = resolve_fill_price_from_row(data)
         return BingXOrderResponse(
             ok=True,
             dry_run=False,
@@ -1064,6 +1121,7 @@ class BingXClient:
             venue_order_id=venue_order_id,
             client_order_id=client_order_id,
             raw=data,
+            fill_price=fill_price,
         )
 
     # ── HTTP plumbing ─────────────────────────────────────────────────────────

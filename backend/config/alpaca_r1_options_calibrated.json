@@ -1,5 +1,5 @@
 {
-  "calibrated_at": "2026-06-15T20:03:57.840438+00:00",
+  "calibrated_at": "2026-06-18T20:01:57.659836+00:00",
   "calibrator_path": "C:\\dev\\deep-funnel-station\\backend\\data\\alpaca_r1_engine_calibrators.joblib",
   "classic_weight": 0.6,
   "entry_threshold": 0.55,
@@ -10,7 +10,7 @@
   },
   "metrics": {
     "engine": "simple",
-    "n_samples": 928,
+    "n_samples": 1904,
     "n_trades": 0,
     "profit_factor": null,
     "sharpe": null,

@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Protocol, Literal, Any
+
+from typing import Any, Literal, Protocol
+
 """Dynamic BingX universe discovery and liquidity filtering.
 
 This service sits outside Layer 1 because it combines exchange metadata with
@@ -263,6 +265,11 @@ class BingXUniverseService:
         liquidity_filter: LiquidityFilter | None = None,
     ) -> list[BingXInstrument]:
         effective_filter = liquidity_filter or LiquidityFilter.from_env()
+        from backend.config.dual_bot_core_universe import dual_bot_fixed_universe_enabled
+
+        if dual_bot_fixed_universe_enabled():
+            return await self._discover_fixed_core_universe(effective_filter)
+
         contracts, tickers = await asyncio.gather(
             self._client.fetch_perp_contracts(),
             self._client.fetch_all_tickers_perp(),
@@ -313,6 +320,101 @@ class BingXUniverseService:
         logger.info("bingx_universe.discovered count=%d", len(instruments))
         return instruments
 
+    async def _discover_fixed_core_universe(
+        self,
+        liquidity_filter: LiquidityFilter,
+    ) -> list[BingXInstrument]:
+        """Solo los tickers de ``DUAL_BOT_CORE_UNIVERSE`` — sin discovery dinámico."""
+        from backend.config.dual_bot_core_universe import DUAL_BOT_CORE_UNIVERSE
+
+        core_filter = LiquidityFilter(
+            min_crypto_volume_24h=liquidity_filter.min_crypto_volume_24h,
+            min_stock_volume_24h=liquidity_filter.min_stock_volume_24h,
+            min_open_interest=liquidity_filter.min_open_interest,
+            min_stock_open_interest=liquidity_filter.min_stock_open_interest,
+            require_fmp_for_stocks=False,
+        )
+        await self._client.fetch_perp_symbol_map()
+        instruments: list[BingXInstrument] = []
+        for attempt in range(2):
+            if attempt > 0:
+                await asyncio.sleep(2.0)
+            instruments = await self._scan_fixed_core_candidates(core_filter)
+            if len(instruments) >= len(DUAL_BOT_CORE_UNIVERSE):
+                break
+            logger.warning(
+                "bingx_universe.fixed_core_retry attempt=%d found=%d expected=%d",
+                attempt + 1,
+                len(instruments),
+                len(DUAL_BOT_CORE_UNIVERSE),
+            )
+        self._cached = tuple(instruments)
+        logger.info(
+            "bingx_universe.fixed_core_discovered count=%d requested=%d",
+            len(instruments),
+            len(DUAL_BOT_CORE_UNIVERSE),
+        )
+        return instruments
+
+    async def _scan_fixed_core_candidates(
+        self,
+        core_filter: LiquidityFilter,
+    ) -> list[BingXInstrument]:
+        """Single pass: match core equity roots to BingX perp contracts."""
+        from backend.config.dual_bot_core_universe import DUAL_BOT_CORE_UNIVERSE
+        from backend.services.bingx_symbol_linker import underlying_from_bingx_symbol
+
+        contracts, tickers = await asyncio.gather(
+            self._client.fetch_perp_contracts(),
+            self._client.fetch_all_tickers_perp(),
+        )
+        ticker_by_symbol = _ticker_lookup(tickers)
+        root_to_candidate: dict[str, _UniverseCandidate] = {}
+
+        for contract in contracts:
+            display = str(contract.get("displayName") or contract.get("symbol") or "").strip()
+            api_symbol = str(contract.get("symbol") or display).strip()
+            if not display:
+                continue
+            root = underlying_from_bingx_symbol(display or api_symbol)
+            if root not in DUAL_BOT_CORE_UNIVERSE:
+                continue
+            ticker = ticker_by_symbol.get(api_symbol) or ticker_by_symbol.get(display) or {}
+            asset_class: Literal["crypto", "synthetic_stock"] = (
+                "synthetic_stock" if self._is_synthetic_stock(display, api_symbol) else "crypto"
+            )
+            if asset_class != "synthetic_stock":
+                continue
+            volume = _first_float(ticker, "quoteVolume", "quoteVolume24h", "volume", "vol")
+            price = _first_float(ticker, "lastPrice", "price", "close")
+            is_tradeable = _core_contract_tradeable(contract, volume=volume, price=price)
+            max_leverage = int(_first_float(contract, "maxLeverage", "maxLongLeverage") or 1)
+            candidate = _UniverseCandidate(
+                display=display,
+                api_symbol=api_symbol,
+                root=root,
+                asset_class=asset_class,
+                volume_24h_usdt=volume,
+                last_price=price,
+                max_leverage=max_leverage,
+                is_tradeable=is_tradeable,
+            )
+            if _passes_core_prefilter(candidate, core_filter):
+                root_to_candidate[root] = candidate
+
+        missing = [root for root in DUAL_BOT_CORE_UNIVERSE if root not in root_to_candidate]
+        if missing:
+            logger.warning("bingx_universe.fixed_core_missing roots=%s", ",".join(missing))
+
+        ordered = [
+            root_to_candidate[root] for root in DUAL_BOT_CORE_UNIVERSE if root in root_to_candidate
+        ]
+        semaphore = asyncio.Semaphore(DEFAULT_OPEN_INTEREST_CONCURRENCY)
+        discovered = await asyncio.gather(
+            *(self._build_instrument(candidate, core_filter, semaphore) for candidate in ordered)
+        )
+        return [instrument for instrument in discovered if instrument is not None]
+
     async def get_filtered_universe(
         self,
         liquidity_filter: LiquidityFilter | None = None,
@@ -344,7 +446,7 @@ class BingXUniverseService:
         semaphore: asyncio.Semaphore,
     ) -> BingXInstrument | None:
         async with semaphore:
-            oi_task = self._fetch_open_interest(candidate.display)
+            oi_task = self._fetch_open_interest(candidate.api_symbol or candidate.display)
             enrichment_task = self._enrichment_available(
                 candidate.root,
                 candidate.asset_class,
@@ -416,6 +518,14 @@ class BingXUniverseService:
             return False
 
     async def _has_massive_options(self, root: str) -> bool:
+        try:
+            from backend.services.alpaca_r1_options_context import load_route1_options_context
+
+            ctx = load_route1_options_context(root.upper().strip())
+            if ctx is not None and ctx.available:
+                return True
+        except Exception as exc:
+            logger.debug("bingx_universe.sqlite_options_check_failed symbol=%s error=%s", root, exc)
         if self._massive is None:
             return False
         try:
@@ -450,6 +560,26 @@ def _passes_filter(
             and enrichment_available
         )
     return instrument.volume_24h_usdt >= liquidity_filter.min_crypto_volume_24h
+
+
+def _core_contract_tradeable(
+    contract: dict[str, Any],
+    *,
+    volume: float,
+    price: float,
+) -> bool:
+    """BingX VST marks many stock perps ``apiStateOpen=false`` while still quoting."""
+    if str(contract.get("apiStateOpen", "true")).strip().lower() == "true":
+        return True
+    return volume > 0 and price > 0
+
+
+def _passes_core_prefilter(
+    candidate: _UniverseCandidate,
+    liquidity_filter: LiquidityFilter,
+) -> bool:
+    """Prefilter for fixed core universe (same gates as stock prefilter)."""
+    return _passes_prefilter(candidate, liquidity_filter)
 
 
 def _passes_prefilter(
@@ -524,6 +654,13 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 def _priority_stocks_from_env() -> tuple[str, ...]:
+    from backend.config.dual_bot_core_universe import (
+        DUAL_BOT_CORE_UNIVERSE,
+        dual_bot_fixed_universe_enabled,
+    )
+
+    if dual_bot_fixed_universe_enabled():
+        return DUAL_BOT_CORE_UNIVERSE
     raw = os.getenv(
         "BINGX_PRIORITY_STOCKS",
         "AMZN,AAPL,TSLA,GOOGL,META,MSFT,NVDA,PLTR",

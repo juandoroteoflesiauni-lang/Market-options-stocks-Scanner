@@ -30,11 +30,7 @@ def kelly_fraction(
     Returns:
         Kelly fraction capped in [0, OPTIONS_KELLY_MAX_FRACTION].
     """
-    p = (
-        win_rate
-        if win_rate is not None
-        else clamp01(0.45 + features.global_confidence * 0.35)
-    )
+    p = win_rate if win_rate is not None else clamp01(0.45 + features.global_confidence * 0.35)
     q = 1.0 - p
     b = (
         win_loss_ratio
@@ -46,8 +42,10 @@ def kelly_fraction(
     raw = (p * b - q) / b
     if raw <= 0:
         return 0.0
-    frac = fractional if fractional is not None else float(
-        os.getenv("OPTIONS_KELLY_FRACTION", str(_DEFAULT_KELLY_FRACTION))
+    frac = (
+        fractional
+        if fractional is not None
+        else float(os.getenv("OPTIONS_KELLY_FRACTION", str(_DEFAULT_KELLY_FRACTION)))
     )
     conf_scale = clamp01(0.5 + features.global_confidence * 0.5)
     kelly = raw * frac * conf_scale
@@ -119,7 +117,34 @@ def equity_confidence_multiplier(*, score: float, probability: float | None = No
     else:
         conf = score
     floor = float(os.getenv("ALPACA_CONFIDENCE_SIZE_FLOOR", "0.4"))
+    high_prob = float(os.getenv("ALPACA_HIGH_PROB_THRESHOLD", "0.85"))
+    if conf >= high_prob:
+        boost = 1.0 + min(0.15, (conf - high_prob) / max(1e-9, 1.0 - high_prob) * 0.15)
+        return max(floor, min(1.15, conf * boost))
     return max(floor, min(1.0, conf))
+
+
+def resolve_equity_buying_power_pct(
+    *,
+    score: float,
+    probability: float | None = None,
+    base_pct: float | None = None,
+) -> float:
+    """Buying-power % per trade; alta probabilidad escala entre 10% y 15%."""
+    base = base_pct
+    if base is None:
+        base = float(os.getenv("ALPACA_BUYING_POWER_PCT", "0.05"))
+    threshold = float(os.getenv("ALPACA_HIGH_PROB_THRESHOLD", "0.85"))
+    min_hp = float(os.getenv("ALPACA_HIGH_PROB_BUYING_POWER_PCT_MIN", "0.10"))
+    max_hp = float(os.getenv("ALPACA_HIGH_PROB_BUYING_POWER_PCT_MAX", "0.15"))
+    prob = probability
+    if prob is None:
+        prob = score / 100.0 if score > 1.0 else score
+    if prob >= threshold:
+        span = max(1e-9, 1.0 - threshold)
+        t = (prob - threshold) / span
+        return min_hp + t * (max_hp - min_hp)
+    return base
 
 
 __all__ = [
@@ -129,6 +154,7 @@ __all__ = [
     "dispersion_size_multiplier",
     "equity_confidence_multiplier",
     "kelly_fraction",
-    "volatility_regime_scalar",
+    "resolve_equity_buying_power_pct",
     "vix_proxy_from_features",
+    "volatility_regime_scalar",
 ]

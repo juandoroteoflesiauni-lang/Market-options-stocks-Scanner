@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Any
+
 """BingX Risk Desk — institutional order controls for the BingX Bot.
 
 Applies 8 independent guardrails before any order reaches the venue:
@@ -50,6 +52,8 @@ REASON_ZONE_VETO_SHORT = "risk_zone_veto_short"
 REASON_ZONE_VETO_LONG = "risk_zone_veto_long"
 REASON_ZONE_LONG_FULL = "risk_zone_long_full"
 REASON_ZONE_SHORT_FULL = "risk_zone_short_full"
+REASON_REPEATED_EXECUTION = "execution_repeated_limit_exceeded"
+REASON_PRICE_COLLAR = "execution_price_collar_violation"
 
 
 # ─── OrderIntent ─────────────────────────────────────────────────────────────
@@ -77,7 +81,7 @@ class OrderIntent:
     cycle_id: str  # deterministic per scan cycle
     notional_usdt: float
     spread_pct: float | None  # ask/bid spread as fraction (0.003 = 0.3%)
-    l2_quality_score: float | None  # 0–1 from LOB engine
+    l2_quality_score: float | None  # 0-1 from LOB engine
     provider_health: str  # "ok" | "degraded" | "unavailable"
     market_type: str = ""
     requires_l2: bool = False
@@ -369,6 +373,22 @@ class BingXRiskDesk:
                     elif intent.position_side == "SHORT":
                         reason_codes.append(REASON_ZONE_SHORT_FULL)
 
+        # ── Gate 10: Repeated execution limit (FIA) ───────────────────────────
+        if not intent.reduce_only:
+            from backend.config.execution_policy import ExecutionPolicy
+            from backend.services.execution.repeated_execution_guard import (
+                SessionRepeatedExecutionGuard,
+            )
+
+            exec_policy = ExecutionPolicy.from_env()
+            guard = SessionRepeatedExecutionGuard.instance()
+            if exec_policy.repeated_execution_enabled and not guard.can_execute_entry(
+                intent.venue_symbol,
+                max_per_symbol=exec_policy.repeated_execution_max_per_symbol,
+                enabled=True,
+            ):
+                reason_codes.append(REASON_REPEATED_EXECUTION)
+
         if reason_codes:
             return self._reject(intent, idem_key, reason_codes)
 
@@ -454,6 +474,12 @@ class BingXRiskDesk:
             realized_pnl,
             self._state.realized_pnl_today,
         )
+        if not decision.intent.reduce_only:
+            from backend.services.execution.repeated_execution_guard import (
+                SessionRepeatedExecutionGuard,
+            )
+
+            SessionRepeatedExecutionGuard.instance().record_entry_fill(symbol)
 
     def sync_open_positions_from_venue(self, rows: list[dict[str, Any]]) -> None:
         """Reconcilia posiciones abiertas con el exchange (evita estado fantasma)."""
@@ -465,7 +491,9 @@ class BingXRiskDesk:
             qty = float(row.get("positionAmt") or row.get("quantity") or 0.0)
             if abs(qty) < 1e-12:
                 continue
-            mark = float(row.get("markPrice") or row.get("avgPrice") or row.get("entryPrice") or 0.0)
+            mark = float(
+                row.get("markPrice") or row.get("avgPrice") or row.get("entryPrice") or 0.0
+            )
             notional = abs(qty) * mark if mark > 0 else abs(float(row.get("positionValue") or 0.0))
             if notional > 0:
                 synced[symbol] = synced.get(symbol, 0.0) + notional

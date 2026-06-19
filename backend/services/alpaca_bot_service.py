@@ -13,15 +13,21 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from backend.config.alpaca_priority_route import (
-    ALPACA_ROUTE1_WATCHLIST,
-    scan_pool_excluding_route1,
-)
+from backend.config.alpaca_eod_config import is_eod_entry_cutoff
 from backend.config.alpaca_options_route_config import (
     alpaca_options_enabled,
     alpaca_options_priority_over_equity,
 )
-from backend.config.alpaca_eod_config import is_eod_entry_cutoff
+from backend.config.alpaca_priority_route import (
+    resolve_route1_watchlist,
+    scan_pool_excluding_route1,
+)
+from backend.config.dual_bot_core_universe import (
+    DUAL_BOT_CORE_UNIVERSE,
+    dual_bot_analysis_concurrency,
+    dual_bot_fixed_universe_enabled,
+    dual_bot_route2_enabled,
+)
 from backend.config.logger_setup import get_logger
 from backend.domain.alpaca_models import (
     AlpacaCandidateAnalysis,
@@ -34,18 +40,19 @@ from backend.domain.volatility import compute_atr, compute_macd, compute_relativ
 from backend.layer_1_data.datos.alpaca_client import AlpacaClient
 from backend.services.alpaca_decision_engine import AlpacaDecisionConfig, decide
 from backend.services.alpaca_dual_route_service import (
+    build_open_position_quant_analyses,
     build_route1_batch,
     build_route2_batch,
     select_route2_symbols,
 )
+from backend.services.alpaca_dynamic_sizer import DynamicSizer
+from backend.services.alpaca_event_journal import AlpacaEventJournal
 from backend.services.alpaca_market_hours import AlpacaMarketHoursGuard
+from backend.services.alpaca_pre_trade_risk_gate import PreTradeRiskGate
 from backend.services.alpaca_risk_desk import AlpacaRiskDesk, AlpacaRiskPolicy
-from backend.services.alpaca_universe_funnel import FunnelConfig, SymbolBars, run_funnel
-from backend.services.equity_l2_gate_service import apply_equity_l2_gate
+from backend.services.alpaca_universe_funnel import FunnelConfig, SymbolBars
 from backend.services.bot.alpaca_bot_execution_mixin import AlpacaBotExecutionMixin
 from backend.services.bot.alpaca_bot_exits_mixin import AlpacaBotExitsMixin
-from backend.services.bot.alpaca_eod_flatten_mixin import AlpacaEodFlattenMixin
-from backend.services.bot.alpaca_options_cycle_mixin import AlpacaOptionsCycleMixin
 from backend.services.bot.alpaca_bot_scanner_mixin import AlpacaBotScannerMixin
 from backend.services.bot.alpaca_bot_types import (
     BENCHMARK_SYMBOL,
@@ -62,6 +69,9 @@ from backend.services.bot.alpaca_bot_types import (
     REDUCED_UNIVERSE,
     _ParametricExitState,
 )
+from backend.services.bot.alpaca_eod_flatten_mixin import AlpacaEodFlattenMixin
+from backend.services.bot.alpaca_options_cycle_mixin import AlpacaOptionsCycleMixin
+from backend.services.equity_l2_gate_service import apply_equity_l2_gate
 
 logger = get_logger(__name__)
 
@@ -132,7 +142,7 @@ class AlpacaBotService(
         market_hours_guard: AlpacaMarketHoursGuard | None = None,
         trading_mode: str = "paper",
         prefilter_pool_size: int = DEFAULT_PREFILTER_POOL_SIZE,
-        gather_concurrency: int = DEFAULT_GATHER_CONCURRENCY,
+        gather_concurrency: int | None = None,
     ) -> None:
         self._owns_client: bool = client is None
         self._client = client or AlpacaClient()
@@ -151,10 +161,19 @@ class AlpacaBotService(
         self._market_hours = market_hours_guard or AlpacaMarketHoursGuard(self._client)
         self._trading_mode = trading_mode.strip().lower()
         self._prefilter_pool_size = prefilter_pool_size
-        self._gather_concurrency = gather_concurrency
+        self._gather_concurrency = (
+            gather_concurrency
+            if gather_concurrency is not None
+            else (
+                dual_bot_analysis_concurrency()
+                if dual_bot_fixed_universe_enabled()
+                else DEFAULT_GATHER_CONCURRENCY
+            )
+        )
         self._last_execution: dict[str, datetime] = {}
         self._parametric_exit_state: dict[str, _ParametricExitState] = {}
         self._eod_flatten_date: str | None = None
+        self._open_quant_analyses: dict[str, AlpacaCandidateAnalysis] = {}
 
     @property
     def dry_run(self) -> bool:
@@ -173,12 +192,16 @@ class AlpacaBotService(
             await self._client.aclose()
 
     def _full_universe(self) -> tuple[str, ...]:
+        if dual_bot_fixed_universe_enabled():
+            return DUAL_BOT_CORE_UNIVERSE
         from backend.services.alpaca_universe_fetcher import ALPACA_EXTENDED_CACHE
 
         extended = tuple(ALPACA_EXTENDED_CACHE) or self._universe
         return extended
 
     def _working_pool(self, full: tuple[str, ...]) -> tuple[str, ...]:
+        if dual_bot_fixed_universe_enabled():
+            return DUAL_BOT_CORE_UNIVERSE
         seen: set[str] = set()
         pool: list[str] = []
         for sym in (*REDUCED_UNIVERSE, BENCHMARK_SYMBOL):
@@ -202,7 +225,10 @@ class AlpacaBotService(
             return None
 
     def _build_decisions(
-        self, selected: list[str], bars_map: dict[str, SymbolBars], benchmark: tuple[float, ...]
+        self,
+        selected: list[str],
+        bars_map: dict[str, SymbolBars],
+        benchmark: tuple[float, ...],
     ) -> tuple[list[AlpacaCandidateAnalysis], list[AlpacaDecision]]:
         analyses: list[AlpacaCandidateAnalysis] = []
         decisions: list[AlpacaDecision] = []
@@ -228,6 +254,8 @@ class AlpacaBotService(
         analysis_map = {a.symbol: a for a in analyses}
         intents: list[EquityOrderIntent] = []
         risk_decisions: list[EquityRiskDecision] = []
+        journal = AlpacaEventJournal.instance()
+        gate = PreTradeRiskGate.instance()
         for decision in decisions:
             analysis = analysis_map.get(decision.symbol)
             if analysis is None:
@@ -241,8 +269,49 @@ class AlpacaBotService(
             )
             if intent is None:
                 continue
+            atr_pct = None
+            if analysis.atr and analysis.latest_close and analysis.latest_close > 0:
+                atr_pct = analysis.atr / analysis.latest_close
+            from backend.services.calibration.kelly_session_sizer import kelly_notional_scalar
+
+            kelly_scalar = kelly_notional_scalar(route=decision.route.upper())
+            base_qty = (
+                max(1, int(round(intent.quantity * kelly_scalar)))
+                if kelly_scalar < 1.0
+                else intent.quantity
+            )
+            sized = DynamicSizer.size(
+                base_quantity=base_qty,
+                reference_price=intent.reference_price,
+                signal_score=decision.score,
+                stop_loss=intent.stop_loss,
+                take_profit=intent.take_profit,
+                atr_pct=atr_pct,
+                bur=gate.bur,
+            )
+            if sized.quantity <= 0:
+                continue
+            intent = intent.model_copy(
+                update={
+                    "quantity": sized.quantity,
+                    "notional_usd": sized.notional_usd,
+                    "reason_codes": sized.reason_codes,
+                }
+            )
             intents.append(intent)
-            risk_decisions.append(self._risk_desk.authorize_intent(intent))
+            risk = self._risk_desk.authorize_intent(intent)
+            risk_decisions.append(risk)
+            journal.append(
+                "risk_decision",
+                cycle_id=cycle_id,
+                symbol=decision.symbol,
+                payload={
+                    "authorized": risk.authorized,
+                    "route": decision.route,
+                    "quantity": risk.adjusted_quantity,
+                    "sizing": sized.model_dump(mode="json"),
+                },
+            )
         return intents, risk_decisions
 
     async def _build_technical_payload(
@@ -262,12 +331,15 @@ class AlpacaBotService(
         )
 
     def _dual_route_symbols(self, full_universe: tuple[str, ...]) -> tuple[str, ...]:
+        route1 = resolve_route1_watchlist()
+        if dual_bot_fixed_universe_enabled() and not dual_bot_route2_enabled():
+            return route1
         scan_pool = scan_pool_excluding_route1(
             full_universe,
             pool_size=self._prefilter_pool_size,
             benchmark=BENCHMARK_SYMBOL,
         )
-        ordered = (*ALPACA_ROUTE1_WATCHLIST, BENCHMARK_SYMBOL, *scan_pool)
+        ordered = (*route1, BENCHMARK_SYMBOL, *scan_pool)
         seen: set[str] = set()
         out: list[str] = []
         for sym in ordered:
@@ -363,6 +435,17 @@ class AlpacaBotService(
             )
 
         allow_new_entries = not is_eod_entry_cutoff()
+        from backend.services.calibration.rolling_pf_gate import evaluate_rolling_pf_gate
+
+        pf_gate = evaluate_rolling_pf_gate(route="ALPACA")
+        if not pf_gate.allowed:
+            logger.warning(
+                "alpaca_bot.rolling_pf_block pf=%.3f floor=%.3f sample=%d",
+                pf_gate.profit_factor or 0.0,
+                pf_gate.floor,
+                pf_gate.sample_size,
+            )
+            allow_new_entries = False
         bars_map, klines_map = await self._gather_bars_and_klines(symbols_to_fetch)
         benchmark = bars_map.get(BENCHMARK_SYMBOL)
         benchmark_closes = benchmark.closes if benchmark else ()
@@ -372,9 +455,11 @@ class AlpacaBotService(
             benchmark=BENCHMARK_SYMBOL,
         )
         scan_bars = [bars_map[s] for s in scan_pool if s in bars_map]
-        route2_selected = select_route2_symbols(
-            scan_bars, benchmark_closes, self._funnel_config
-        )
+        route2_selected: list[str] = []
+        if dual_bot_route2_enabled() or not dual_bot_fixed_universe_enabled():
+            route2_selected = select_route2_symbols(
+                scan_bars, benchmark_closes, self._funnel_config
+            )
 
         technical_builder = self._build_technical_payload
         r1_analyses, r1_decisions = await build_route1_batch(
@@ -397,9 +482,37 @@ class AlpacaBotService(
             concurrency=self._gather_concurrency,
         )
 
-        analyses = r1_analyses + r2_analyses
+        open_quant_analyses: dict[str, AlpacaCandidateAnalysis] = {}
+        try:
+            positions = await self._client.fetch_positions()
+            open_symbols = tuple(
+                str(pos.get("symbol", "")).upper().strip()
+                for pos in positions
+                if abs(float(pos.get("qty") or 0)) > 0 and str(pos.get("symbol", "")).strip()
+            )
+            if open_symbols:
+                open_quant_analyses = await build_open_position_quant_analyses(
+                    open_symbols,
+                    bars_map,
+                    klines_map,
+                    benchmark_closes,
+                    analysis_builder=analysis_from_bars,
+                    technical_builder=technical_builder,
+                    concurrency=self._gather_concurrency,
+                )
+        except Exception as exc:
+            logger.warning("alpaca_bot.open_quant_analyses_failed error=%s", exc)
+
+        self._open_quant_analyses = open_quant_analyses
+        open_quant_syms = set(open_quant_analyses.keys())
+        r2_analyses_deduped = [
+            analysis for analysis in r2_analyses if analysis.symbol.upper() not in open_quant_syms
+        ]
+        analyses = r1_analyses + r2_analyses_deduped + list(open_quant_analyses.values())
         decisions = r1_decisions + r2_decisions
         cycle_id = uuid4().hex[:8]
+        journal = AlpacaEventJournal.instance()
+        journal.append("cycle_start", cycle_id=cycle_id, payload={"mode": "slow"})
         buying_power = await self._buying_power()
 
         r1_intents, r1_risk = await self._authorize_decisions(
@@ -408,9 +521,7 @@ class AlpacaBotService(
         r1_reserved = sum(
             i.notional_usd for i, rd in zip(r1_intents, r1_risk, strict=False) if rd.authorized
         )
-        adjusted_bp = (
-            max(0.0, buying_power - r1_reserved) if buying_power is not None else None
-        )
+        adjusted_bp = max(0.0, buying_power - r1_reserved) if buying_power is not None else None
         r2_intents, r2_risk = await self._authorize_decisions(
             r2_analyses, r2_decisions, cycle_id=cycle_id, buying_power=adjusted_bp
         )
@@ -451,19 +562,28 @@ class AlpacaBotService(
 
         logger.info(
             "alpaca_bot.cycle_finished route1=%d route2=%d equity_executions=%d "
-            "options_entries=%d options_executed=%d",
-            len(ALPACA_ROUTE1_WATCHLIST),
+            "options_entries=%d options_executed=%d state_hash=%s",
+            len(resolve_route1_watchlist()),
             len(route2_selected),
             len(executions),
             len(options_entries),
             len(options_executed),
+            journal.state_hash[:16],
+        )
+        journal.append(
+            "cycle_end",
+            cycle_id=cycle_id,
+            payload={
+                "executions": len(executions),
+                "state_hash": journal.state_hash,
+            },
         )
         return EquityCycleResult(
             started_at=started_at,
             finished_at=utc_iso_now(),
             universe=full_universe,
             prefiltered=tuple(route2_selected),
-            route1_symbols=ALPACA_ROUTE1_WATCHLIST,
+            route1_symbols=resolve_route1_watchlist(),
             route2_symbols=tuple(route2_selected),
             analyses=tuple(analyses),
             decisions=tuple(decisions),
@@ -475,7 +595,5 @@ class AlpacaBotService(
             options_reserved_premium_usd=options_reserved,
             dry_run=self.dry_run,
             trading_environment=self._trading_mode,
-            blocked_reasons=(
-                {"eod": ["entry_cutoff"]} if not allow_new_entries else {}
-            ),
+            blocked_reasons=({"eod": ["entry_cutoff"]} if not allow_new_entries else {}),
         )

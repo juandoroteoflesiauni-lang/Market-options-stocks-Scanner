@@ -14,8 +14,8 @@
 
 ## 📈 ESTADO ACTUAL DEL PROYECTO
 
-**Última actualización:** 2026-06-12
-**Sesiones completadas:** 9
+**Última actualización:** 2026-06-17
+**Sesiones completadas:** 10
 **Progreso general:** 97% completado (Scanner migrado a datos reales con WebSocket en tiempo real, auth integrado, **MFFU Builder Plan backend + API + cockpit mínimo** con 61 tests unitarios Builder, infraestructura Vitest completa, **Expediente del Módulo de Funding generado**).
 
 ---
@@ -178,7 +178,36 @@
 
 ## 📍 ÚLTIMO CHECKPOINT
 
-**Sesión actual (Fases 1-5 Módulo 05 Funding) entregó:**
+**Sesión 2026-06-17 — Auditoría institucional bots Alpaca/BingX + Fase 5 paso 1 + Blueprint P0 Turno A:**
+- **Auditoría (Fases 1-4)**: entregables en `docs/research/` — `engine_configuration_audit.md` (mapa de
+  motores/config), `strategy_research_memo.md` (top-10 palancas + matriz régimen×config),
+  `performance_baseline_20260617.md` (evidencia DuckDB). Blueprint config: `propuesta_config_verification.yaml`,
+  `propuesta_config_profit.yaml`, `propuesta_config_blueprint.md` (raíz, sin commitear).
+- **Hallazgos críticos**: H1 blend ML oculto sin gobierno en decision engines; H4 entrada Alpaca laxa
+  (relaxed_bullish bypass); H5 caps risk desk BingX inflados ~2500x; H6 TCA desconectado del hot-path
+  (journal stale/dry-run); H10 cascada predictiva no cableada.
+- **Fase 5 paso 1 [config] (commit `2694907`)**: endurecidos gates verification — `ALPACA_PROB_FLOOR 0.35→0.45`,
+  `relaxed_bullish true→false`, `r2_confluence 1→2`, `min_volume_z 0.30→0.50`, `min_close_position 0.35→0.45`,
+  `r2_min_score 32→40`, `r2_gate_veto 0.05→0.10`, BingX `min_decision_score 0.30→0.40`/`min_pred_conf 0.35→0.40`,
+  caps risk desk verification (`daily_loss 2000`, `position 8000`, `symbol 1500`, `cooldown 5`),
+  `PhaseA` RSI 25/75 + ATR min 0.5% + VWAP z 2.5. Profit, Kelly y regime_overlay NO tocados.
+- **Blueprint P0 Turno A [code]**: `trade_journal_service.py` + `tca/journal_tca.py` ahora soportan
+  `correlation_id` (migración idempotente) y `decision_score` real como parámetros. Hot-path BingX/Alpaca
+  (Turnos B/C) **pendiente** de aprobación. Tests: `test_verification_config_phase5.py` (5),
+  `test_tca_journal_correlation.py` (3) — **24 passed** con regresión TCA/exec/calibración.
+- **⚠️ OPERATIVO**: reiniciar el daemon (PID 34012) tras el commit para que cargue el env verification
+  endurecido — los cambios son de carga al arranque del proceso.
+- **PENDIENTE**: Turno B/C (wiring hot-path journaling), y resto de ítems [code] P1+ (env-flag ML H1,
+  PredictiveRiskGate size-down H2, cluster/regime weights P2, diagnóstico OPTIONS_R1 H7).
+
+**Comandos para verificar:**
+```bash
+.venv\Scripts\python.exe -m pytest tests/unit/test_verification_config_phase5.py tests/unit/test_tca_journal_correlation.py -v
+```
+
+---
+
+**Sesión previa (Fases 1-5 Módulo 05 Funding) entregó:**
 - **Contrato Canónico (Fase 1)**: Implementado `CanonicalSignalPayload` en `backend/models/canonical_signal.py` utilizando Pydantic v2 y precisión Decimal para soportar estructuras de opciones multi-pata de forma limpia.
 - **Sizing de Opciones Estructurado (Fase 2)**: Desarrollados `LinearInstrumentSizer` y `StructuredOptionsSizer` en `backend/services/` para aplicar penalización por bid-ask spread y controlar el buying power de Alpaca.
 - **Integración con Orquestador (Fase 3)**: Integrada la evaluación canónica en `FundingOrchestrator` y habilitado el pipeline de control para admitir opciones.

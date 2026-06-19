@@ -137,6 +137,8 @@ backtest_results/
 market_data/
 historical_data/
 trading_cache/
+data/            # DuckDB locales, snapshots EOD, auditoría runtime
+backend/reports/ # Reportes Gemini/ML generados en local
 *.csv.gz         # Datos históricos comprimidos
 *.duckdb         # DuckDB databases (too large for git)
 

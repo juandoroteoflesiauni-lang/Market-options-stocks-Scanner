@@ -111,17 +111,17 @@ def _signal_from_result(
             detail={},
         )
     token = str(
-        result.get(signal_key)
-        or result.get("signal_name")
-        or result.get("bias")
-        or "NEUTRAL"
+        result.get(signal_key) or result.get("signal_name") or result.get("bias") or "NEUTRAL"
     )
     return OptionsEngineSignal(
         engine=engine,
         family=family,
         direction=_motor_direction(token),
         score=_motor_score(result),
-        detail={"raw_signal": token, **{k: v for k, v in result.items() if k != "history"}},
+        detail={
+            "raw_signal": token,
+            **{k: v for k, v in result.items() if k != "history"},
+        },
     )
 
 
@@ -135,7 +135,9 @@ def _merge_signals(
     if not valid:
         return _signal_from_result(engine, None)
     score = sum(_motor_score(r) for r in valid) / len(valid)
-    dirs = [_motor_direction(str(r.get(signal_key) or r.get("signal_name") or "NEUTRAL")) for r in valid]
+    dirs = [
+        _motor_direction(str(r.get(signal_key) or r.get("signal_name") or "NEUTRAL")) for r in valid
+    ]
     bull = dirs.count("BULL")
     bear = dirs.count("BEAR")
     direction: OptionsDirection = "NEUTRAL"
@@ -156,7 +158,7 @@ def _kline_ts(k: dict[str, Any]) -> pd.Timestamp:
     raw = k.get("open_time_ms") or k.get("t") or k.get("timestamp")
     if raw is None:
         return pd.Timestamp.utcnow()
-    if isinstance(raw, (int, float)):
+    if isinstance(raw, int | float):
         unit = "ms" if float(raw) > 1e12 else "s"
         return pd.to_datetime(raw, unit=unit)
     return pd.Timestamp(raw)
@@ -218,14 +220,11 @@ class AlpacaR1OptionsReplay:
             CVDGammaWeightedEngine,
             CVDNddeDivergenceEngine,
         )
-        from backend.quant_engine.engines.options.delta_rsi import (
-            DeltaRSIEngine,
-            OptionsFlow,
-        )
+        from backend.quant_engine.engines.options.delta_rsi import DeltaRSIEngine, OptionsFlow
         from backend.quant_engine.engines.options.hybrid_ribbon import HybridEMADeltaRibbonEngine
         from backend.quant_engine.engines.options.shadow_macd import (
-            OptionStrike,
             OptionsChainSnapshot,
+            OptionStrike,
             ShadowMACDEngine,
         )
         from backend.quant_engine.engines.options.sma_gamma import SMAGammaEngine
@@ -300,9 +299,9 @@ class AlpacaR1OptionsReplay:
         opt_flow = OptionsFlow(
             timestamp=pd.Timestamp(context.as_of),
             ticker=symbol,
-            call_buy_vol_delta=max(1.0, shadow_delta * 100.0) if shadow_delta > 0 else 1.0,
+            call_buy_vol_delta=(max(1.0, shadow_delta * 100.0) if shadow_delta > 0 else 1.0),
             put_sell_vol_delta=0.0,
-            put_buy_vol_delta=max(1.0, -shadow_delta * 100.0) if shadow_delta < 0 else 0.0,
+            put_buy_vol_delta=(max(1.0, -shadow_delta * 100.0) if shadow_delta < 0 else 0.0),
             call_sell_vol_delta=1.0,
             net_premium=0.0,
             sweep_count=0,
@@ -370,9 +369,7 @@ class AlpacaR1OptionsReplay:
                 chain_snap=chain_snap if is_last else None,
             )
             cd_res = cd_engine.update(close=candle.close, delta=shadow_delta, ndde=ndde_val)
-            cg_res = cg_engine.update(
-                close=candle.close, delta=shadow_delta, total_gex=net_gex
-            )
+            cg_res = cg_engine.update(close=candle.close, delta=shadow_delta, total_gex=net_gex)
             vi_res = vi_engine.update(close=candle.close, iv_atm=iv_atm)
             vg_res = vg_engine.update(close=candle.close, total_gex=net_gex)
 
@@ -388,4 +385,37 @@ class AlpacaR1OptionsReplay:
         ]
 
 
-__all__ = ["AlpacaR1OptionsReplay"]
+class AlpacaR1ReplayVerifier:
+    """Deterministic replay harness: same inputs → same signal hash."""
+
+    @staticmethod
+    def signal_hash(signals: list[OptionsEngineSignal]) -> str:
+        import hashlib
+        import json
+
+        canonical = [
+            {
+                "engine": s.engine,
+                "direction": s.direction,
+                "score": round(s.score, 6),
+            }
+            for s in signals
+        ]
+        blob = json.dumps(canonical, sort_keys=True)
+        return hashlib.sha256(blob.encode()).hexdigest()
+
+    @classmethod
+    def replay_twice_verify(
+        cls,
+        klines: list[dict[str, Any]],
+        context: Route1OptionsSnapshotContext | None,
+    ) -> tuple[bool, str, str]:
+        """Run replay twice; return (match, hash_a, hash_b)."""
+        run_a = AlpacaR1OptionsReplay.run(klines, context)
+        run_b = AlpacaR1OptionsReplay.run(klines, context)
+        hash_a = cls.signal_hash(run_a)
+        hash_b = cls.signal_hash(run_b)
+        return hash_a == hash_b, hash_a, hash_b
+
+
+__all__ = ["AlpacaR1OptionsReplay", "AlpacaR1ReplayVerifier"]

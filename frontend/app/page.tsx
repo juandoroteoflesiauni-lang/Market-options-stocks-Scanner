@@ -14,6 +14,7 @@ import { Technical } from "@/components/tabs/Technical";
 import { Predictive } from "@/components/tabs/Predictive";
 import { ApiConsumptionMonitor } from "@/components/tabs/ApiConsumptionMonitor";
 import { AuditComplex } from "@/components/tabs/AuditComplex";
+import { RoutePnL } from "@/components/tabs/RoutePnL";
 import type { TabId } from "@/types";
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ const TAB_CONTENT: Record<TabId, React.JSX.Element> = {
   predictive: <Predictive />,
   consumption: <ApiConsumptionMonitor />,
   audit: <AuditComplex />,
+  "route-pnl": <RoutePnL />,
 };
 
 import { useWebSocket } from "@/hooks/useWebSocket";

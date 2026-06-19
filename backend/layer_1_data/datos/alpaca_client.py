@@ -55,6 +55,7 @@ class AlpacaOrderRequest:
     client_order_id: str | None = None
     take_profit: dict[str, float] | None = None
     stop_loss: dict[str, float] | None = None
+    advanced_instructions: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -88,7 +89,12 @@ class AlpacaClient:
         self._base_url = os.getenv("ALPACA_TRADING_BASE_URL", base_url).rstrip("/")
         env_dry_run = os.getenv("ALPACA_DRY_RUN")
         if env_dry_run is not None:
-            self._dry_run = env_dry_run.strip().lower() not in {"0", "false", "no", "live"}
+            self._dry_run = env_dry_run.strip().lower() not in {
+                "0",
+                "false",
+                "no",
+                "live",
+            }
         else:
             self._dry_run = bool(dry_run)
 
@@ -151,6 +157,8 @@ class AlpacaClient:
             payload["order_class"] = "bracket"
             payload["take_profit"] = order.take_profit
             payload["stop_loss"] = order.stop_loss
+        if order.advanced_instructions:
+            payload["advanced_instructions"] = order.advanced_instructions
         return payload
 
     @staticmethod

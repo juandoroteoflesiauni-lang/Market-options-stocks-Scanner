@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MarketDataSettings(BaseSettings):
-    default_universe: list[str] = ["AAPL", "MSFT", "TSLA", "GOOGL", "META", "NVDA", "AMZN", "SPY", "NFLX", "AMD", "PLTR", "COIN"]
+    default_universe: list[str] = [
+        "AAPL",
+        "MSFT",
+        "TSLA",
+        "GOOGL",
+        "META",
+        "NVDA",
+        "AMZN",
+        "SPY",
+        "NFLX",
+        "AMD",
+        "PLTR",
+        "COIN",
+    ]
     """Configuration class for market data infrastructure and secrets.
 
     Automatically loads variables from the environment and the .env file.
@@ -47,6 +62,19 @@ class MarketDataSettings(BaseSettings):
     alpaca_trading_mode: str = "paper"
     alpaca_paper_trading: bool = True
 
+    # Gemini (LLM) — optional; required only for AI audit / agent features
+    gemini_api_key: SecretStr | None = None
+
+    # Unusual Whales — optional; required only for the dark-pool detector (Motor ⑭)
+    unusual_whales_api_key: SecretStr | None = None
+
+    # Binance API and Bot config
+    binance_api_key: SecretStr | None = None
+    binance_api_secret: SecretStr | None = None
+    binance_bot_enable_live: bool = False
+    binance_bot_trading_env: str = "paper"
+    binance_bot_paper_trading: bool = True
+
     # BingX API and Bot config
     bingx_api_key: SecretStr | None = None
     bingx_secret: SecretStr | None = None
@@ -64,6 +92,11 @@ class MarketDataSettings(BaseSettings):
 
     # Audit Complex
     audit_db_path: str = "data/audit_complex.duckdb"
+
+    # Agentic funnel
+    agentic_llm_timeout_s: float = 3.0
+    agentic_top_n: int = 5
+    agentic_macro_horizon_days: int = 7
 
     # Operator Auth (HMAC-signed session cookies)
     qa_session_secret: str = ""
@@ -93,9 +126,6 @@ class MarketDataSettings(BaseSettings):
         if not value.get_secret_value().strip():
             raise ValueError("Secret field cannot be empty or consist only of whitespace.")
         return value
-
-
-from functools import lru_cache
 
 
 @lru_cache(maxsize=1)

@@ -19,16 +19,13 @@ def test_r2_config_uses_structure_profile():
     cfg = get_options_config_for_route("scan", r2_symbols=("COIN",))
     assert cfg.structure_profile == "r2_basic"
     cfg = get_options_config_for_route("scan", r2_symbols=("COIN", "PLTR"))
-    assert cfg.omni_engine.enabled_layers == ("technical",)
+    assert cfg.omni_engine.enabled_layers == ("technical", "options")
     assert cfg.universe.enforce_route1_only is False
     assert "COIN" in cfg.resolved_symbols
     trend = cfg.playbooks.playbooks["trend_continuation"]
-    assert set(trend.allowed_structures) == {
-        "long_call",
-        "long_put",
-        "short_put",
-        "put_credit_spread",
-    }
+    assert "short_put" not in set(trend.allowed_structures)
+    assert "put_credit_spread" in set(trend.allowed_structures)
+    assert "bull_call_spread" in set(trend.allowed_structures)
     assert cfg.risk.max_risk_per_trade_pct < 1.0
 
 

@@ -21,9 +21,7 @@ BreakoutState = Literal["compressed", "arming", "confirmed", "failed", "unknown"
 DealerRegime = Literal["supportive", "suppressive", "pinning", "unstable", "unknown"]
 IvState = Literal["cheap", "fair", "rich", "extreme", "unknown"]
 OutcomeStatus = Literal["win", "loss", "breakeven", "expired", "stopped", "open"]
-RegimeClass = Literal[
-    "trend", "mean_reversion", "volatile", "event", "dislocated", "unknown"
-]
+RegimeClass = Literal["trend", "mean_reversion", "volatile", "event", "dislocated", "unknown"]
 TradeDirection = Literal["bullish", "bearish", "neutral"]
 
 
@@ -237,10 +235,7 @@ def merge_all_layer_features(
 ) -> NormalizedFeatures:
     """Combina las tres capas parciales en ``NormalizedFeatures``."""
     base = merge_layer_features(technical, predictive)
-    if (
-        technical.symbol != predictive.symbol
-        or technical.symbol != options.symbol
-    ):
+    if technical.symbol != predictive.symbol or technical.symbol != options.symbol:
         raise ValueError("all layer symbols must match")
     return base.model_copy(
         update={
@@ -349,6 +344,7 @@ class OptionsExecutionPayload(BaseModel):
     delta_buy_target: float = Field(ge=0.0, le=1.0)
     delta_sell_target: float | None = Field(default=None, ge=0.0, le=1.0)
     max_premium_usd: Decimal = Field(gt=Decimal("0"))
+    limit_price_per_contract: Decimal | None = None
     risk_budget_pct: float = Field(ge=0.0)
     veto_triggered: str | None = None
     reason_codes: tuple[str, ...] = ()
@@ -583,14 +579,14 @@ __all__ = [
     "OpenOptionsPosition",
     "OptionsExecutionPayload",
     "OptionsExecutionResult",
+    "OptionsLayerOutput",
     "OptionsLegSpec",
     "OptionsStrategyAuditLog",
-    "OptionsStrategyInput",
-    "OptionsLayerOutput",
-    "OptionsStrategyCandidate",
-    "OptionsStructure",
     "OptionsStrategyCalibrationReport",
+    "OptionsStrategyCandidate",
+    "OptionsStrategyInput",
     "OptionsStrategyRunResult",
+    "OptionsStructure",
     "OptionsTradeOutcome",
     "OutcomeStatus",
     "PlaybookCalibrationStats",

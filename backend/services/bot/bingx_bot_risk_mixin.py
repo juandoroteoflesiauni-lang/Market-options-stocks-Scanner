@@ -1,20 +1,17 @@
-from __future__ import annotations
-from typing import TYPE_CHECKING, Any
-
-import os
-
-from backend.services.bot.bingx_bot_types import *
-from backend.services.bingx_decision_engine import BingXDecisionConfig, decide
-
 """Mixin class for BingX Bot Risk."""
 
+from __future__ import annotations
+
+import os
 from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any
 
 from backend.config.logger_setup import get_logger
+from backend.services.bingx_decision_engine import BingXDecisionConfig, decide
+from backend.services.bot.bingx_bot_types import *
 
 logger = get_logger(__name__)
 
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.services.bingx_bot_service import *
@@ -44,6 +41,22 @@ class BingXBotRiskMixin:
         sync with the executor's actual posture without callers having to
         re-derive it.
         """
+        from backend.services.agentic_macro_state import get_agentic_macro_state
+
+        macro_state = get_agentic_macro_state()
+        if macro_state.halt_scanner or macro_state.severity == "CRITICAL":
+            logger.warning("bingx_bot.macro_halt_scanner severity=%s", macro_state.severity)
+            return []
+        try:
+            import asyncio as _aio
+
+            from backend.services.agentic_execution_bridge import get_agentic_trade_gate
+
+            gate = get_agentic_trade_gate()
+            if gate is not None:
+                _aio.get_event_loop().create_task(gate.refresh_macro_risk())
+        except Exception:
+            pass
         resolved_mode: ExecutionMode = mode or ("dry_run" if self.dry_run else "live")
         resolved_config = config or BingXDecisionConfig.from_env()
         decisions = [
@@ -173,15 +186,15 @@ class BingXBotRiskMixin:
             if not exec_allowed:
                 reasons.extend(l2_reasons)
                 return BingXOrderPlan(
-                symbol=signal.symbol,
-                side="BUY" if signal.direction == "LONG" else "SELL",
-                notional_usdt=0.0,
-                leverage=self._risk_policy.leverage,
-                quantity=None,
-                reference_price=price,
-                reason_codes=tuple(reasons),
-                authorized=False,
-            )
+                    symbol=signal.symbol,
+                    side="BUY" if signal.direction == "LONG" else "SELL",
+                    notional_usdt=0.0,
+                    leverage=self._risk_policy.leverage,
+                    quantity=None,
+                    reference_price=price,
+                    reason_codes=tuple(reasons),
+                    authorized=False,
+                )
 
         quantity = round((notional * self._risk_policy.leverage) / price, 8)
         return BingXOrderPlan(

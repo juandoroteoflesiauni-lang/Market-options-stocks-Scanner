@@ -1,8 +1,8 @@
 from __future__ import annotations
-from typing import Any, Literal
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
 
 import pytest
 
@@ -23,6 +23,13 @@ from backend.quant_engine.engines.technical.lob_dynamics_engine import (
     LOBDynamicsResult,
     SpoofingState,
 )
+from backend.services.bingx_bot_service import (
+    BingXBotService,
+    _evaluate_l2_execution_quality,
+    _normalize_bingx_symbol_for_scanner,
+    _synthetic_stock_symbols,
+)
+from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis, BingXTechnicalBlock
 from backend.services.bot.bingx_bot_types import (
     DEFAULT_UNIVERSE,
     EXECUTION_COOLDOWN_MINUTES,
@@ -36,13 +43,6 @@ from backend.services.bot.bingx_bot_types import (
     ExecutionQualityPolicy,
     FilterDecision,
 )
-from backend.services.bingx_bot_service import (
-    BingXBotService,
-    _evaluate_l2_execution_quality,
-    _normalize_bingx_symbol_for_scanner,
-    _synthetic_stock_symbols,
-)
-from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis, BingXTechnicalBlock
 from backend.services.scanner_funding_gate import (
     REASON_SCANNER_DAILY_OPPOSES,
     REASON_SCANNER_INTRADAY_NOT_ALIGNED,
@@ -57,6 +57,28 @@ from backend.services.scanner_funding_gate import (
 def clean_dry_run_env(monkeypatch) -> None:
     monkeypatch.setenv("BINGX_DRY_RUN", "true")
     monkeypatch.delenv("BINGX_BOT_TRADING_ENV", raising=False)
+    monkeypatch.setenv("DUAL_BOT_FIXED_UNIVERSE", "false")
+    monkeypatch.setenv("AI_AGENTIC_COMMITTEE_MODE", "off")
+    from backend.services.calibration.bayesian_kelly_sizer import BayesianKellyDecideResult
+
+    neutral_bk = BayesianKellyDecideResult(multiplier=1.0, fraction=None, active=False)
+    monkeypatch.setattr(
+        "backend.services.bingx_decision_engine.bayesian_kelly_for_decide",
+        lambda **_: neutral_bk,
+    )
+    monkeypatch.setattr(
+        "backend.services.bingx_risk_sizing_v2.bayesian_kelly_for_decide",
+        lambda **_: neutral_bk,
+    )
+    monkeypatch.setattr(
+        "backend.services.bingx_decision_engine.risk_sizing_multiplier",
+        lambda *_args, **_kwargs: 1.0,
+    )
+    monkeypatch.setattr(
+        BingXBotService,
+        "_bingx_notional_scalars",
+        lambda self, analysis, decision, reference_price: 1.0,
+    )
 
 
 @dataclass
@@ -100,7 +122,6 @@ def _signal(
     return BingXSignal(
         symbol=symbol,
         direction=direction,
-
         score=1.0,
         horizon="1h",
         reason_codes=(),
@@ -178,6 +199,15 @@ class ExecutionRecordingClient:
             "equity": 1000.0,
         }
 
+    async def fetch_account_balance(self) -> dict[str, Any]:
+        return await self.fetch_perp_balance()
+
+    async def fetch_perp_positions(self) -> list[dict[str, Any]]:
+        return []
+
+    async def fetch_latest_price_perp(self, symbol: str) -> float | None:
+        return 180.0
+
     async def set_leverage_perp(
         self, symbol: str, leverage: int, *, side: str = "BOTH"
     ) -> dict[str, Any]:
@@ -253,7 +283,6 @@ def _tf(direction: str, ok: bool = True) -> MarketScannerTimeframeSignal:
         timeframe="5m",
         ok=ok,
         direction=direction,
-
         label="buy" if direction == "bullish" else "sell" if direction == "bearish" else "neutral",
         score=78.0 if direction == "bullish" else 22.0 if direction == "bearish" else 50.0,
         confidence=0.8,
@@ -853,6 +882,42 @@ def test_status_exposes_l2_execution_quality_reason_codes_and_policy() -> None:
 # ─── decide_candidates — multi-module decision engine integration ─────────────
 
 
+def _consensus_technical_payload(*, predictive_bias: str = "LONG") -> dict[str, Any]:
+    """Bullish/bearish 28-engine payload for institutional consensus in bot tests."""
+    from backend.tests.services.test_bingx_decision_engine import _directional_engine_payload
+
+    direction = "BULLISH" if predictive_bias == "LONG" else "BEARISH"
+    payload = _directional_engine_payload(direction)
+    hybrid_signals = {
+        "hybrid_wavetrend": "WT_CROSS_BULL" if direction == "BULLISH" else "WT_CROSS_BEAR",
+        "hybrid_divergences": "BULL_DIV" if direction == "BULLISH" else "BEAR_DIV",
+        "hybrid_vsa": "ACCUMULATION" if direction == "BULLISH" else "DISTRIBUTION_ALIGNED",
+        "hybrid_elliott": "WAVE3_UP" if direction == "BULLISH" else "WAVE3_DOWN",
+        "hybrid_exhaustion": "NONE",
+        "hybrid_shadow_macd": "BULL_CROSS" if direction == "BULLISH" else "BEAR_CROSS",
+        "hybrid_delta_profile": "BULL_DELTA" if direction == "BULLISH" else "BEAR_DELTA",
+    }
+    for engine, signal in hybrid_signals.items():
+        payload[engine] = {"ok": True, "signal": signal, "strength": 2}
+    payload["flow_obv_oi"] = {
+        "ok": True,
+        "bias": direction,
+        "score": 0.80 if direction == "BULLISH" else 0.20,
+    }
+    payload["flow_mfi_flow"] = {
+        "ok": True,
+        "bias": direction,
+        "score": 0.75 if direction == "BULLISH" else 0.25,
+    }
+    for motor_id in range(13, 19):
+        payload[f"avwap_m{motor_id}"] = {
+            "ok": True,
+            "bias": direction,
+            "score": 0.70 if direction == "BULLISH" else 0.30,
+        }
+    return payload
+
+
 def _decision_engine_analysis(
     *,
     market_type: str = "stock_perp",
@@ -929,12 +994,7 @@ def _decision_engine_analysis(
                 "composite_score": 0.7,
                 "bars_used": 40,
             },
-            "payload": {
-                "volume_profile": {
-                    "val": 190.0 if predictive_bias == "LONG" else 160.0,
-                    "vah": 200.0 if predictive_bias == "LONG" else 170.0,
-                }
-            },
+            "payload": _consensus_technical_payload(predictive_bias=predictive_bias),
         },
     )
     predictive = BingXPredictiveBlock(
@@ -1140,7 +1200,6 @@ async def test_risk_state_hydrates_from_account_positions() -> None:
     service = BingXBotService(
         client=ExecutionRecordingClient(),  # type: ignore[arg-type]
         account_service=FakeAccountService(),
-
     )
 
     await service._hydrate_risk_state_from_account()
@@ -1243,8 +1302,8 @@ async def test_place_scale_out_orders_with_tp4() -> None:
     assert "STOP_MARKET" in order_types
     assert "TAKE_PROFIT_MARKET" in order_types
 
-    sl_order = [o for o in client.perp_orders if o.order_type == "STOP_MARKET"][0]
-    tp_order = [o for o in client.perp_orders if o.order_type == "TAKE_PROFIT_MARKET"][0]
+    sl_order = next(o for o in client.perp_orders if o.order_type == "STOP_MARKET")
+    tp_order = next(o for o in client.perp_orders if o.order_type == "TAKE_PROFIT_MARKET")
 
     assert sl_order.stop_price == pytest.approx(87.5)
     assert sl_order.quantity == 10.0
@@ -1435,7 +1494,6 @@ async def test_monitor_exits_no_positions() -> None:
     service = BingXBotService(
         client=ExecutionRecordingClient(),  # type: ignore[arg-type]
         account_service=FakeAccountServiceForExit([]),
-
     )
     executions = await service.monitor_exits()
     assert len(executions) == 0
@@ -1463,7 +1521,6 @@ async def test_monitor_exits_long_gamma_flip_breached(monkeypatch) -> None:
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
         account_service=FakeAccountServiceForExit([pos]),
-
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1511,7 +1568,6 @@ async def test_monitor_exits_confluence_score_too_low(monkeypatch) -> None:
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
         account_service=FakeAccountServiceForExit([pos]),
-
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1528,10 +1584,9 @@ async def test_monitor_exits_confluence_score_too_low(monkeypatch) -> None:
     )
 
     executions = await service.monitor_exits()
-    assert len(executions) == 1
-    assert executions[0].ok is True
-    assert len(client.perp_orders) == 1
-    assert client.perp_orders[0].side == "SELL"
+    # Weakened confluence alone does not force a full exit while PnL is positive.
+    assert executions == []
+    assert "confluence_score_too_low" in service._exit_reasons.get("AAPL-USDT", [])
 
 
 @pytest.mark.asyncio
@@ -1555,7 +1610,6 @@ async def test_monitor_exits_confluence_signal_contradicts(monkeypatch) -> None:
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
         account_service=FakeAccountServiceForExit([pos]),
-
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1572,10 +1626,8 @@ async def test_monitor_exits_confluence_signal_contradicts(monkeypatch) -> None:
     )
 
     executions = await service.monitor_exits()
-    assert len(executions) == 1
-    assert executions[0].ok is True
-    assert len(client.perp_orders) == 1
-    assert client.perp_orders[0].side == "SELL"
+    assert executions == []
+    assert "confluence_signal_contradicts" in service._exit_reasons.get("AAPL-USDT", [])
 
 
 @pytest.mark.asyncio
@@ -1600,7 +1652,6 @@ async def test_monitor_exits_hold_position(monkeypatch) -> None:
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
         account_service=FakeAccountServiceForExit([pos]),
-
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1643,7 +1694,6 @@ async def test_get_account_state_includes_conviction_metrics(monkeypatch) -> Non
     service = BingXBotService(
         client=ExecutionRecordingClient(),  # type: ignore[arg-type]
         account_service=FakeAccountServiceForExit([pos]),
-
     )
 
     service._conviction_scores["AAPL-USDT"] = 0.75
@@ -1656,8 +1706,10 @@ async def test_get_account_state_includes_conviction_metrics(monkeypatch) -> Non
 
 
 @pytest.mark.asyncio
-async def test_evaluate_dynamic_exits_half_tp_at_three_percent(monkeypatch) -> None:
+async def test_evaluate_dynamic_exits_tp1_leveraged_high_beta(monkeypatch) -> None:
+    """TP1 en % apalancado (PLTR HIGH_BETA: +6% lev → trim 25%)."""
     client = ExecutionRecordingClient()
+    from backend.config.bingx_exit_bucket_policy import BingXConfluenceCacheEntry
     from backend.services.bingx_account_service import BingXPositionSnapshot
 
     pos = BingXPositionSnapshot(
@@ -1665,41 +1717,158 @@ async def test_evaluate_dynamic_exits_half_tp_at_three_percent(monkeypatch) -> N
         side="LONG",
         size=10.0,
         entry_price=100.0,
-        mark_price=103.1,
-        unrealized_pnl=3.1,
+        mark_price=101.25,
+        unrealized_pnl=1.25,
         leverage=5,
         liquidation_price=None,
         margin_type="CROSSED",
         fmp_quote=None,
         funding_rate=None,
-        current_price=103.1,
+        current_price=101.25,
     )
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
         account_service=FakeAccountServiceForExit([pos]),
-
+    )
+    service._confluence_cache["PLTR-USDT"] = BingXConfluenceCacheEntry(
+        symbol="PLTR-USDT",
+        underlying="PLTR",
+        confluence_score=0.72,
+        confluence_signal="BUY",
+        gamma_flip=90.0,
+        speed_instability=False,
+        tail_risk_severity="LOW",
+        updated_at_iso="2026-06-18T12:00:00Z",
     )
 
-    async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
-        return _fake_analysis_for_exit(
-            symbol=symbol,
-            spot_price=103.1,
-            gamma_flip=90.0,
-            confluence_score=1.0,
-            confluence_signal="BULLISH",
-        )
-
-    monkeypatch.setattr(
-        "backend.services.bingx_bot_service.build_candidate_analysis",
-        _fake_build,
-        raising=False,
-    )
-
-    executions = await service.evaluate_dynamic_exits()
+    executions = await service.evaluate_dynamic_exits(cycle_mode="fast")
     assert len(executions) == 1
     assert client.perp_orders[0].reduce_only is True
-    assert client.perp_orders[0].quantity == pytest.approx(5.0)
-    assert service._parametric_exit_state["PLTR-USDT"].half_tp_done is True
+    assert client.perp_orders[0].quantity == pytest.approx(2.5)
+    assert service._parametric_exit_state["PLTR-USDT"].tp1_done is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_dynamic_exits_intc_tp1_at_five_percent_leveraged(monkeypatch) -> None:
+    """Caso INTC: +5.3% apalancado con 5x debe disparar TP1 SEMIS (30%)."""
+    client = ExecutionRecordingClient()
+    from backend.config.bingx_exit_bucket_policy import BingXConfluenceCacheEntry
+    from backend.services.bingx_account_service import BingXPositionSnapshot
+
+    pos = BingXPositionSnapshot(
+        symbol="INTC-USDT",
+        side="LONG",
+        size=10.0,
+        entry_price=131.88,
+        mark_price=133.28,
+        unrealized_pnl=1.4,
+        leverage=5,
+        liquidation_price=None,
+        margin_type="CROSSED",
+        fmp_quote=None,
+        funding_rate=None,
+        current_price=133.28,
+    )
+    service = BingXBotService(
+        client=client,  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+    )
+    service._confluence_cache["INTC-USDT"] = BingXConfluenceCacheEntry(
+        symbol="INTC-USDT",
+        underlying="INTC",
+        confluence_score=0.65,
+        confluence_signal="BUY",
+        gamma_flip=125.0,
+        speed_instability=False,
+        tail_risk_severity="LOW",
+        updated_at_iso="2026-06-18T12:00:00Z",
+    )
+
+    executions = await service.evaluate_dynamic_exits(cycle_mode="fast")
+    assert len(executions) == 1
+    assert client.perp_orders[0].quantity == pytest.approx(3.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_dynamic_exits_no_sl_when_healthy_drawdown(monkeypatch) -> None:
+    """-5% apalancado con confluencia sana → sin SL parcial."""
+    client = ExecutionRecordingClient()
+    from backend.config.bingx_exit_bucket_policy import BingXConfluenceCacheEntry
+    from backend.services.bingx_account_service import BingXPositionSnapshot
+
+    pos = BingXPositionSnapshot(
+        symbol="INTC-USDT",
+        side="LONG",
+        size=10.0,
+        entry_price=100.0,
+        mark_price=99.0,
+        unrealized_pnl=-1.0,
+        leverage=5,
+        liquidation_price=None,
+        margin_type="CROSSED",
+        fmp_quote=None,
+        funding_rate=None,
+        current_price=99.0,
+    )
+    service = BingXBotService(
+        client=client,  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+    )
+    service._confluence_cache["INTC-USDT"] = BingXConfluenceCacheEntry(
+        symbol="INTC-USDT",
+        underlying="INTC",
+        confluence_score=0.65,
+        confluence_signal="BUY",
+        gamma_flip=95.0,
+        speed_instability=False,
+        tail_risk_severity="LOW",
+        updated_at_iso="2026-06-18T12:00:00Z",
+    )
+
+    executions = await service.evaluate_dynamic_exits(cycle_mode="fast")
+    assert executions == []
+
+
+@pytest.mark.asyncio
+async def test_evaluate_dynamic_exits_early_sl_when_confluence_broken(monkeypatch) -> None:
+    """-3% apalancado + confluencia rota → SL parcial defensivo."""
+    client = ExecutionRecordingClient()
+    from backend.config.bingx_exit_bucket_policy import BingXConfluenceCacheEntry
+    from backend.services.bingx_account_service import BingXPositionSnapshot
+
+    pos = BingXPositionSnapshot(
+        symbol="INTC-USDT",
+        side="LONG",
+        size=10.0,
+        entry_price=100.0,
+        mark_price=99.35,
+        unrealized_pnl=-0.65,
+        leverage=5,
+        liquidation_price=None,
+        margin_type="CROSSED",
+        fmp_quote=None,
+        funding_rate=None,
+        current_price=99.35,
+    )
+    service = BingXBotService(
+        client=client,  # type: ignore[arg-type]
+        account_service=FakeAccountServiceForExit([pos]),
+    )
+    service._confluence_cache["INTC-USDT"] = BingXConfluenceCacheEntry(
+        symbol="INTC-USDT",
+        underlying="INTC",
+        confluence_score=0.28,
+        confluence_signal="WAIT",
+        gamma_flip=105.0,
+        speed_instability=False,
+        tail_risk_severity="LOW",
+        updated_at_iso="2026-06-18T12:00:00Z",
+    )
+
+    executions = await service.evaluate_dynamic_exits(cycle_mode="fast")
+    assert len(executions) == 1
+    assert client.perp_orders[0].quantity == pytest.approx(3.0)
+    assert service._parametric_exit_state["INTC-USDT"].sl_def_done is True
 
 
 @pytest.mark.asyncio
@@ -1723,7 +1892,6 @@ async def test_evaluate_dynamic_exits_fade_and_flip(monkeypatch) -> None:
     service = BingXBotService(
         client=client,  # type: ignore[arg-type]
         account_service=FakeAccountServiceForExit([pos]),
-
     )
 
     async def _fake_build(symbol: str, **_: Any) -> BingXCandidateAnalysis:
@@ -1790,12 +1958,16 @@ async def test_run_cycle_exits_after_decide_reuses_cycle_analyses(monkeypatch) -
         ]
 
     async def _fake_evaluate_dynamic_exits(
-        self: BingXBotService, *, cycle_analyses: dict[str, Any] | None = None
+        self: BingXBotService,
+        *,
+        cycle_analyses: dict[str, Any] | None = None,
+        cycle_mode: str = "slow",
     ) -> list[Any]:
         assert pipeline_order == ["decide"]
         pipeline_order.append("exits")
         assert cycle_analyses is not None
         assert "GOOGL-USDT" in cycle_analyses
+        assert cycle_mode == "slow"
         return []
 
     monkeypatch.setattr(
@@ -1818,9 +1990,7 @@ async def test_run_cycle_exits_after_decide_reuses_cycle_analyses(monkeypatch) -
 def test_extract_options_exit_signals_prefers_predictive_report() -> None:
     from dataclasses import replace
 
-    from backend.domain.probabilistic_models import (
-        PredictiveOptionsBundleReport,
-    )
+    from backend.domain.probabilistic_models import PredictiveOptionsBundleReport
     from backend.services.bingx_candidate_analysis import BingXOptionsBlock
 
     bundle = PredictiveOptionsBundleReport(
@@ -2287,7 +2457,7 @@ def test_risk_desk_zone_validation_accumulation() -> None:
 @pytest.mark.asyncio
 async def test_structural_stop_loss() -> None:
     from backend.services.bingx_account_service import BingXPositionSnapshot
-    from backend.services.bingx_bot_service import _ParametricExitState
+    from backend.services.bot.bingx_bot_types import _ParametricExitState
 
     # 1. Long position in support breaks support limit with sell pressure (delta_bias = BEARISH)
     # support_limit = min(val=100.0, SwingLow=98.0) = 98.0. spot = 97.0.
@@ -2320,7 +2490,6 @@ async def test_structural_stop_loss() -> None:
     service = BingXBotService(
         client=ExecutionRecordingClient(),  # type: ignore[arg-type]
         account_service=FakeAccountServiceForExit([pos]),
-
     )
 
     # Pre-populate exit state tracker

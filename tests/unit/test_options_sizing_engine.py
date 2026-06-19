@@ -16,8 +16,8 @@ from backend.services.options_strategy.portfolio_heat import (
 from backend.services.options_strategy.sizing_engine import (
     compute_risk_budget_pct,
     kelly_fraction,
-    volatility_regime_scalar,
     vix_proxy_from_features,
+    volatility_regime_scalar,
 )
 
 
@@ -63,6 +63,23 @@ def test_volatility_regime_scalar_high_vix_reduces_size() -> None:
     stressed = volatility_regime_scalar(32.0)
     assert normal == 1.0
     assert stressed < normal
+
+
+def test_resolve_equity_buying_power_pct_high_probability() -> None:
+    from backend.services.options_strategy.sizing_engine import resolve_equity_buying_power_pct
+
+    base = resolve_equity_buying_power_pct(score=0.7, probability=0.7, base_pct=0.05)
+    high = resolve_equity_buying_power_pct(score=0.95, probability=0.95, base_pct=0.05)
+    assert base == pytest.approx(0.05)
+    assert 0.10 <= high <= 0.15
+
+
+def test_equity_confidence_multiplier_boosts_high_probability() -> None:
+    from backend.services.options_strategy.sizing_engine import equity_confidence_multiplier
+
+    normal = equity_confidence_multiplier(score=0.7, probability=0.7)
+    high = equity_confidence_multiplier(score=0.95, probability=0.95)
+    assert high > normal
 
 
 def test_vix_proxy_from_iv_state() -> None:

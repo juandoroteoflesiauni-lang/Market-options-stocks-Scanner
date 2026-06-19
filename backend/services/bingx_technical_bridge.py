@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Literal, Any
+
+from typing import Any, Literal
+
 """Bridge BingX symbols → full technical-terminal analysis (SMC/VSA/FVG/VP/OF).
 
 Wraps :func:`backend.services.technical_terminal_payload.build_technical_terminal_payload_from_candles`
@@ -54,6 +56,12 @@ REASON_PAYLOAD_NOT_OK = "payload_not_ok"
 REASON_NO_TECHNICAL_FETCHER = "no_technical_fetcher"
 REASON_NO_EQUITY_FOR_CRYPTO = "no_equity_technical_for_crypto"
 REASON_EQUITY_SNAPSHOT_NOT_OK = "equity_snapshot_not_ok"
+REASON_NO_FMP_INTRADAY_BARS = "no_fmp_intraday_bars"
+
+# [ARCH-001] Venue execution stays on BingX; 16-engine SMC stack uses FMP underlying.
+DEFAULT_MOTOR_FMP_MAX_BARS = 500
+MIN_MOTOR_FMP_MAX_BARS = 100
+MAX_MOTOR_FMP_MAX_BARS = 1000
 
 # Matches the SMC pipeline gate inside ``build_technical_terminal_payload``.
 # Bumping this without bumping the engine's gate would let "available"
@@ -64,6 +72,7 @@ SourceStatus = Literal["available", "unavailable"]
 
 # Source tags exposed in the result. Stable for log correlation.
 SOURCE_VENUE = "technical_terminal_venue"
+SOURCE_VENUE_FMP = "technical_terminal_venue_fmp_underlying"
 SOURCE_UNDERLYING_FULL = "technical_terminal_underlying"
 SOURCE_EQUITY_SNAPSHOT = "equity_ta_snapshot"
 SOURCE_NONE = "none"
@@ -122,14 +131,23 @@ def _kline_field(kline: object, name: str) -> Any:
     return getattr(kline, name, None)
 
 
-def klines_to_candles(klines: object) -> list[dict[str, Any]]:
-    """Project BingX klines into the candle-dict shape the technical terminal
-    expects. Accepts any iterable of objects/dicts with ``open_time_ms`` and
-    the standard OHLCV attributes; non-finite or missing rows are dropped.
+def motor_fmp_max_bars() -> int:
+    """Bars requested from FMP for the 16-engine venue stack (clamped 100-1000)."""
+    import os
 
-    The terminal builder accepts either millisecond or second-resolution
-    timestamps under ``time``; we pass through milliseconds — same precision
-    BingX returns natively.
+    raw = os.getenv("BINGX_MOTOR_FMP_MAX_BARS", str(DEFAULT_MOTOR_FMP_MAX_BARS)).strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        value = DEFAULT_MOTOR_FMP_MAX_BARS
+    return max(MIN_MOTOR_FMP_MAX_BARS, min(MAX_MOTOR_FMP_MAX_BARS, value))
+
+
+def klines_to_candles(klines: object) -> list[dict[str, Any]]:
+    """Project BingX/FMP klines into candle dicts for the technical terminal.
+
+    Accepts BingX ``open_time_ms`` rows and FMP intraday ``{t,o,h,l,c,volume}``.
+    Non-finite or missing rows are dropped.
     """
     out: list[dict[str, Any]] = []
     if not klines:
@@ -138,13 +156,31 @@ def klines_to_candles(klines: object) -> list[dict[str, Any]]:
         ts = _kline_field(kline, "open_time_ms")
         if ts is None:
             ts = _kline_field(kline, "time")
+        if ts is None:
+            ts = _kline_field(kline, "t")
         try:
             ts_ms = int(ts)
-            o = float(_kline_field(kline, "open"))
-            h = float(_kline_field(kline, "high"))
-            lo = float(_kline_field(kline, "low"))
-            c = float(_kline_field(kline, "close"))
+            if ts_ms < 10_000_000_000:
+                ts_ms *= 1000
+            o_raw = _kline_field(kline, "open")
+            if o_raw is None:
+                o_raw = _kline_field(kline, "o")
+            h_raw = _kline_field(kline, "high")
+            if h_raw is None:
+                h_raw = _kline_field(kline, "h")
+            lo_raw = _kline_field(kline, "low")
+            if lo_raw is None:
+                lo_raw = _kline_field(kline, "l")
+            c_raw = _kline_field(kline, "close")
+            if c_raw is None:
+                c_raw = _kline_field(kline, "c")
+            o = float(o_raw)
+            h = float(h_raw)
+            lo = float(lo_raw)
+            c = float(c_raw)
             v_raw = _kline_field(kline, "volume")
+            if v_raw is None:
+                v_raw = _kline_field(kline, "v")
             v = float(v_raw) if v_raw is not None else 0.0
         except (TypeError, ValueError):
             continue
@@ -152,6 +188,44 @@ def klines_to_candles(klines: object) -> list[dict[str, Any]]:
             continue
         out.append({"time": ts_ms, "open": o, "high": h, "low": lo, "close": c, "volume": v})
     return out
+
+
+async def fetch_fmp_motor_candles(
+    underlying_symbol: str,
+    timeframe: str = "5m",
+    *,
+    max_bars: int | None = None,
+) -> tuple[list[dict[str, Any]], str | None, int]:
+    """Fetch intraday OHLCV from FMP Enterprise for the 16-engine technical stack."""
+    import asyncio
+
+    from backend.layer_1_data.datos.intraday_bars_fetcher import fetch_intraday_bars
+
+    sym = underlying_symbol.upper().strip()
+    if not sym:
+        return [], None, 0
+    limit = max_bars if max_bars is not None else motor_fmp_max_bars()
+    try:
+        result = await asyncio.to_thread(
+            fetch_intraday_bars,
+            sym,
+            timeframe,
+            max_bars=limit,
+        )
+    except Exception as exc:
+        logger.warning(
+            "bingx_technical_bridge.fmp_motor_fetch_failed symbol=%s tf=%s error=%s",
+            sym,
+            timeframe,
+            str(exc)[:180],
+        )
+        return [], None, 0
+    if not isinstance(result, dict):
+        return [], None, 0
+    bars = result.get("bars") or []
+    source = str(result.get("source") or "fmp_intraday")
+    candles = klines_to_candles(bars)
+    return candles, source, len(candles)
 
 
 # ── L2 injection ─────────────────────────────────────────────────────────────
@@ -356,14 +430,15 @@ async def build_venue_technical(
     timeframe: str = "5m",
     l2_snapshot: object | None = None,
     technical_fn: TechnicalCandlesFn | None = None,
+    payload_symbol: str | None = None,
+    result_source: str | None = None,
+    candle_source: str | None = None,
 ) -> BingXTechnicalBridgeResult:
-    """Run the full technical-terminal pipeline against BingX venue klines.
+    """Run the full technical-terminal pipeline on venue or FMP motor candles.
 
-    The pipeline runs SMC, VSA, FVG, volume profile, order-flow proxies,
-    market-structure, HMM regime, and footprint engines (per the
-    ``TECHNICAL_ENABLE_*`` env flags inside the terminal). When an L2
-    snapshot is provided, ``lob_dynamics`` is replaced with it so downstream
-    consumers see one unified block.
+      ``payload_symbol`` labels the equity root in the terminal payload (FMP path).
+      ``result_source`` overrides the bridge ``source`` tag (e.g. ``SOURCE_VENUE_FMP``).
+    ``candle_source`` is recorded in audit metadata only.
     """
     candles = klines_to_candles(klines)
 
@@ -391,8 +466,9 @@ async def build_venue_technical(
             reason=REASON_NO_TECHNICAL_FETCHER,
         )
 
+    sym_for_terminal = (payload_symbol or venue_symbol).upper().strip()
     try:
-        payload = await technical_fn(venue_symbol, candles, timeframe)
+        payload = await technical_fn(sym_for_terminal, candles, timeframe)
     except Exception as exc:
         logger.warning(
             "bingx_technical_bridge.venue_fetch_failed symbol=%s tf=%s error=%s",
@@ -427,6 +503,7 @@ async def build_venue_technical(
     lob_quality = inject_l2_into_payload(payload, l2_snapshot)
     summary = _extract_summary(payload)
     quality = compute_technical_quality_score(payload)
+    bridge_source = result_source or SOURCE_VENUE
 
     # Audit: capture technical indicators snapshot (fire-and-forget)
     try:
@@ -439,7 +516,7 @@ async def build_venue_technical(
             indicator_data = {
                 k: v
                 for k, v in payload.items()
-                if k not in ("candles", "raw") and not isinstance(v, (list, dict))
+                if k not in ("candles", "raw") and not isinstance(v, list | dict)
             }
         with _ctx.suppress(Exception):
             _aio.get_event_loop().create_task(
@@ -448,10 +525,13 @@ async def build_venue_technical(
                     symbol=venue_symbol,
                     indicators=indicator_data,
                     engine_state={
-                        "source": SOURCE_VENUE,
+                        "source": bridge_source,
                         "timeframe": timeframe,
                         "technical_quality_score": quality,
                         "lob_quality_score": lob_quality,
+                        "candle_source": candle_source or "bingx_venue",
+                        "payload_symbol": sym_for_terminal,
+                        "motor_bars": len(candles),
                     },
                 )
             )
@@ -460,7 +540,7 @@ async def build_venue_technical(
 
     return BingXTechnicalBridgeResult(
         status="available",
-        source=SOURCE_VENUE,
+        source=bridge_source,
         symbol=venue_symbol,
         timeframe=timeframe,
         summary=summary,
@@ -609,10 +689,12 @@ async def build_underlying_technical(
 
 
 __all__ = [
+    "DEFAULT_MOTOR_FMP_MAX_BARS",
     "MIN_BARS_FOR_SMC",
     "REASON_EQUITY_SNAPSHOT_NOT_OK",
     "REASON_INSUFFICIENT_BARS",
     "REASON_NO_EQUITY_FOR_CRYPTO",
+    "REASON_NO_FMP_INTRADAY_BARS",
     "REASON_NO_TECHNICAL_FETCHER",
     "REASON_NO_VENUE_BARS",
     "REASON_PAYLOAD_NOT_OK",
@@ -621,6 +703,7 @@ __all__ = [
     "SOURCE_NONE",
     "SOURCE_UNDERLYING_FULL",
     "SOURCE_VENUE",
+    "SOURCE_VENUE_FMP",
     "BingXTechnicalBridgeResult",
     "BingXTechnicalSummary",
     "EquityTASnapshotFn",
@@ -629,6 +712,8 @@ __all__ = [
     "build_underlying_technical",
     "build_venue_technical",
     "compute_technical_quality_score",
+    "fetch_fmp_motor_candles",
     "inject_l2_into_payload",
     "klines_to_candles",
+    "motor_fmp_max_bars",
 ]

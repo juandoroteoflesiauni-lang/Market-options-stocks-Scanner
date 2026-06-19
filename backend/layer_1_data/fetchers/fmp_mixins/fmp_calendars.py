@@ -1,10 +1,12 @@
 from __future__ import annotations
-# ruff: noqa: F403, F405
 
 from typing import TYPE_CHECKING
 
 from backend.config.logger_setup import get_logger
 from backend.domain.fmp_models import *
+
+# ruff: noqa: F403, F405
+
 
 logger = get_logger(__name__)
 
@@ -146,11 +148,21 @@ class FMPCalendarsMixin:
         """
         data = await self._get(
             "/economic_calendar",
-            module="MACRO",
+            module="CALENDARS",
             params={"from": date_from, "to": date_to},
             ttl_secs=86400.0,
         )
-        return self._parse_list(data, FMPEconomicCalendarItem)
+        parsed = self._parse_list(data, FMPEconomicCalendarItem)
+        if parsed:
+            return parsed
+        from backend.layer_1_data.fetchers.macro_fallback_fetcher import (
+            fetch_economic_calendar_finnhub,
+            macro_fallback_enabled,
+        )
+
+        if macro_fallback_enabled():
+            return await fetch_economic_calendar_finnhub(date_from, date_to)
+        return []
 
     async def get_earnings_surprises(self, symbol: str) -> list[FMPEarningsSurprise]:
         """Fetch historical EPS actual vs estimated. GET /v3/earnings-surprises/{symbol}."""

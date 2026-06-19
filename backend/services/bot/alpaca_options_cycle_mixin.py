@@ -10,6 +10,8 @@ from backend.config.alpaca_options_route_config import (
     AlpacaOptionsRoute,
     alpaca_options_enabled,
     alpaca_options_priority_over_equity,
+    alpaca_options_r2_enabled,
+    alpaca_options_r2_standalone,
     get_options_config_for_route,
 )
 from backend.config.logger_setup import get_logger
@@ -45,6 +47,50 @@ def _eligible_equity_decisions(
         out.append(decision)
     out.sort(key=lambda d: d.score, reverse=True)
     return out
+
+
+def _r2_options_probe_decisions(
+    r2_decisions: list[AlpacaDecision],
+    r2_symbols: tuple[str, ...],
+    *,
+    max_count: int,
+) -> list[AlpacaDecision]:
+    """Amplía candidatos R2 para opciones cuando equity está BLOCK pero el score es alto."""
+    eligible = _eligible_equity_decisions(r2_decisions, "scan")
+    if not alpaca_options_r2_enabled() or not alpaca_options_r2_standalone():
+        return eligible[:max_count]
+
+    min_score = float(os.getenv("ALPACA_OPTIONS_R2_MIN_PROBE_SCORE", "0.45"))
+    min_prob = float(os.getenv("ALPACA_PROB_FLOOR", "0.55"))
+    by_symbol = {d.symbol.upper(): d for d in r2_decisions}
+    seen = {d.symbol.upper() for d in eligible}
+    probes: list[AlpacaDecision] = list(eligible)
+
+    for symbol in r2_symbols:
+        if len(probes) >= max_count:
+            break
+        sym = symbol.upper()
+        if sym in seen:
+            continue
+        decision = by_symbol.get(sym)
+        if decision is None:
+            continue
+        prob = decision.probability if decision.probability is not None else decision.score
+        if decision.score < min_score or prob < min_prob:
+            continue
+        probes.append(
+            decision.model_copy(
+                update={
+                    "decision": "ALLOW",
+                    "direction": "LONG",
+                    "reason_codes": (*decision.reason_codes, "r2_options_probe"),
+                }
+            )
+        )
+        seen.add(sym)
+
+    probes.sort(key=lambda d: d.score, reverse=True)
+    return probes[:max_count]
 
 
 def _entry_from_execution(
@@ -97,14 +143,22 @@ class AlpacaOptionsCycleMixin:
         r1_candidates = _eligible_equity_decisions(r1_decisions, "priority")[
             :_MAX_R1_OPTIONS_PER_CYCLE
         ]
-        r2_candidates = _eligible_equity_decisions(r2_decisions, "scan")[
-            :_MAX_R2_OPTIONS_PER_CYCLE
-        ]
+        r2_candidates = (
+            _r2_options_probe_decisions(
+                r2_decisions,
+                r2_symbols,
+                max_count=_MAX_R2_OPTIONS_PER_CYCLE,
+            )
+            if alpaca_options_r2_enabled()
+            else []
+        )
 
         for route, candidates, extra_symbols in (
             ("priority", r1_candidates, ()),
             ("scan", r2_candidates, r2_symbols),
         ):
+            if route == "scan" and not alpaca_options_r2_enabled():
+                continue
             config = get_options_config_for_route(
                 route,  # type: ignore[arg-type]
                 r2_symbols=extra_symbols if route == "scan" else (),
@@ -112,6 +166,36 @@ class AlpacaOptionsCycleMixin:
             for decision in candidates:
                 symbol = decision.symbol.upper()
                 try:
+                    from backend.services.agentic_execution_bridge import get_agentic_trade_gate
+
+                    gate = get_agentic_trade_gate()
+                    if gate is not None and execute:
+                        outcome = await gate.evaluate_trade(
+                            module="alpaca",
+                            symbol=symbol,
+                            contract_symbol=symbol,
+                            signal_score=float(decision.score),
+                        )
+                        from backend.audit.hooks import audit_agentic_decision
+
+                        event = gate.build_audit_event(
+                            outcome,
+                            module="alpaca",
+                            symbol=symbol,
+                            contract_symbol=symbol,
+                        )
+                        await audit_agentic_decision(event=event)
+                        if not outcome.allow_execute:
+                            entries.append(
+                                {
+                                    "symbol": symbol,
+                                    "route": route,
+                                    "decision": StrategyDecision.NO_TRADE,
+                                    "reason": "agentic_committee_pass",
+                                    "executed": False,
+                                }
+                            )
+                            continue
                     include_r1 = route == "priority"
                     inp = build_strategy_input(
                         symbol,
@@ -133,10 +217,31 @@ class AlpacaOptionsCycleMixin:
                     if result.execution is not None:
                         exec_ok = result.execution.ok
                         if exec_ok:
+                            from decimal import Decimal
+
+                            from backend.services.telemetry.fill_slippage_telemetry import (
+                                log_fill_slippage_telemetry,
+                            )
+
+                            log_fill_slippage_telemetry(
+                                module="alpaca_options",
+                                symbol=symbol,
+                                side="buy",
+                                quantity=Decimal("1"),
+                                limit_or_market_price=Decimal(
+                                    str(
+                                        log.execution_payload.limit_price
+                                        if log.execution_payload is not None
+                                        else 0
+                                    )
+                                ),
+                            )
                             executed_symbols.add(symbol)
-                            premium = float(log.execution_payload.max_premium_usd) if (
-                                log.execution_payload is not None
-                            ) else 0.0
+                            premium = (
+                                float(log.execution_payload.max_premium_usd)
+                                if (log.execution_payload is not None)
+                                else 0.0
+                            )
                             reserved_premium += premium
                             risk_pct = (
                                 log.execution_payload.risk_budget_pct
@@ -157,7 +262,8 @@ class AlpacaOptionsCycleMixin:
                                     "open_symbols": tuple(
                                         sorted(set(session.open_symbols) | {symbol.upper()})
                                     ),
-                                    "total_risk_budget_pct": session.total_risk_budget_pct + risk_pct,
+                                    "total_risk_budget_pct": session.total_risk_budget_pct
+                                    + risk_pct,
                                     "sector_risk_budget_pct": sector_map,
                                 }
                             )
@@ -179,7 +285,7 @@ class AlpacaOptionsCycleMixin:
                         result.execution is not None,
                         exec_ok,
                     )
-                except Exception as exc:  # noqa: BLE001 - aislar por ticker
+                except Exception as exc:
                     logger.warning(
                         "alpaca_bot.options_failed symbol=%s route=%s error=%s",
                         symbol,

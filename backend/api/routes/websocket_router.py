@@ -100,3 +100,51 @@ async def funding_stream(websocket: WebSocket) -> None:
     except Exception as exc:
         logger.error("websocket.funding.error error=%s", exc)
 
+
+@router.websocket("/ws/alpaca/risk")
+async def alpaca_risk_stream(websocket: WebSocket) -> None:
+    """Stream Alpaca live risk metrics every 3 seconds."""
+    from backend.api.routes.alpaca_risk_router import get_alpaca_service
+    from backend.config.funding_thresholds import FundingThresholds
+    from backend.services.alpaca_pre_trade_risk_gate import PreTradeRiskGate
+
+    await websocket.accept()
+    logger.info("websocket.alpaca_risk.connected")
+    svc = get_alpaca_service()
+    perf_engine = PerformanceAnalyticsEngine()
+    trade_repo = TradeHistoryRepository()
+    thresholds = FundingThresholds()
+    gate = PreTradeRiskGate.instance()
+
+    try:
+        while True:
+            try:
+                balance = await svc._client.fetch_account_balance()
+                equity = float(balance.get("equity") or balance.get("portfolio_value") or 0)
+                buying_power = float(balance.get("buying_power") or equity)
+                account_state = AccountState(
+                    initial_capital=float(thresholds.ftmo_initial_capital),
+                    current_equity=equity or float(thresholds.ftmo_initial_capital),
+                    start_of_day_balance=buying_power or equity,
+                )
+                trades = [
+                    t
+                    for t in trade_repo.get_recent(window=100)
+                    if t.mode in {"paper", "live", "alpaca"}
+                ]
+                risk_metrics = perf_engine.compute_snapshot(trades, account_state, window=100)
+                gate.update_bur(risk_metrics.bur)
+                payload = {
+                    "riskMetrics": json.loads(risk_metrics.model_dump_json()),
+                    "bufferZone": gate.buffer_zone,
+                    "bur": gate.bur,
+                    "openPositions": len(svc._risk_desk.open_positions),
+                }
+                await websocket.send_text(json.dumps(payload))
+            except Exception as eval_exc:
+                logger.error("websocket.alpaca_risk.evaluation_failed error=%s", eval_exc)
+            await asyncio.sleep(3.0)
+    except WebSocketDisconnect:
+        logger.info("websocket.alpaca_risk.disconnected")
+    except Exception as exc:
+        logger.error("websocket.alpaca_risk.error error=%s", exc)

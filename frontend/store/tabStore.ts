@@ -28,6 +28,7 @@ const TAB_ORDER: TabId[] = [
   "predictive",
   "consumption",
   "audit",
+  "route-pnl",
 ];
 
 export function TabProvider({ children }: { children: ReactNode }) {

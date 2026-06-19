@@ -25,10 +25,11 @@ from backend.domain.alpaca_models import (
     EquityOrderIntent,
     EquityRiskDecision,
 )
-
+from backend.services.alpaca_pre_trade_risk_gate import PreTradeRiskGate
 from backend.services.options_strategy.sizing_engine import (
     atr_pct_to_vix_proxy,
     equity_confidence_multiplier,
+    resolve_equity_buying_power_pct,
     volatility_regime_scalar,
 )
 
@@ -77,10 +78,18 @@ def compute_bracket_levels(
     return (stop_loss if stop_loss > 0 else None), take_profit
 
 
-def _budget(policy: AlpacaRiskPolicy, buying_power: float | None) -> float:
-    """Notional objetivo por trade: el menor entre fijo y % del poder de compra."""
-    if buying_power is not None and buying_power > 0:
-        return min(policy.notional_per_trade_usd, buying_power * policy.buying_power_pct)
+def _budget(
+    policy: AlpacaRiskPolicy,
+    buying_power: float | None,
+    *,
+    score: float = 0.0,
+    probability: float | None = None,
+) -> float:
+    """Notional objetivo por trade: % buying power (alta prob) o fijo, el menor."""
+    pct = resolve_equity_buying_power_pct(score=score, probability=probability)
+    pct_budget = (buying_power * pct) if buying_power is not None and buying_power > 0 else None
+    if pct_budget is not None:
+        return min(policy.notional_per_trade_usd, pct_budget)
     return policy.notional_per_trade_usd
 
 
@@ -126,13 +135,23 @@ class AlpacaRiskDesk:
         price = analysis.latest_close or 0.0
         regime_mult = volatility_regime_scalar(atr_pct_to_vix_proxy(atr or 0.0, price))
         notional = (
-            _budget(self._policy, buying_power) * multiplier * route_mult * conf_mult * regime_mult
+            _budget(
+                self._policy,
+                buying_power,
+                score=decision.score,
+                probability=decision.probability,
+            )
+            * multiplier
+            * route_mult
+            * conf_mult
+            * regime_mult
         )
         quantity = math.floor(notional / price)
         if quantity <= 0:
             return None
+        stop_mult = self._effective_stop_mult(self._policy)
         stop_loss, take_profit = compute_bracket_levels(
-            price, analysis.atr, self._policy.atr_stop_mult, self._policy.atr_take_mult
+            price, analysis.atr, stop_mult, self._policy.atr_take_mult
         )
         return EquityOrderIntent(
             symbol=analysis.symbol,
@@ -147,7 +166,7 @@ class AlpacaRiskDesk:
         )
 
     def authorize_intent(self, intent: EquityOrderIntent) -> EquityRiskDecision:
-        """Aplica idempotencia y guardas de posición/cupo."""
+        """Aplica idempotencia, guardas de posición/cupo y pre-trade gate."""
         key = intent.client_order_id
         if key in self._seen_keys:
             return self._reject(intent, key, REASON_ALREADY_SEEN, already_seen=True)
@@ -156,12 +175,15 @@ class AlpacaRiskDesk:
         if len(self.open_positions) >= self._policy.max_open_positions:
             return self._reject(intent, key, REASON_MAX_POSITIONS_REACHED)
         self._seen_keys.add(key)
-        return EquityRiskDecision(
+        base = EquityRiskDecision(
             authorized=True,
             intent=intent,
             idempotency_key=key,
             adjusted_quantity=intent.quantity,
         )
+        gate = PreTradeRiskGate.instance()
+        verdict = gate.evaluate(base, open_position_count=len(self.open_positions))
+        return gate.apply_to_decision(base, verdict)
 
     @staticmethod
     def _reject(
@@ -182,3 +204,13 @@ class AlpacaRiskDesk:
 
     def clear_position(self, symbol: str) -> None:
         self.open_positions.pop(symbol, None)
+
+    @staticmethod
+    def _effective_stop_mult(policy: AlpacaRiskPolicy) -> float:
+        """Apply macro agent stop-loss multiplier when agentic layer is active."""
+        try:
+            from backend.services.agentic_execution_bridge import macro_stop_loss_multiplier
+
+            return policy.atr_stop_mult * macro_stop_loss_multiplier()
+        except Exception:
+            return policy.atr_stop_mult

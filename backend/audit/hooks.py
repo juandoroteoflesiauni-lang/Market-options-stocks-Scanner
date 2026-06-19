@@ -1,5 +1,3 @@
-from __future__ import annotations
-from typing import Any
 """Audit Hooks — lightweight integration points for capturing audit data.
 
 Provides helper functions that existing modules call to record:
@@ -29,8 +27,11 @@ Usage
     )
 """
 
+from __future__ import annotations
 
+import contextlib
 import traceback
+from typing import Any
 
 from backend.audit.structured_logger import get_correlation_id, get_structured_logger
 
@@ -462,15 +463,13 @@ async def audit_alpaca_cycle(result: Any, *, operation_id: str = "") -> list[str
             snapshot_ids.append(sid)
         except Exception as exc:
             logger.warning("audit_alpaca_cycle.failed symbol=%s error=%s", symbol, exc)
-    try:
+    with contextlib.suppress(Exception):
         await audit_decision_snapshot(
             module="alpaca",
             symbol="_CYCLE",
             indicators={"cycle_summary": result.to_dict() if hasattr(result, "to_dict") else {}},
             operation_id=operation_id,
         )
-    except Exception:
-        pass
     return snapshot_ids
 
 
@@ -547,7 +546,33 @@ async def audit_scanner_result(
     )
 
 
+async def audit_agentic_decision(
+    *,
+    event: Any,
+) -> str | None:
+    """Persist an agentic trade decision event (never raises)."""
+    try:
+        from backend.audit.audit_complex_store import AgenticDecisionAuditEntry
+
+        store = _get_store()
+        payload = event.model_dump(mode="json") if hasattr(event, "model_dump") else dict(event)
+        entry = AgenticDecisionAuditEntry(
+            module=str(payload.get("module", "unknown")),
+            symbol=str(payload.get("symbol", "UNKNOWN")),
+            contract_symbol=str(payload.get("contract_symbol", "UNKNOWN")),
+            correlation_id=str(payload.get("correlation_id", get_correlation_id() or "")),
+            final_decision=str(payload.get("final_decision", "PASS")),
+            quant_default_used=bool(payload.get("quant_default_used", False)),
+            payload=payload,
+        )
+        result = store.persist_agentic_decision(entry)
+        return str(result) if result is not None else None
+    except Exception:
+        return None
+
+
 __all__ = [
+    "audit_agentic_decision",
     "audit_alpaca_cycle",
     "audit_api_call",
     "audit_bingx_decision",

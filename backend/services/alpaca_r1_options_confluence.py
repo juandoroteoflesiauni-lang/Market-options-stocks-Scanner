@@ -7,14 +7,15 @@ from backend.config.alpaca_r1_options_scoring_config import (
     R1_MODERATE_BEARISH_FAMILIES,
     R1_MODERATE_CONFLUENCE_MAX,
     R1_MODERATE_FAMILY_BEAR_THRESHOLD,
-    default_calibrator_path,
-    get_r1_family_weights,
     REASON_OPTIONS_CONFLUENCE_BEAR,
     REASON_OPTIONS_CONFLUENCE_BULL,
     REASON_OPTIONS_CONFLUENCE_DISTRIBUTION,
     REASON_OPTIONS_CONFLUENCE_MOMENTUM,
     REASON_OPTIONS_CONFLUENCE_STRUCTURE,
     REASON_OPTIONS_CONFLUENCE_VOLUME,
+    REASON_OPTIONS_OS_IMBALANCE,
+    default_calibrator_path,
+    get_r1_family_weights,
 )
 from backend.config.logger_setup import get_logger
 from backend.domain.alpaca_models import AlpacaDecision
@@ -42,6 +43,22 @@ def _align_multiplier(direction: OptionsDirection) -> float:
     if direction == "NEUTRAL":
         return 0.5
     return 0.0
+
+
+def compute_options_stock_imbalance(
+    call_volume: float | None,
+    put_volume: float | None,
+    stock_volume: float | None,
+) -> float | None:
+    """Signed option-to-stock volume imbalance predictor (SSRN 2024).
+
+    O/S = (call_vol - put_vol) / max(stock_vol, 1). Positive → bullish tilt.
+    """
+    if call_volume is None or put_volume is None:
+        return None
+    denom = max(stock_volume or 1.0, 1.0)
+    raw = (float(call_volume) - float(put_volume)) / denom
+    return max(-1.0, min(1.0, raw))
 
 
 def _dominant_direction(signals: list[OptionsEngineSignal]) -> OptionsDirection:
@@ -95,6 +112,7 @@ class OptionsConfluenceScorer:
         signals: list[OptionsEngineSignal],
         *,
         family_weights: dict[str, float],
+        os_imbalance: float | None = None,
     ) -> OptionsConfluence | None:
         if not signals:
             return None
@@ -108,9 +126,7 @@ class OptionsConfluenceScorer:
             if not family_signals:
                 by_family[family] = 0.0
                 continue
-            aligned = [
-                s.score * _align_multiplier(s.direction) for s in family_signals
-            ]
+            aligned = [s.score * _align_multiplier(s.direction) for s in family_signals]
             by_family[family] = round(sum(aligned) / len(aligned), 4)
             if by_family[family] >= 0.55:
                 reason_codes.append(_FAMILY_REASON[family])
@@ -123,6 +139,11 @@ class OptionsConfluenceScorer:
             (family_weights.get(family, 0.0) / total_weight) * by_family.get(family, 0.0)
             for family in R1_FAMILY_ENGINES
         )
+        if os_imbalance is not None and os_imbalance > 0.1:
+            weighted = min(1.0, weighted + os_imbalance * 0.15)
+            reason_codes.append(REASON_OPTIONS_OS_IMBALANCE)
+        elif os_imbalance is not None and os_imbalance < -0.1:
+            weighted = max(0.0, weighted + os_imbalance * 0.10)
         dominant = _dominant_direction(signals)
         if dominant == "BULL":
             reason_codes.append(REASON_OPTIONS_CONFLUENCE_BULL)
@@ -144,6 +165,7 @@ class OptionsConfluenceScorer:
             critical=False,
             moderate=moderate,
             reason_codes=tuple(dict.fromkeys(reason_codes)),
+            os_imbalance=os_imbalance,
         )
 
 
@@ -168,12 +190,11 @@ def apply_equity_options_confluence_gate(
         confluence.score,
         confluence.dominant_direction,
     )
-    return decision.model_copy(
-        update={"decision": "SIZE_DOWN", "reason_codes": tuple(reasons)}
-    )
+    return decision.model_copy(update={"decision": "SIZE_DOWN", "reason_codes": tuple(reasons)})
 
 
 __all__ = [
     "OptionsConfluenceScorer",
     "apply_equity_options_confluence_gate",
+    "compute_options_stock_imbalance",
 ]
