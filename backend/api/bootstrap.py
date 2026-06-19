@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import os
 from pathlib import Path
@@ -8,7 +9,10 @@ from fastapi import FastAPI
 
 logger = logging.getLogger(__name__)
 
-async def bootstrap_application(app: FastAPI, settings: Any) -> tuple[asyncio.Task, asyncio.Task, Any]:
+
+async def bootstrap_application(
+    app: FastAPI, settings: Any
+) -> tuple[asyncio.Task, asyncio.Task, Any]:
     from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB, PREDICTIONS_DB
     from backend.infrastructure.sqlite_health import ensure_healthy_or_quarantine
     from backend.services.options_gex_snapshot_store import OptionsGexSnapshotStore
@@ -60,42 +64,78 @@ async def bootstrap_application(app: FastAPI, settings: Any) -> tuple[asyncio.Ta
     from backend.tasks.bingx_bot_scheduler import BingXBotScheduler
     from backend.tasks.scanner_scheduler import ScannerScheduler, ScannerSchedulerConfig
 
-    async def _bingx_venue_technical_fetcher(sym: str, candles: list[dict[str, Any]], timeframe: str) -> dict[str, Any]:
+    async def _bingx_venue_technical_fetcher(
+        sym: str, candles: list[dict[str, Any]], timeframe: str
+    ) -> dict[str, Any]:
         from backend.services.technical_terminal_payload import (
             build_technical_terminal_payload_from_candles,
         )
+
         return await build_technical_terminal_payload_from_candles(sym, candles, timeframe)
 
     _trading_env = settings.bingx_bot_trading_env.strip().lower()
     _env_dry_run = os.getenv("BINGX_DRY_RUN", "").strip().lower()
     _force_venue_live = _env_dry_run in {"0", "false", "no", "live"}
-    _live = (_trading_env in {"prod-vst", "prod-live"} or settings.bingx_bot_enable_live or _force_venue_live)
+    _live = (
+        _trading_env in {"prod-vst", "prod-live"}
+        or settings.bingx_bot_enable_live
+        or _force_venue_live
+    )
     _bx_key = settings.bingx_api_key.get_secret_value() if settings.bingx_api_key else None
     _bx_secret = settings.bingx_secret.get_secret_value() if settings.bingx_secret else None
 
     if _trading_env == "prod-vst" or (_force_venue_live and _trading_env != "prod-live"):
-        _bingx_client = BingXClient(api_key=_bx_key, secret_key=_bx_secret, base_url=BINGX_REST_VST_BASE, dry_run=False, allow_env_dry_run_override=False)
+        _bingx_client = BingXClient(
+            api_key=_bx_key,
+            secret_key=_bx_secret,
+            base_url=BINGX_REST_VST_BASE,
+            dry_run=False,
+            allow_env_dry_run_override=False,
+        )
     elif _trading_env == "prod-live" and _live:
-        _bingx_client = BingXClient(api_key=_bx_key, secret_key=_bx_secret, dry_run=False, allow_env_dry_run_override=False)
+        _bingx_client = BingXClient(
+            api_key=_bx_key, secret_key=_bx_secret, dry_run=False, allow_env_dry_run_override=False
+        )
     else:
-        _bingx_client = BingXClient(api_key=_bx_key, secret_key=_bx_secret, dry_run=not _live, allow_env_dry_run_override=False)
+        _bingx_client = BingXClient(
+            api_key=_bx_key,
+            secret_key=_bx_secret,
+            dry_run=not _live,
+            allow_env_dry_run_override=False,
+        )
 
     _fmp_client = FMPClient()
     _massive_client = MassiveClient()
-    _universe_service = BingXUniverseService(client=_bingx_client, fmp_client=_fmp_client, massive_client=_massive_client)
+    _universe_service = BingXUniverseService(
+        client=_bingx_client, fmp_client=_fmp_client, massive_client=_massive_client
+    )
     _avwap_engine = AVWAPEngine(fmp_api_key=settings.fmp_api_key.get_secret_value())
+
+    async def _dark_pool_snapshot_fn(underlying: str) -> Any:
+        """Resolve a dark-pool snapshot via the Hub (Motor ⑭); None on failure."""
+        result = await hub.fetch_dark_pool_prints(underlying)
+        return result.unwrap() if result.is_success else None
+
     _bingx_service = BingXBotService(
         avwap_engine=_avwap_engine,
-        client=_bingx_client, options_snapshot_fn=options_snapshot_service,
-        venue_technical_fn=_bingx_venue_technical_fetcher, fmp_client=_fmp_client,
-        massive_client=_massive_client, universe_service=_universe_service
+        client=_bingx_client,
+        options_snapshot_fn=options_snapshot_service,
+        venue_technical_fn=_bingx_venue_technical_fetcher,
+        fmp_client=_fmp_client,
+        massive_client=_massive_client,
+        universe_service=_universe_service,
+        dark_pool_fn=_dark_pool_snapshot_fn,
     )
     _audit_path = Path(settings.bingx_bot_audit_db_path)
     os.makedirs(_audit_path.parent, exist_ok=True)
     _audit_store = BingXAuditStore(_audit_path)
     configure_bingx_service(_bingx_service)
     configure_bingx_audit_store(_audit_store)
-    configure_bingx_scheduler(BingXBotScheduler(service=_bingx_service, audit_store=_audit_store, hc_ok_fn=bingx_healthcheck_cache_fresh))
+    configure_bingx_scheduler(
+        BingXBotScheduler(
+            service=_bingx_service, audit_store=_audit_store, hc_ok_fn=bingx_healthcheck_cache_fresh
+        )
+    )
 
     _mode = settings.alpaca_trading_mode.strip().lower()
     _alpaca_base = (
@@ -103,7 +143,9 @@ async def bootstrap_application(app: FastAPI, settings: Any) -> tuple[asyncio.Ta
     )
     _alpaca_client = AlpacaClient(
         api_key=settings.alpaca_api_key.get_secret_value() if settings.alpaca_api_key else None,
-        secret_key=settings.alpaca_api_secret.get_secret_value() if settings.alpaca_api_secret else None,
+        secret_key=(
+            settings.alpaca_api_secret.get_secret_value() if settings.alpaca_api_secret else None
+        ),
         base_url=_alpaca_base,
         dry_run=_mode == "dry_run",
     )
@@ -138,14 +180,13 @@ async def bootstrap_application(app: FastAPI, settings: Any) -> tuple[asyncio.Ta
         configure_options_gex_capture_service(_gex_capture)
         app.state.options_gex_capture = _gex_capture
         app.state.options_gex_capture_task = _gex_capture.start_background()
-        logger.info(
-            "Options GEX institutional capture started (R1 watchlist, ~5min cadence)"
-        )
+        logger.info("Options GEX institutional capture started (R1 watchlist, ~5min cadence)")
 
     from backend.api.routes.audit_complex_router import (
         configure_audit_complex_store as configure_audit_complex,
     )
     from backend.audit.audit_complex_store import AuditComplexStore
+
     _audit_complex_path = Path(settings.audit_db_path)
     os.makedirs(_audit_complex_path.parent, exist_ok=True)
     _audit_complex_store = AuditComplexStore(_audit_complex_path)
@@ -159,9 +200,16 @@ async def bootstrap_application(app: FastAPI, settings: Any) -> tuple[asyncio.Ta
     app.state.market_breadth = _market_breadth
 
     _scanner_scheduler = ScannerScheduler(
-        hub=hub, api_keys=[settings.fmp_api_key.get_secret_value()], event_bus=event_bus,
-        universe=settings.default_universe, breadth_tracker=_market_breadth,
-        config=ScannerSchedulerConfig(scan_interval_s=settings.phase_a_scan_interval_s, respect_market_hours=True, publish_to_bus=True)
+        hub=hub,
+        api_keys=[settings.fmp_api_key.get_secret_value()],
+        event_bus=event_bus,
+        universe=settings.default_universe,
+        breadth_tracker=_market_breadth,
+        config=ScannerSchedulerConfig(
+            scan_interval_s=settings.phase_a_scan_interval_s,
+            respect_market_hours=True,
+            publish_to_bus=True,
+        ),
     )
     app.state.scanner_scheduler = _scanner_scheduler
 
@@ -173,6 +221,7 @@ async def bootstrap_application(app: FastAPI, settings: Any) -> tuple[asyncio.Ta
     await _scanner_scheduler.start()
 
     from backend.services.alpaca_universe_fetcher import ensure_alpaca_universe_loaded
+
     logger.info("Fetching Alpaca Broad Universe (autonomous)...")
 
     app.state.alpaca_universe_task = asyncio.create_task(
@@ -184,7 +233,10 @@ async def bootstrap_application(app: FastAPI, settings: Any) -> tuple[asyncio.Ta
 
     return engine_task, emitter_task, hub
 
-async def shutdown_application(app: FastAPI, engine_task: asyncio.Task, emitter_task: asyncio.Task, hub: Any):
+
+async def shutdown_application(
+    app: FastAPI, engine_task: asyncio.Task, emitter_task: asyncio.Task, hub: Any
+):
     logger.info("Stopping system services...")
     from backend.config.sqlite_db_paths import OPTIONS_GEX_SNAPSHOTS_DB, PREDICTIONS_DB
     from backend.infrastructure.sqlite_health import wal_checkpoint_truncate
@@ -204,10 +256,8 @@ async def shutdown_application(app: FastAPI, engine_task: asyncio.Task, emitter_
     equity_task = getattr(app.state, "equity_l2_feed_task", None)
     if equity_task is not None:
         equity_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await equity_task
-        except asyncio.CancelledError:
-            pass
     gex_capture = getattr(app.state, "options_gex_capture", None)
     if gex_capture is not None:
         await gex_capture.stop()
@@ -215,9 +265,9 @@ async def shutdown_application(app: FastAPI, engine_task: asyncio.Task, emitter_
 
     from backend.layer_1_data.fetchers.fmp_client import FMPClient
     from backend.layer_1_data.fetchers.massive_client import MassiveClient
+
     await FMPClient.aclose_shared_client()
     await MassiveClient.aclose_shared_client()
     wal_checkpoint_truncate(OPTIONS_GEX_SNAPSHOTS_DB)
     wal_checkpoint_truncate(PREDICTIONS_DB)
     logger.info("System shutdown complete.")
-

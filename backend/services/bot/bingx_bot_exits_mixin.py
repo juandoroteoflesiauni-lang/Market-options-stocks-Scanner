@@ -703,6 +703,7 @@ class BingXBotExitsMixin:
                         ws_hub=self._ws_hub,
                         options_snapshot_fn=self._options_snapshot_fn,
                         venue_technical_fn=self._venue_technical_fn,
+                        dark_pool_fn=self._dark_pool_fn,
                         kline_interval=self._scan_interval,
                         kline_limit=self._klines_per_symbol,
                         full_quant_tier=is_full_quant_tier(

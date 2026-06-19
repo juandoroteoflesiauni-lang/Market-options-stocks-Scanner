@@ -143,6 +143,7 @@ class BingXBotService(
         fmp_client: Any | None = None,
         massive_client: Any | None = None,
         alpaca_client: Any | None = None,
+        dark_pool_fn: Callable[..., Awaitable[Any]] | None = None,
     ) -> None:
         self._owns_client: bool = client is None
         self._client: BingXClient = client or BingXClient(dry_run=True)
@@ -187,6 +188,7 @@ class BingXBotService(
         self._fmp_client = fmp_client
         self._massive_client = massive_client
         self._alpaca_client = alpaca_client
+        self._dark_pool_fn = dark_pool_fn
         # Initialize Trade Journal table on first instantiation
         try:
             from pathlib import Path
@@ -288,6 +290,7 @@ class BingXBotService(
             ws_hub=self._ws_hub,
             options_snapshot_fn=self._options_snapshot_fn,
             venue_technical_fn=self._venue_technical_fn,
+            dark_pool_fn=self._dark_pool_fn,
             kline_interval=interval,
             kline_limit=limit,
             full_quant_tier=is_full_quant_tier(
@@ -666,6 +669,7 @@ class BingXBotService(
                     ws_hub=self._ws_hub,
                     options_snapshot_fn=self._options_snapshot_fn,
                     venue_technical_fn=self._venue_technical_fn,
+                    dark_pool_fn=self._dark_pool_fn,
                     kline_interval=self._scan_interval,
                     kline_limit=self._klines_per_symbol,
                     full_quant_tier=is_full_quant_tier(
