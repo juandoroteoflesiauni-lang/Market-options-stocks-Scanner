@@ -41,7 +41,7 @@ def _synthetic_candles(n: int = 120, *, base: float = 100.0) -> list[dict[str, f
 def test_technical_weight_matrix_sums_to_one() -> None:
     total = round(sum(TECHNICAL_WEIGHT_MATRIX.values()), 6)
     assert total == 1.0
-    assert len(TECHNICAL_WEIGHT_MATRIX) == 26
+    assert len(TECHNICAL_WEIGHT_MATRIX) == 28
 
 
 def test_run_hybrid_motors_returns_seven_blocks() -> None:
