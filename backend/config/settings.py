@@ -65,6 +65,9 @@ class MarketDataSettings(BaseSettings):
     # Gemini (LLM) — optional; required only for AI audit / agent features
     gemini_api_key: SecretStr | None = None
 
+    # Unusual Whales — optional; required only for the dark-pool detector (Motor ⑭)
+    unusual_whales_api_key: SecretStr | None = None
+
     # Binance API and Bot config
     binance_api_key: SecretStr | None = None
     binance_api_secret: SecretStr | None = None

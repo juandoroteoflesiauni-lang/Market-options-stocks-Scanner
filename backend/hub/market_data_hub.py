@@ -1,6 +1,6 @@
-from typing import Any
 import logging
 import time
+from typing import Any
 
 import httpx
 
@@ -9,11 +9,17 @@ from backend.config.settings import MarketDataSettings
 from backend.hub.api_consumption_monitor import ApiCallStatus, api_consumption_monitor
 from backend.hub.backoff import exponential_backoff
 from backend.hub.circuit_breaker import CircuitBreaker
+from backend.hub.fetchers.unusual_whales_dark_pool import (
+    fetch_fmp_dark_pool_prints,
+    fetch_uw_dark_pool_prints,
+)
 from backend.hub.normalizers.alpaca_normalizer import AlpacaNormalizer
+from backend.hub.normalizers.dark_pool_normalizer import DarkPoolNormalizer
 from backend.hub.normalizers.fmp_normalizer import FmpNormalizer
 from backend.hub.normalizers.massive_normalizer import MassiveNormalizer
 from backend.hub.normalizers.massive_options_normalizer import MassiveOptionsNormalizer
 from backend.hub.rate_limiter import rate_limiter
+from backend.models.dark_pool_snapshot import DarkPoolSnapshot
 from backend.models.market_snapshot import MarketSnapshot
 from backend.models.option_contract import OptionChainSnapshot
 from backend.models.result import Result
@@ -32,11 +38,13 @@ class MarketDataHub:
 
         self._fmp_breaker = CircuitBreaker(provider_name="fmp")
         self._alpaca_breaker = CircuitBreaker(provider_name="alpaca")
+        self._uw_breaker = CircuitBreaker(provider_name="unusual_whales")
 
         self._fmp_normalizer = FmpNormalizer()
         self._alpaca_normalizer = AlpacaNormalizer()
         self._massive_normalizer = MassiveNormalizer()
         self._massive_options_normalizer = MassiveOptionsNormalizer()
+        self._dark_pool_normalizer = DarkPoolNormalizer()
 
         self._validate_connectivity()
 
@@ -165,7 +173,9 @@ class MarketDataHub:
                 self._fmp_breaker.record_success()
 
                 snapshot = self._fmp_normalizer.normalize(raw_data, start_ns)
-                snapshot = snapshot.model_copy(update={"universe_type": get_universe_type_for_ticker(ticker)})
+                snapshot = snapshot.model_copy(
+                    update={"universe_type": get_universe_type_for_ticker(ticker)}
+                )
                 return Result.success(snapshot)
             except Exception as exc:
                 self._fmp_breaker.record_failure()
@@ -185,7 +195,9 @@ class MarketDataHub:
                 self._alpaca_breaker.record_success()
 
                 snapshot = self._alpaca_normalizer.normalize(raw_data, start_ns)
-                snapshot = snapshot.model_copy(update={"universe_type": get_universe_type_for_ticker(ticker)})
+                snapshot = snapshot.model_copy(
+                    update={"universe_type": get_universe_type_for_ticker(ticker)}
+                )
                 return Result.success(snapshot)
             except Exception as exc:
                 self._alpaca_breaker.record_failure()
@@ -437,3 +449,71 @@ class MarketDataHub:
         except Exception as exc:
             logger.warning("Massive options fetch failed for %s: %s", ticker, exc)
             return Result.failure(reason=f"Massive options failed: {exc}")
+
+    async def fetch_dark_pool_prints(self, ticker: str) -> Result[DarkPoolSnapshot]:
+        """Fetch and normalize dark-pool prints (Motor ⑭) — UW primary, FMP fallback.
+
+        The sole public entry point for dark-pool data (PD-3: ACL). Degrades to
+        ``Result.failure`` rather than raising. Tries Unusual Whales first
+        (when a key is configured and its circuit is closed); on a transport
+        failure it falls back to FMP. Config-level errors (missing key, bad
+        payload) are surfaced directly without a fallback.
+        """
+        uw_secret = self._settings.unusual_whales_api_key
+        uw_key = uw_secret.get_secret_value() if uw_secret is not None else ""
+
+        if uw_key.strip() and self._uw_breaker.can_execute():
+            start = time.perf_counter()
+            try:
+                raw = await fetch_uw_dark_pool_prints(self._client, uw_key, ticker)
+                self._uw_breaker.record_success()
+                snapshot = self._dark_pool_normalizer.normalize(
+                    raw, symbol=ticker, source="unusual_whales"
+                )
+                await api_consumption_monitor.record(
+                    provider="unusual_whales",
+                    endpoint="/api/darkpool/{symbol}",
+                    api_key_label="primary",
+                    status=ApiCallStatus.SUCCESS,
+                    duration_seconds=time.perf_counter() - start,
+                )
+                return Result.success(snapshot)
+            except ValueError as exc:
+                # Config / payload error — surface directly, no fallback.
+                logger.warning("UW dark pool config error for %s: %s", ticker, exc)
+                return Result.failure(reason=str(exc))
+            except Exception as exc:
+                self._uw_breaker.record_failure()
+                await api_consumption_monitor.record(
+                    provider="unusual_whales",
+                    endpoint="/api/darkpool/{symbol}",
+                    api_key_label="primary",
+                    status=ApiCallStatus.ERROR,
+                    duration_seconds=time.perf_counter() - start,
+                    error_message=str(exc)[:200],
+                )
+                logger.warning("UW dark pool fetch failed for %s: %s", ticker, exc)
+
+        # ── FMP fallback ────────────────────────────────────────────────────
+        fmp_key = self._settings.fmp_api_key.get_secret_value()
+        if fmp_key.strip() and self._fmp_breaker.can_execute():
+            start = time.perf_counter()
+            try:
+                raw = await fetch_fmp_dark_pool_prints(self._client, fmp_key, ticker)
+                self._fmp_breaker.record_success()
+                snapshot = self._dark_pool_normalizer.normalize(
+                    raw, symbol=ticker, source="fmp_fallback"
+                )
+                await api_consumption_monitor.record(
+                    provider="fmp",
+                    endpoint="/api/v4/dark-pool/{symbol}",
+                    api_key_label="primary",
+                    status=ApiCallStatus.SUCCESS,
+                    duration_seconds=time.perf_counter() - start,
+                )
+                return Result.success(snapshot)
+            except Exception as exc:
+                self._fmp_breaker.record_failure()
+                logger.warning("FMP dark pool fallback failed for %s: %s", ticker, exc)
+
+        return Result.failure(reason="dark_pool_unavailable")
