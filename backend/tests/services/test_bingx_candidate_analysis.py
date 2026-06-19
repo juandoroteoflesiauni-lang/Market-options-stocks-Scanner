@@ -332,6 +332,7 @@ def test_to_dict_contains_all_top_level_keys() -> None:
         "captured_at",
         "avwap_hybrid_signals",
         "dark_pool",
+        "flow_desk",
     }
     assert set(d.keys()) == expected
 

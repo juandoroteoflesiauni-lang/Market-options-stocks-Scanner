@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-# Rebalanced venue weights (sum 0.76) — classic 16-engine stack
+from backend.config.bingx_flow_desk_calibration import FLOW_MFI_FLOW_WEIGHT, FLOW_OBV_OI_WEIGHT
+
+# Rebalanced venue weights (sum 0.76) — classic 16-engine stack.
+# ofi shaved by 0.025 to fund the flow desk (see FLOW_DESK_WEIGHTS).
 VENUE_ENGINE_WEIGHTS: dict[str, float] = {
     "hmm_regime": 0.10,
-    "ofi": 0.085,
+    "ofi": 0.060,
     "volume_profile": 0.07,
     "vwap_advanced": 0.07,
     "lob_dynamics": 0.07,
@@ -25,9 +28,10 @@ VENUE_ENGINE_WEIGHTS: dict[str, float] = {
     "avwap_m18": 0.01,
 }
 
-# Hybrid motors (sum 0.24) — price + options confluence layer
+# Hybrid motors (sum 0.24) — price + options confluence layer.
+# hybrid_wavetrend shaved by 0.025 to fund the flow desk.
 HYBRID_MOTOR_WEIGHTS: dict[str, float] = {
-    "hybrid_wavetrend": 0.04,
+    "hybrid_wavetrend": 0.015,
     "hybrid_divergences": 0.035,
     "hybrid_vsa": 0.03,
     "hybrid_elliott": 0.03,
@@ -36,9 +40,17 @@ HYBRID_MOTOR_WEIGHTS: dict[str, float] = {
     "hybrid_delta_profile": 0.035,
 }
 
+# Flow desk (sum 0.05) — OBV-OI + MFI-Flow confluence, funded by the shaves
+# above so the overall matrix still sums to 1.0.
+FLOW_DESK_WEIGHTS: dict[str, float] = {
+    "flow_obv_oi": FLOW_OBV_OI_WEIGHT,
+    "flow_mfi_flow": FLOW_MFI_FLOW_WEIGHT,
+}
+
 TECHNICAL_WEIGHT_MATRIX: dict[str, float] = {
     **VENUE_ENGINE_WEIGHTS,
     **HYBRID_MOTOR_WEIGHTS,
+    **FLOW_DESK_WEIGHTS,
 }
 
 # Minimum bars to warm incremental hybrid engines on FMP 5m feed

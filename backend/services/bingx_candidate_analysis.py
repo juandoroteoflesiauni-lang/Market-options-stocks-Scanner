@@ -44,6 +44,7 @@ from backend.services.bingx_exchange_derivatives_bridge import (
     ExchangeDerivativesClient,
     build_exchange_derivatives_bridge,
 )
+from backend.services.bingx_flow_desk import FlowDeskSnapshot, build_flow_desk_snapshot
 from backend.services.bingx_institutional_research_bridge import (
     InstitutionalResearchSnapshot,
     fetch_institutional_snapshot,
@@ -239,6 +240,7 @@ class BingXCandidateAnalysis:
         default_factory=BingXExchangeDerivativesBlock
     )
     dark_pool: BingXDarkPoolBlock = field(default_factory=BingXDarkPoolBlock)
+    flow_desk: FlowDeskSnapshot | None = None
     # Institutional Research Snapshot — aggregates the three desk readings
     # (predictive, options-GEX, technical) into a single gating contract.
     # ``None`` when the bridge failed to initialise (degraded gracefully).
@@ -744,6 +746,61 @@ async def _attach_avwap_hybrid(
     )
 
 
+def _attach_flow_desk(
+    block: BingXTechnicalBlock,
+    *,
+    underlying_symbol: str,
+    ctx: BingXCandidateContext,
+    options_block: BingXOptionsBlock,
+    timeframe: str,
+) -> tuple[BingXTechnicalBlock, FlowDeskSnapshot | None]:
+    """Attach OBV-OI + MFI-Flow flow-desk votes into the consensus payload.
+
+    Merges ``flow_obv_oi`` / ``flow_mfi_flow`` blocks (same pattern as AVWAP) so
+    :func:`_technical_consensus` can vote on them. Only merges when the flow
+    desk is available; otherwise the consensus simply lacks those engines.
+    """
+    venue_tech = block.venue_technical
+    if not isinstance(venue_tech, dict) or venue_tech.get("status") != "available":
+        return block, None
+
+    venue_src = ctx.venue_ohlcv_source
+    if venue_src.status != "available" or not venue_src.klines:
+        return block, None
+
+    opt_metrics, raw_snapshot = _options_metrics_for_hybrid(options_block)
+    options_snapshot = raw_snapshot if raw_snapshot is not None else opt_metrics
+
+    snapshot = build_flow_desk_snapshot(
+        underlying_symbol,
+        klines=venue_src.klines,
+        options_snapshot=options_snapshot,
+        timeframe=timeframe,
+    )
+    if snapshot.status != "available":
+        return block, snapshot
+
+    payload = venue_tech.get("payload")
+    if not isinstance(payload, dict):
+        return block, snapshot
+
+    merged = dict(payload)
+    merged.update(snapshot.engine_blocks)
+    updated_venue = dict(venue_tech)
+    updated_venue["payload"] = merged
+    return (
+        BingXTechnicalBlock(
+            metrics=block.metrics,
+            status=block.status,
+            source=block.source,
+            quality_score=block.quality_score,
+            reason=block.reason,
+            venue_technical=updated_venue,
+        ),
+        snapshot,
+    )
+
+
 async def _build_predictive_block(
     venue_symbol: str,
     market_type: str,
@@ -1079,6 +1136,14 @@ async def build_candidate_analysis(
         ctx=ctx,
     )
 
+    technical, flow_desk_snapshot = _attach_flow_desk(
+        technical,
+        underlying_symbol=underlying,
+        ctx=ctx,
+        options_block=options,
+        timeframe=kline_interval,
+    )
+
     # ── Institutional Research Snapshot ──────────────────────────────────────
     # Fetches the three-desk reading (predictive, options-GEX, technical).
     # Runs after venue_technical is attached so all resolved symbols are
@@ -1171,6 +1236,7 @@ async def build_candidate_analysis(
         captured_at=datetime.now(UTC).isoformat(),
         avwap_hybrid_signals=avwap_hybrid_signals,
         dark_pool=dark_pool_block,
+        flow_desk=flow_desk_snapshot,
     )
 
 

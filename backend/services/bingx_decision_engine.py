@@ -267,6 +267,17 @@ def _engine_bias_vote(
     if not isinstance(block, dict) or not block.get("ok"):
         return "NEUTRAL"
 
+    if engine in ("flow_obv_oi", "flow_mfi_flow"):
+        # Flow desk blocks carry a normalised score in [0, 1] (0.5 = neutral).
+        score = _safe_float(block.get("score"))
+        if score is None:
+            return "NEUTRAL"
+        if score > 0.55:
+            return "BULLISH"
+        if score < 0.45:
+            return "BEARISH"
+        return "NEUTRAL"
+
     if engine == "hmm_regime":
         signal = str(block.get("regime_signal") or "").upper()
         if signal == "BULLISH":
