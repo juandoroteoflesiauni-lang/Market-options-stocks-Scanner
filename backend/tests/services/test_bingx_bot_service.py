@@ -57,6 +57,28 @@ from backend.services.scanner_funding_gate import (
 def clean_dry_run_env(monkeypatch) -> None:
     monkeypatch.setenv("BINGX_DRY_RUN", "true")
     monkeypatch.delenv("BINGX_BOT_TRADING_ENV", raising=False)
+    monkeypatch.setenv("DUAL_BOT_FIXED_UNIVERSE", "false")
+    monkeypatch.setenv("AI_AGENTIC_COMMITTEE_MODE", "off")
+    from backend.services.calibration.bayesian_kelly_sizer import BayesianKellyDecideResult
+
+    neutral_bk = BayesianKellyDecideResult(multiplier=1.0, fraction=None, active=False)
+    monkeypatch.setattr(
+        "backend.services.bingx_decision_engine.bayesian_kelly_for_decide",
+        lambda **_: neutral_bk,
+    )
+    monkeypatch.setattr(
+        "backend.services.bingx_risk_sizing_v2.bayesian_kelly_for_decide",
+        lambda **_: neutral_bk,
+    )
+    monkeypatch.setattr(
+        "backend.services.bingx_decision_engine.risk_sizing_multiplier",
+        lambda *_args, **_kwargs: 1.0,
+    )
+    monkeypatch.setattr(
+        BingXBotService,
+        "_bingx_notional_scalars",
+        lambda self, analysis, decision, reference_price: 1.0,
+    )
 
 
 @dataclass
@@ -176,6 +198,15 @@ class ExecutionRecordingClient:
             "availableBalance": 1000.0,
             "equity": 1000.0,
         }
+
+    async def fetch_account_balance(self) -> dict[str, Any]:
+        return await self.fetch_perp_balance()
+
+    async def fetch_perp_positions(self) -> list[dict[str, Any]]:
+        return []
+
+    async def fetch_latest_price_perp(self, symbol: str) -> float | None:
+        return 180.0
 
     async def set_leverage_perp(
         self, symbol: str, leverage: int, *, side: str = "BOTH"
@@ -851,6 +882,42 @@ def test_status_exposes_l2_execution_quality_reason_codes_and_policy() -> None:
 # ─── decide_candidates — multi-module decision engine integration ─────────────
 
 
+def _consensus_technical_payload(*, predictive_bias: str = "LONG") -> dict[str, Any]:
+    """Bullish/bearish 28-engine payload for institutional consensus in bot tests."""
+    from backend.tests.services.test_bingx_decision_engine import _directional_engine_payload
+
+    direction = "BULLISH" if predictive_bias == "LONG" else "BEARISH"
+    payload = _directional_engine_payload(direction)
+    hybrid_signals = {
+        "hybrid_wavetrend": "WT_CROSS_BULL" if direction == "BULLISH" else "WT_CROSS_BEAR",
+        "hybrid_divergences": "BULL_DIV" if direction == "BULLISH" else "BEAR_DIV",
+        "hybrid_vsa": "ACCUMULATION" if direction == "BULLISH" else "DISTRIBUTION_ALIGNED",
+        "hybrid_elliott": "WAVE3_UP" if direction == "BULLISH" else "WAVE3_DOWN",
+        "hybrid_exhaustion": "NONE",
+        "hybrid_shadow_macd": "BULL_CROSS" if direction == "BULLISH" else "BEAR_CROSS",
+        "hybrid_delta_profile": "BULL_DELTA" if direction == "BULLISH" else "BEAR_DELTA",
+    }
+    for engine, signal in hybrid_signals.items():
+        payload[engine] = {"ok": True, "signal": signal, "strength": 2}
+    payload["flow_obv_oi"] = {
+        "ok": True,
+        "bias": direction,
+        "score": 0.80 if direction == "BULLISH" else 0.20,
+    }
+    payload["flow_mfi_flow"] = {
+        "ok": True,
+        "bias": direction,
+        "score": 0.75 if direction == "BULLISH" else 0.25,
+    }
+    for motor_id in range(13, 19):
+        payload[f"avwap_m{motor_id}"] = {
+            "ok": True,
+            "bias": direction,
+            "score": 0.70 if direction == "BULLISH" else 0.30,
+        }
+    return payload
+
+
 def _decision_engine_analysis(
     *,
     market_type: str = "stock_perp",
@@ -927,12 +994,7 @@ def _decision_engine_analysis(
                 "composite_score": 0.7,
                 "bars_used": 40,
             },
-            "payload": {
-                "volume_profile": {
-                    "val": 190.0 if predictive_bias == "LONG" else 160.0,
-                    "vah": 200.0 if predictive_bias == "LONG" else 170.0,
-                }
-            },
+            "payload": _consensus_technical_payload(predictive_bias=predictive_bias),
         },
     )
     predictive = BingXPredictiveBlock(
@@ -1522,10 +1584,9 @@ async def test_monitor_exits_confluence_score_too_low(monkeypatch) -> None:
     )
 
     executions = await service.monitor_exits()
-    assert len(executions) == 1
-    assert executions[0].ok is True
-    assert len(client.perp_orders) == 1
-    assert client.perp_orders[0].side == "SELL"
+    # Weakened confluence alone does not force a full exit while PnL is positive.
+    assert executions == []
+    assert "confluence_score_too_low" in service._exit_reasons.get("AAPL-USDT", [])
 
 
 @pytest.mark.asyncio
@@ -1565,10 +1626,8 @@ async def test_monitor_exits_confluence_signal_contradicts(monkeypatch) -> None:
     )
 
     executions = await service.monitor_exits()
-    assert len(executions) == 1
-    assert executions[0].ok is True
-    assert len(client.perp_orders) == 1
-    assert client.perp_orders[0].side == "SELL"
+    assert executions == []
+    assert "confluence_signal_contradicts" in service._exit_reasons.get("AAPL-USDT", [])
 
 
 @pytest.mark.asyncio
@@ -2398,7 +2457,7 @@ def test_risk_desk_zone_validation_accumulation() -> None:
 @pytest.mark.asyncio
 async def test_structural_stop_loss() -> None:
     from backend.services.bingx_account_service import BingXPositionSnapshot
-    from backend.services.bingx_bot_service import _ParametricExitState
+    from backend.services.bot.bingx_bot_types import _ParametricExitState
 
     # 1. Long position in support breaks support limit with sell pressure (delta_bias = BEARISH)
     # support_limit = min(val=100.0, SwingLow=98.0) = 98.0. spot = 97.0.
