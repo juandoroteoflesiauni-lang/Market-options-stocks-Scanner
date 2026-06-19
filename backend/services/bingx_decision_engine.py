@@ -57,6 +57,7 @@ from backend.domain.probabilistic_models import PredictiveOptionsBundleReport
 from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
 from backend.services.bingx_gex_wall_stop import compute_gex_wall_stop
 from backend.services.bingx_risk_sizing_v2 import risk_sizing_multiplier
+from backend.services.calibration.bayesian_kelly_sizer import bayesian_kelly_for_decide
 from backend.services.hybrid_motors_service import hybrid_bias_from_block
 
 logger = get_logger(__name__)
@@ -152,6 +153,7 @@ class BingXDecision:
     sizing_multiplier: float = 1.0
     combiner_size_pct: float | None = None
     gex_wall_stop_price: float | None = None
+    bayesian_kelly_pct: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         out = asdict(self)
@@ -1304,6 +1306,15 @@ def decide(
         greek_sizing_multiplier = max(0.1, min(1.5, greek_sizing_multiplier))
         gex_wall_stop_price = wall_stop.stop_price
 
+    # ── Motor ⑬: Bayesian Kelly (read-only here) ───────────────────────────
+    # risk_sizing_multiplier() already folds the Bayesian Kelly factor into
+    # risk_v2_mult; we only surface the raw fraction + a SIZE_DOWN reason here
+    # to avoid double-applying the multiplier.
+    bk_result = bayesian_kelly_for_decide(route="BINGX")
+    bayesian_kelly_pct = bk_result.fraction
+    if bk_result.active and bk_result.multiplier < 0.85:
+        reason_codes.append("bayesian_kelly_size_down")
+
     if risk_v2_mult < 0.85:
         reason_codes.append("risk_sizing_v2_size_down")
 
@@ -1447,6 +1458,7 @@ def decide(
             sizing_multiplier=final_multiplier,
             combiner_size_pct=combiner_size,
             gex_wall_stop_price=gex_wall_stop_price,
+            bayesian_kelly_pct=bayesian_kelly_pct,
         )
 
     # ── ALLOW ───────────────────────────────────────────────────────────────
@@ -1471,6 +1483,7 @@ def decide(
         sizing_multiplier=final_multiplier,
         combiner_size_pct=combiner_size,
         gex_wall_stop_price=gex_wall_stop_price,
+        bayesian_kelly_pct=bayesian_kelly_pct,
     )
 
 

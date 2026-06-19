@@ -20,14 +20,31 @@ sizers independent.
 from __future__ import annotations
 
 import statistics
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from backend.config import bayesian_kelly_calibration as bk_cal
+from backend.config.bingx_risk_sizing_v2_calibration import bayesian_kelly_ops_min
 from backend.config.logger_setup import get_logger
 from backend.config.profit_calibration import ProfitCalibrationPolicy
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class BayesianKellyDecideResult:
+    """Bayesian Kelly result tailored for decide()/risk-sizing consumption.
+
+    ``active`` distinguishes a genuine estimate from a degraded/neutral state
+    (which both used to collapse to a 1.0 scalar). ``fraction`` is the raw
+    Bayesian Kelly fraction when active, else ``None``. ``multiplier`` is the
+    operational sizing factor in ``[ops_min, 1.0]`` (1.0 when degraded).
+    """
+
+    multiplier: float
+    fraction: float | None
+    active: bool
 
 
 def _route_bucket(trade: dict[str, Any]) -> str:
@@ -88,24 +105,25 @@ def compute_bayesian_kelly_fraction(
     return max(0.0, min(1.0, fraction))
 
 
-def bayesian_kelly_scalar(
+def _resolve_journal_fraction(
     *,
-    route: str | None = None,
-    policy: ProfitCalibrationPolicy | None = None,
-    db_path: str | Path | None = None,
-) -> float:
-    """Journal-driven Bayesian Kelly scalar in (0, 1], or 1.0 (neutral).
+    route: str | None,
+    policy: ProfitCalibrationPolicy | None,
+    db_path: str | Path | None,
+) -> tuple[bool, float]:
+    """Read the journal and return ``(active, fraction)``.
 
-    Degrades to ``1.0`` when: Kelly disabled, not in profit mode, the journal
-    is missing/empty, or the route sample is below ``min_sample``.
+    ``active`` is False (and ``fraction`` 0.0) whenever the estimate must
+    degrade to neutral: Kelly disabled, not profit mode, journal missing, or
+    route sample below ``min_sample``.
     """
     cfg = policy or ProfitCalibrationPolicy.from_env()
     if not cfg.kelly_enabled or cfg.session_mode != "profit":
-        return 1.0
+        return False, 0.0
 
     path = Path(db_path or cfg.journal_db_path)
     if not path.exists():
-        return 1.0
+        return False, 0.0
 
     sample_floor = bk_cal.min_sample()
 
@@ -122,7 +140,7 @@ def bayesian_kelly_scalar(
             pnls.append(pnl)
 
     if len(pnls) < sample_floor:
-        return 1.0
+        return False, 0.0
 
     fraction = compute_bayesian_kelly_fraction(
         pnls,
@@ -131,15 +149,59 @@ def bayesian_kelly_scalar(
         half_kelly=bk_cal.half_kelly(),
         min_sample=sample_floor,
     )
-    scalar = max(bk_cal.min_fraction(), min(bk_cal.max_fraction(), fraction))
     logger.debug(
-        "bayesian_kelly_sizer route=%s sample=%d fraction=%.4f scalar=%.4f",
+        "bayesian_kelly_sizer route=%s sample=%d fraction=%.4f",
         bucket or "ALL",
         len(pnls),
         fraction,
-        scalar,
     )
-    return scalar
+    return True, fraction
 
 
-__all__ = ["bayesian_kelly_scalar", "compute_bayesian_kelly_fraction"]
+def bayesian_kelly_scalar(
+    *,
+    route: str | None = None,
+    policy: ProfitCalibrationPolicy | None = None,
+    db_path: str | Path | None = None,
+) -> float:
+    """Journal-driven Bayesian Kelly scalar in (0, 1], or 1.0 (neutral).
+
+    Degrades to ``1.0`` when: Kelly disabled, not in profit mode, the journal
+    is missing/empty, or the route sample is below ``min_sample``.
+    """
+    active, fraction = _resolve_journal_fraction(route=route, policy=policy, db_path=db_path)
+    if not active:
+        return 1.0
+    return max(bk_cal.min_fraction(), min(bk_cal.max_fraction(), fraction))
+
+
+def bayesian_kelly_for_decide(
+    *,
+    route: str = "BINGX",
+    policy: ProfitCalibrationPolicy | None = None,
+    db_path: str | Path | None = None,
+) -> BayesianKellyDecideResult:
+    """Bayesian Kelly for decide()/risk-sizing — distinguishes active vs neutral.
+
+    ``active=False`` → ``multiplier=1.0`` and ``fraction=None`` (degraded). When
+    active, the raw fraction maps operationally to ``[ops_min, 1.0]`` via
+    ``ops_min + fraction * (1 - ops_min)``.
+    """
+    active, fraction = _resolve_journal_fraction(route=route, policy=policy, db_path=db_path)
+    if not active:
+        return BayesianKellyDecideResult(multiplier=1.0, fraction=None, active=False)
+    ops_min = bayesian_kelly_ops_min()
+    multiplier = ops_min + fraction * (1.0 - ops_min)
+    return BayesianKellyDecideResult(
+        multiplier=round(multiplier, 4),
+        fraction=round(fraction, 4),
+        active=True,
+    )
+
+
+__all__ = [
+    "BayesianKellyDecideResult",
+    "bayesian_kelly_for_decide",
+    "bayesian_kelly_scalar",
+    "compute_bayesian_kelly_fraction",
+]

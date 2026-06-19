@@ -23,6 +23,7 @@ from backend.config.bingx_risk_sizing_v2_calibration import (
 )
 from backend.config.logger_setup import get_logger
 from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
+from backend.services.calibration.bayesian_kelly_sizer import bayesian_kelly_for_decide
 
 logger = get_logger(__name__)
 
@@ -149,6 +150,12 @@ def compute_risk_sizing_v2(
             flow_mult = 0.80
 
     combined = iv_mult * vrp_mult * gamma_mult * flow_mult
+
+    # Motor ⑬ — Bayesian Kelly from the trade journal (route-bucketed). Neutral
+    # (1.0) when degraded; applied before the final composite clamp.
+    bk = bayesian_kelly_for_decide(route="BINGX")
+    combined *= bk.multiplier
+
     combined = max(RISK_SIZING_MIN_MULT, min(RISK_SIZING_MAX_MULT, combined))
 
     result = {
@@ -160,6 +167,8 @@ def compute_risk_sizing_v2(
         "vrp_mult": round(vrp_mult, 4),
         "gamma_mult": round(gamma_mult, 4),
         "flow_mult": round(flow_mult, 4),
+        "bayesian_kelly_mult": round(bk.multiplier, 4),
+        "bayesian_kelly_fraction": bk.fraction,
     }
     logger.debug(
         "bingx_risk_sizing_v2 venue=%s mult=%.4f flow=%s iv=%.3f vrp=%.3f gamma=%.3f",

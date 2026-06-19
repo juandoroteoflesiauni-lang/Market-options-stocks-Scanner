@@ -29,6 +29,10 @@ BACKWARDATION_SIZE_CAP: float = 0.40
 RISK_SIZING_MIN_MULT: float = 0.10
 RISK_SIZING_MAX_MULT: float = 1.50
 
+# Bayesian Kelly (motor ⑬) — operational mapping of the raw fraction [0,1] to a
+# usable sizing multiplier: fraction=0 → OPS_MIN, fraction=1 → 1.0.
+BAYESIAN_KELLY_OPS_MIN: float = 0.35
+
 
 def _env_float(name: str, default: float) -> float:
     raw = os.getenv(name, str(default)).strip()
@@ -44,3 +48,7 @@ def vex_ref() -> float:
 
 def chex_ref() -> float:
     return _env_float("BINGX_CHEX_REF", CHEX_REF_DEFAULT)
+
+
+def bayesian_kelly_ops_min() -> float:
+    return _env_float("BINGX_BAYESIAN_KELLY_OPS_MIN", BAYESIAN_KELLY_OPS_MIN)
