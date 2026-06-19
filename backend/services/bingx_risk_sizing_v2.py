@@ -50,7 +50,7 @@ def _vex_chex_flow_score(inner: dict[str, Any]) -> tuple[float, str]:
     """Motor 12 — VEX-CHEX composite flow score in [-1, 1]."""
     net_vex = _safe_float(inner.get("total_vex")) or 0.0
     charm_raw = inner.get("charm_flow")
-    net_chex = _safe_float(charm_raw) if isinstance(charm_raw, int | float) else 0.0
+    net_chex = (_safe_float(charm_raw) or 0.0) if isinstance(charm_raw, int | float) else 0.0
     vex_r = vex_ref() or VEX_REF_DEFAULT
     chex_r = chex_ref() or CHEX_REF_DEFAULT
     vex_score = max(-1.0, min(1.0, net_vex / max(abs(vex_r), 1.0)))
