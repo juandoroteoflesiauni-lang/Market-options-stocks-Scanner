@@ -33,6 +33,11 @@ RISK_SIZING_MAX_MULT: float = 1.50
 # usable sizing multiplier: fraction=0 → OPS_MIN, fraction=1 → 1.0.
 BAYESIAN_KELLY_OPS_MIN: float = 0.35
 
+# Dark pool (motor ⑭) — directional confirmation sizing.
+DARK_POOL_BULLISH_BONUS_CAP: float = 1.15
+DARK_POOL_BEARISH_PENALTY_MULT: float = 0.75
+DARK_POOL_MIN_CONFIDENCE: float = 0.35  # below this the bias is ignored
+
 
 def _env_float(name: str, default: float) -> float:
     raw = os.getenv(name, str(default)).strip()
@@ -52,3 +57,15 @@ def chex_ref() -> float:
 
 def bayesian_kelly_ops_min() -> float:
     return _env_float("BINGX_BAYESIAN_KELLY_OPS_MIN", BAYESIAN_KELLY_OPS_MIN)
+
+
+def dark_pool_bullish_bonus_cap() -> float:
+    return _env_float("BINGX_DARK_POOL_BULLISH_BONUS_CAP", DARK_POOL_BULLISH_BONUS_CAP)
+
+
+def dark_pool_bearish_penalty_mult() -> float:
+    return _env_float("BINGX_DARK_POOL_BEARISH_PENALTY_MULT", DARK_POOL_BEARISH_PENALTY_MULT)
+
+
+def dark_pool_min_confidence() -> float:
+    return _env_float("BINGX_DARK_POOL_MIN_CONFIDENCE", DARK_POOL_MIN_CONFIDENCE)

@@ -19,6 +19,9 @@ from backend.config.bingx_risk_sizing_v2_calibration import (
     VEX_CHEX_VEX_WEIGHT,
     VEX_REF_DEFAULT,
     chex_ref,
+    dark_pool_bearish_penalty_mult,
+    dark_pool_bullish_bonus_cap,
+    dark_pool_min_confidence,
     vex_ref,
 )
 from backend.config.logger_setup import get_logger
@@ -112,6 +115,37 @@ def _gamma_survival_mult(inner: dict[str, Any], direction: str) -> float:
     return 1.0
 
 
+def _dark_pool_mult(analysis: BingXCandidateAnalysis, direction: str) -> float:
+    """Motor ⑭ — dark-pool directional confirmation sizing.
+
+    Confirms the trade direction → bonus (capped); contradicts → penalty.
+    Neutral (1.0) when the block is unavailable or below the confidence floor.
+    """
+    dp = getattr(analysis, "dark_pool", None)
+    if dp is None or getattr(dp, "status", "unavailable") != "available":
+        return 1.0
+    confidence = float(getattr(dp, "confidence", 0.0) or 0.0)
+    if confidence < dark_pool_min_confidence():
+        return 1.0
+
+    bias = str(getattr(dp, "bias", "NEUTRAL")).upper()
+    bonus_cap = dark_pool_bullish_bonus_cap()
+    penalty = dark_pool_bearish_penalty_mult()
+    dir_up = direction.upper()
+
+    if dir_up == "LONG":
+        if bias == "BULLISH":
+            return min(bonus_cap, 1.0 + confidence * 0.15)
+        if bias == "BEARISH":
+            return penalty
+    elif dir_up == "SHORT":
+        if bias == "BEARISH":
+            return min(bonus_cap, 1.0 + confidence * 0.15)
+        if bias == "BULLISH":
+            return penalty
+    return 1.0
+
+
 def compute_risk_sizing_v2(
     analysis: BingXCandidateAnalysis,
     *,
@@ -151,6 +185,10 @@ def compute_risk_sizing_v2(
 
     combined = iv_mult * vrp_mult * gamma_mult * flow_mult
 
+    # Motor ⑭ — dark-pool directional confirmation (neutral when unavailable).
+    dark_pool_mult = _dark_pool_mult(analysis, direction)
+    combined *= dark_pool_mult
+
     # Motor ⑬ — Bayesian Kelly from the trade journal (route-bucketed). Neutral
     # (1.0) when degraded; applied before the final composite clamp.
     bk = bayesian_kelly_for_decide(route="BINGX")
@@ -167,6 +205,7 @@ def compute_risk_sizing_v2(
         "vrp_mult": round(vrp_mult, 4),
         "gamma_mult": round(gamma_mult, 4),
         "flow_mult": round(flow_mult, 4),
+        "dark_pool_mult": round(dark_pool_mult, 4),
         "bayesian_kelly_mult": round(bk.multiplier, 4),
         "bayesian_kelly_fraction": bk.fraction,
     }

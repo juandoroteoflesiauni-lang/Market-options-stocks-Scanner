@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Tests for bingx_candidate_analysis — unified BingX candidate analysis contract.
 
 Coverage:
@@ -329,6 +330,8 @@ def test_to_dict_contains_all_top_level_keys() -> None:
         "errors",
         "readiness_score",
         "captured_at",
+        "avwap_hybrid_signals",
+        "dark_pool",
     }
     assert set(d.keys()) == expected
 
@@ -460,13 +463,13 @@ async def test_build_candidate_analysis_crypto_no_equity_blocks() -> None:
         patch(f"{MODULE}.classify_underlying", return_value="crypto_standard"),
         patch(f"{MODULE}.build_candidate_context", new=AsyncMock(return_value=ctx)),
         patch(f"{MODULE}.analyze_bingx_l2", new=AsyncMock(return_value=_make_lob_mock())),
-        patch(f"{MODULE}.EquityTASnapshotService") as MockTA,
+        patch(f"{MODULE}.EquityTASnapshotService") as mock_ta,
         patch(
             f"{MODULE}.equity_probabilistic_summary",
             new=AsyncMock(return_value={"ok": False, "reason": "not_called"}),
         ),
     ):
-        MockTA.return_value.snapshot = AsyncMock(
+        mock_ta.return_value.snapshot = AsyncMock(
             return_value={"ok": False, "reason": "should_not_be_called"}
         )
         result = await build_candidate_analysis("BTC-USDT", bingx_client=MagicMock())
@@ -547,10 +550,10 @@ async def test_build_candidate_analysis_stock_perp_all_available() -> None:
         patch(
             f"{MODULE}.analyze_bingx_l2", new=AsyncMock(return_value=_make_lob_mock(quality=0.9))
         ),
-        patch(f"{MODULE}.EquityTASnapshotService") as MockTA,
+        patch(f"{MODULE}.EquityTASnapshotService") as mock_ta,
         patch(f"{MODULE}.equity_probabilistic_summary", new=AsyncMock(return_value=pred_summary)),
     ):
-        MockTA.return_value.snapshot = AsyncMock(return_value=ta_snapshot)
+        mock_ta.return_value.snapshot = AsyncMock(return_value=ta_snapshot)
         result = await build_candidate_analysis("AAPL-USDT", bingx_client=MagicMock())
 
     assert result.market_type == "stock_perp"
@@ -618,13 +621,13 @@ async def test_build_candidate_analysis_technical_exception_degrades_gracefully(
         patch(f"{MODULE}.classify_underlying", return_value="stock_perp"),
         patch(f"{MODULE}.build_candidate_context", new=AsyncMock(return_value=ctx)),
         patch(f"{MODULE}.analyze_bingx_l2", new=AsyncMock(return_value=_make_lob_mock())),
-        patch(f"{MODULE}.EquityTASnapshotService") as MockTA,
+        patch(f"{MODULE}.EquityTASnapshotService") as mock_ta,
         patch(
             f"{MODULE}.equity_probabilistic_summary",
             new=AsyncMock(return_value={"ok": False, "reason": "unavailable"}),
         ),
     ):
-        MockTA.return_value.snapshot = AsyncMock(side_effect=RuntimeError("fmp_timeout"))
+        mock_ta.return_value.snapshot = AsyncMock(side_effect=RuntimeError("fmp_timeout"))
         result = await build_candidate_analysis("AAPL-USDT")
 
     assert result.technical.status == "unavailable"

@@ -52,6 +52,7 @@ from backend.config.bingx_options_combiner_calibration import (
     combiner_options_score_weight,
     combiner_quality_weight,
 )
+from backend.config.bingx_risk_sizing_v2_calibration import dark_pool_min_confidence
 from backend.config.logger_setup import get_logger
 from backend.domain.probabilistic_models import PredictiveOptionsBundleReport
 from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
@@ -109,6 +110,8 @@ REASON_TAIL_RISK_BLOCK = "tail_risk_block"
 REASON_SHADOW_DELTA_BLOCK = "shadow_delta_block"
 REASON_GEX_WALL_STOP_ACTIVE = "gex_wall_stop_active"
 REASON_GEX_WALL_INVALIDATION = "gex_wall_invalidation"
+REASON_DARK_POOL_CONFIRMS = "dark_pool_confirms"
+REASON_DARK_POOL_CONTRADICTS = "dark_pool_contradicts"
 REASON_SPEED_INSTABILITY_SIZE_DOWN = "speed_instability_size_down"
 REASON_ZOMMA_RISK_SIZE_DOWN = "zomma_risk_size_down"
 REASON_NDDE_CONTRADICTS_DIRECTION = "ndde_contradicts_direction"
@@ -1315,6 +1318,29 @@ def decide(
     if bk_result.active and bk_result.multiplier < 0.85:
         reason_codes.append("bayesian_kelly_size_down")
 
+    # ── Motor ⑭: Dark pool directional confirmation (read-only) ─────────────
+    # Sizing is already folded into risk_v2_mult via _dark_pool_mult; here we
+    # only annotate confirm/contradict. Never blocks — a contradiction only
+    # size-downs (through risk sizing). Silent when the block is unavailable.
+    dp_block = getattr(analysis, "dark_pool", None)
+    if (
+        dp_block is not None
+        and getattr(dp_block, "status", "unavailable") == "available"
+        and float(getattr(dp_block, "confidence", 0.0) or 0.0) >= dark_pool_min_confidence()
+        and direction in ("LONG", "SHORT")
+    ):
+        dp_bias = str(getattr(dp_block, "bias", "NEUTRAL")).upper()
+        confirms = (direction == "LONG" and dp_bias == "BULLISH") or (
+            direction == "SHORT" and dp_bias == "BEARISH"
+        )
+        contradicts = (direction == "LONG" and dp_bias == "BEARISH") or (
+            direction == "SHORT" and dp_bias == "BULLISH"
+        )
+        if confirms:
+            reason_codes.append(REASON_DARK_POOL_CONFIRMS)
+        elif contradicts:
+            reason_codes.append(REASON_DARK_POOL_CONTRADICTS)
+
     if risk_v2_mult < 0.85:
         reason_codes.append("risk_sizing_v2_size_down")
 
@@ -1499,6 +1525,8 @@ __all__ = [
     "REASON_CHARM_FLOW_PENALTY",
     "REASON_CONFLUENCE_DIVERGENCE",
     "REASON_CRYPTO_DERIVATIVES_OVERHEATING",
+    "REASON_DARK_POOL_CONFIRMS",
+    "REASON_DARK_POOL_CONTRADICTS",
     "REASON_DEX_ZGL_INVALIDATION",
     "REASON_DIRECTION_CONFLICT",
     "REASON_DIRECTION_NEUTRAL",

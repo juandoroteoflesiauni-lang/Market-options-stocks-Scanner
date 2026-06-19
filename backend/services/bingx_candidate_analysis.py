@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from backend.domain.probabilistic_models import (
         PredictiveOptionsBundleReport,
     )
+    from backend.models.dark_pool_snapshot import DarkPoolSnapshot
 
 from backend.config.logger_setup import get_logger
 from backend.config.shared_options_tier_policy import REASON_TECHNICAL_TIER_ONLY
@@ -38,6 +39,7 @@ from backend.services.bingx_candidate_context import (
     SourceStatus,
     build_candidate_context,
 )
+from backend.services.bingx_dark_pool_bridge import DarkPoolSnapshotFn, build_dark_pool_block
 from backend.services.bingx_exchange_derivatives_bridge import (
     ExchangeDerivativesClient,
     build_exchange_derivatives_bridge,
@@ -198,6 +200,23 @@ class BingXExchangeDerivativesBlock:
 
 
 @dataclass(frozen=True)
+class BingXDarkPoolBlock:
+    """Dark-pool prints reading (Motor ⑭). ``net_notional_usd`` is a Decimal
+    serialised as ``str`` for JSON safety (PD-2). ``snapshot`` carries the rich
+    frozen model for decide()/risk-sizing; degrades to unavailable on failure.
+    """
+
+    status: SourceStatus = "unavailable"
+    source: str = "none"
+    bias: str = "NEUTRAL"  # BULLISH | BEARISH | NEUTRAL
+    confidence: float = 0.0
+    net_notional_usd: str = "0"
+    print_count_1h: int = 0
+    reason: str | None = None
+    snapshot: DarkPoolSnapshot | None = None
+
+
+@dataclass(frozen=True)
 class BingXCandidateAnalysis:
     """Unified analysis contract for one BingX candidate symbol.
 
@@ -219,6 +238,7 @@ class BingXCandidateAnalysis:
     exchange_derivatives: BingXExchangeDerivativesBlock = field(
         default_factory=BingXExchangeDerivativesBlock
     )
+    dark_pool: BingXDarkPoolBlock = field(default_factory=BingXDarkPoolBlock)
     # Institutional Research Snapshot — aggregates the three desk readings
     # (predictive, options-GEX, technical) into a single gating contract.
     # ``None`` when the bridge failed to initialise (degraded gracefully).
@@ -954,6 +974,7 @@ async def build_candidate_analysis(
     venue_technical_fn: TechnicalCandlesFn | None = None,
     equity_summary_fn: EquitySummaryFn | None = None,
     exchange_derivatives_client: ExchangeDerivativesClient | None = None,
+    dark_pool_fn: DarkPoolSnapshotFn | None = None,
     kline_interval: str = "5m",
     kline_limit: int = 2000,
     full_quant_tier: bool = True,
@@ -1124,6 +1145,14 @@ async def build_candidate_analysis(
         errors["institutional_research"] = "institutional_snapshot_failed"
     readiness = _compute_readiness_score(market_type, venue, technical, predictive, l2)
 
+    # ── Dark Pool block (Motor ⑭) ────────────────────────────────────────────
+    # Built after options; the fetch is injected (PD-3). Degrades to an
+    # unavailable block (reason ``no_dark_pool_fn``) when no fetcher is wired.
+    if full_quant_tier:
+        dark_pool_block = await build_dark_pool_block(underlying, dark_pool_fn=dark_pool_fn)
+    else:
+        dark_pool_block = BingXDarkPoolBlock()
+
     return BingXCandidateAnalysis(
         venue_symbol=venue_symbol,
         underlying_symbol=underlying,
@@ -1141,6 +1170,7 @@ async def build_candidate_analysis(
         readiness_score=readiness,
         captured_at=datetime.now(UTC).isoformat(),
         avwap_hybrid_signals=avwap_hybrid_signals,
+        dark_pool=dark_pool_block,
     )
 
 
