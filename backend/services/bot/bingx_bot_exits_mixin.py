@@ -21,6 +21,7 @@ from backend.config.bingx_exit_bucket_policy import (
     resolve_exit_bucket,
 )
 from backend.config.logger_setup import get_logger
+from backend.services.bingx_gex_wall_stop import resolve_wall_stop
 from backend.services.bingx_symbol_linker import underlying_from_bingx_symbol
 
 logger = get_logger(__name__)
@@ -81,7 +82,15 @@ class BingXBotExitsMixin:
     @staticmethod
     def _extract_options_exit_signals(
         analysis: BingXCandidateAnalysis,
-    ) -> tuple[float | None, float | None, str | None, float | None, float | None, float | None]:
+    ) -> tuple[
+        float | None,
+        float | None,
+        str | None,
+        float | None,
+        float | None,
+        float | None,
+        float | None,
+    ]:
         options_metrics = analysis.options.metrics or {}
         inner_metrics = (
             options_metrics.get("metrics")
@@ -99,6 +108,7 @@ class BingXBotExitsMixin:
         shadow_delta = _float_or_none(inner_metrics.get("shadow_delta_imbalance"))
         call_wall = _float_or_none(inner_metrics.get("call_wall"))
         put_wall = _float_or_none(inner_metrics.get("put_wall"))
+        net_gex_total = _float_or_none(inner_metrics.get("net_gex_total"))
 
         # Same bundle injected after institutional snapshot (used by decide() logging).
         options_bundle = analysis.options.predictive_report
@@ -128,6 +138,7 @@ class BingXBotExitsMixin:
             shadow_delta,
             call_wall,
             put_wall,
+            net_gex_total,
         )
 
     @staticmethod
@@ -255,6 +266,104 @@ class BingXBotExitsMixin:
             self._clear_exit_tracking(symbol)
         return response
 
+    async def _apply_gex_wall_exit(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        cycle_mode: str,
+        current_spot: float,
+        call_wall: float | None,
+        put_wall: float | None,
+        zero_gamma: float | None,
+        net_gex_total: float | None,
+        position_size: float,
+        entry_price: float,
+        pnl_pct: float | None,
+        executions: list[BingXOrderResponse],
+    ) -> float:
+        """Motor ④ GEX wall stop on the slow cycle — returns updated size.
+
+        Single source of truth via ``resolve_wall_stop`` (same core as
+        ``decide()``). Wall breached → full close; proximity to the directional
+        wall → 20% trim. Slow-cycle only; never raises; returns the (possibly
+        reduced) size.
+        """
+        if cycle_mode != "slow":
+            return position_size
+
+        wall = resolve_wall_stop(
+            direction=side,
+            spot=current_spot,
+            call_wall=call_wall,
+            put_wall=put_wall,
+            zero_gamma=zero_gamma,
+            net_gex_total=net_gex_total or 0.0,
+        )
+
+        if wall.invalidates_direction:
+            logger.warning(
+                "bingx_bot.gex_wall_invalidation symbol=%s side=%s spot=%.4f wall=%.4f",
+                symbol,
+                side,
+                current_spot,
+                wall.wall_price or 0.0,
+            )
+            pnl_usd = (pnl_pct / 100.0) * (entry_price * position_size) if pnl_pct else None
+            resp = await self._place_full_close(
+                symbol=symbol,
+                position_side=side,
+                quantity=position_size,
+                reason="gex_wall_invalidation",
+                pnl_pct=pnl_pct,
+                pnl_usd=pnl_usd,
+            )
+            if resp is not None and resp.ok:
+                executions.append(resp)
+                return 0.0
+            return position_size
+
+        if not (wall.active and wall.stop_price is not None and position_size > 0):
+            return position_size
+
+        # Blend with the stop computed at entry (decide() may have used a
+        # slightly different spot): pick the more conservative level. The stored
+        # map is optional / forward-compatible.
+        effective_stop = wall.stop_price
+        stored = getattr(self, "_gex_wall_stop_prices", {}).get(symbol)
+        is_long = side.upper() == "LONG"
+        if stored is not None:
+            effective_stop = max(effective_stop, stored) if is_long else min(effective_stop, stored)
+
+        triggered = current_spot <= effective_stop if is_long else current_spot >= effective_stop
+        if not triggered:
+            return position_size
+
+        trim_qty = position_size * 0.20
+        logger.info(
+            "bingx_bot.gex_wall_proximity_close symbol=%s side=%s spot=%.4f stop=%.4f "
+            "wall=%.4f erosion=%.3f",
+            symbol,
+            side,
+            current_spot,
+            effective_stop,
+            wall.wall_price or 0.0,
+            wall.wall_erosion_score,
+        )
+        trim_usd = (pnl_pct / 100.0) * (entry_price * trim_qty) if pnl_pct else None
+        resp = await self._place_reduce_market(
+            symbol=symbol,
+            position_side=side,
+            quantity=trim_qty,
+            reason="gex_wall_proximity_close",
+            pnl_pct=pnl_pct,
+            pnl_usd=trim_usd,
+        )
+        if resp is not None and resp.ok:
+            executions.append(resp)
+            return position_size - trim_qty
+        return position_size
+
     def _clear_exit_tracking(self, symbol: str) -> None:
         self._conviction_scores.pop(symbol, None)
         self._exit_reasons.pop(symbol, None)
@@ -294,7 +403,7 @@ class BingXBotExitsMixin:
         symbol: str,
         analysis: BingXCandidateAnalysis,
     ) -> BingXConfluenceCacheEntry:
-        score, gamma_flip, signal, _, _, _ = self._extract_options_exit_signals(analysis)
+        score, gamma_flip, signal, _, _, _, _ = self._extract_options_exit_signals(analysis)
         speed_instability, tail_risk = self._extract_institutional_risk_flags(analysis)
         return BingXConfluenceCacheEntry(
             symbol=symbol,
@@ -725,11 +834,20 @@ class BingXBotExitsMixin:
                             executions.append(close_resp)
                         continue
 
-            confluence_score, gamma_flip, confluence_signal, shadow_delta, call_wall, put_wall = (
+            (
+                confluence_score,
+                gamma_flip,
+                confluence_signal,
+                shadow_delta,
+                call_wall,
+                put_wall,
+                net_gex_total,
+            ) = (
                 self._extract_options_exit_signals(analysis)
                 if analysis is not None
                 else (
                     cache_entry.confluence_score if cache_entry else None,
+                    None,
                     None,
                     None,
                     None,
@@ -776,60 +894,22 @@ class BingXBotExitsMixin:
             self._conviction_scores[symbol] = round(conv_score, 4)
             self._exit_reasons[symbol] = reasons
 
-            # ── GEX Wall Proximity Exit (slow only) ──────────────────────────
-            if cycle_mode == "slow" and current_spot is not None:
-                if pos.side == "LONG" and call_wall is not None and call_wall > 0:
-                    distance_pct = (call_wall - current_spot) / current_spot * 100.0
-                    if 0.0 < distance_pct <= 1.5:
-                        trim_qty = position_size * 0.20
-                        logger.info(
-                            "bingx_bot.gex_wall_proximity_close symbol=%s side=%s spot=%.4f call_wall=%.4f dist=%.2f%%",
-                            symbol,
-                            pos.side,
-                            current_spot,
-                            call_wall,
-                            distance_pct,
-                        )
-                        trim_usd = (
-                            (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
-                        )
-                        resp = await self._place_reduce_market(
-                            symbol=symbol,
-                            position_side=pos.side,
-                            quantity=trim_qty,
-                            reason="gex_wall_proximity_close",
-                            pnl_pct=pnl_pct,
-                            pnl_usd=trim_usd,
-                        )
-                        if resp is not None:
-                            executions.append(resp)
-                            position_size -= trim_qty
-                elif pos.side == "SHORT" and put_wall is not None and put_wall > 0:
-                    distance_pct = (current_spot - put_wall) / current_spot * 100.0
-                    if 0.0 < distance_pct <= 1.5:
-                        trim_qty = position_size * 0.20
-                        logger.info(
-                            "bingx_bot.gex_wall_proximity_close symbol=%s side=%s spot=%.4f put_wall=%.4f dist=%.2f%%",
-                            symbol,
-                            pos.side,
-                            current_spot,
-                            put_wall,
-                            distance_pct,
-                        )
-                        trim_usd = (
-                            (pnl_pct / 100.0) * (pos.entry_price * trim_qty) if pnl_pct else None
-                        )
-                        resp = await self._place_reduce_market(
-                            symbol=symbol,
-                            position_side=pos.side,
-                            quantity=trim_qty,
-                            reason="gex_wall_proximity_close",
-                            pnl_pct=pnl_pct,
-                            pnl_usd=trim_usd,
-                        )
-                        if resp is not None:
-                            executions.append(resp)
-                            position_size -= trim_qty
+            # ── GEX Wall Stop (Motor ④, slow only) ───────────────────────────
+            if current_spot is not None:
+                position_size = await self._apply_gex_wall_exit(
+                    symbol=symbol,
+                    side=pos.side,
+                    cycle_mode=cycle_mode,
+                    current_spot=current_spot,
+                    call_wall=call_wall,
+                    put_wall=put_wall,
+                    zero_gamma=gamma_flip,
+                    net_gex_total=net_gex_total,
+                    position_size=position_size,
+                    entry_price=pos.entry_price,
+                    pnl_pct=pnl_pct,
+                    executions=executions,
+                )
 
             # ── Shadow Delta Reversal Hedge (slow only) ──────────────────────
             if (

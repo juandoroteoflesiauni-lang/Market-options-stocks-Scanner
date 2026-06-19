@@ -55,6 +55,7 @@ from backend.config.bingx_options_combiner_calibration import (
 from backend.config.logger_setup import get_logger
 from backend.domain.probabilistic_models import PredictiveOptionsBundleReport
 from backend.services.bingx_candidate_analysis import BingXCandidateAnalysis
+from backend.services.bingx_gex_wall_stop import compute_gex_wall_stop
 from backend.services.bingx_risk_sizing_v2 import risk_sizing_multiplier
 from backend.services.hybrid_motors_service import hybrid_bias_from_block
 
@@ -105,6 +106,8 @@ REASON_VENUE_TECHNICAL_ALIGNED = "venue_technical_aligned"
 REASON_GAMMA_NEGATIVE_REGIME_BLOCK = "gamma_negative_regime_block"
 REASON_TAIL_RISK_BLOCK = "tail_risk_block"
 REASON_SHADOW_DELTA_BLOCK = "shadow_delta_block"
+REASON_GEX_WALL_STOP_ACTIVE = "gex_wall_stop_active"
+REASON_GEX_WALL_INVALIDATION = "gex_wall_invalidation"
 REASON_SPEED_INSTABILITY_SIZE_DOWN = "speed_instability_size_down"
 REASON_ZOMMA_RISK_SIZE_DOWN = "zomma_risk_size_down"
 REASON_NDDE_CONTRADICTS_DIRECTION = "ndde_contradicts_direction"
@@ -148,6 +151,7 @@ class BingXDecision:
     market_type: str = ""
     sizing_multiplier: float = 1.0
     combiner_size_pct: float | None = None
+    gex_wall_stop_price: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         out = asdict(self)
@@ -1276,6 +1280,30 @@ def decide(
         greek_sizing_multiplier = min(greek_sizing_multiplier, combiner_cap)
     greek_sizing_multiplier = max(0.1, min(1.5, greek_sizing_multiplier))
 
+    # ── Motor ④: GEX Wall Stop + Color Decay ───────────────────────────────
+    # Network-free (PD-3): reads options metrics already on the analysis path.
+    # Invalidation (spot breached the directional wall) → BLOCK; proximity hit
+    # while direction is still valid → SIZE_DOWN via the sizing multiplier.
+    gex_wall_stop_price: float | None = None
+    wall_stop = compute_gex_wall_stop(analysis, direction=direction)
+    if wall_stop.invalidates_direction and direction in ("LONG", "SHORT"):
+        reason_codes.append(REASON_GEX_WALL_INVALIDATION)
+        return BingXDecision(
+            symbol=analysis.venue_symbol,
+            decision="BLOCK",
+            direction="FLAT",
+            confidence=0.0,
+            score_total=score_total,
+            module_scores=module_scores,
+            reason_codes=reason_codes,
+            market_type=analysis.market_type,
+        )
+    if wall_stop.active:
+        reason_codes.append(REASON_GEX_WALL_STOP_ACTIVE)
+        greek_sizing_multiplier *= wall_stop.size_multiplier
+        greek_sizing_multiplier = max(0.1, min(1.5, greek_sizing_multiplier))
+        gex_wall_stop_price = wall_stop.stop_price
+
     if risk_v2_mult < 0.85:
         reason_codes.append("risk_sizing_v2_size_down")
 
@@ -1418,6 +1446,7 @@ def decide(
             market_type=analysis.market_type,
             sizing_multiplier=final_multiplier,
             combiner_size_pct=combiner_size,
+            gex_wall_stop_price=gex_wall_stop_price,
         )
 
     # ── ALLOW ───────────────────────────────────────────────────────────────
@@ -1441,6 +1470,7 @@ def decide(
         market_type=analysis.market_type,
         sizing_multiplier=final_multiplier,
         combiner_size_pct=combiner_size,
+        gex_wall_stop_price=gex_wall_stop_price,
     )
 
 
@@ -1460,6 +1490,8 @@ __all__ = [
     "REASON_DIRECTION_CONFLICT",
     "REASON_DIRECTION_NEUTRAL",
     "REASON_FULL_CONFLUENCE",
+    "REASON_GEX_WALL_INVALIDATION",
+    "REASON_GEX_WALL_STOP_ACTIVE",
     "REASON_INSUFFICIENT_CORE_MOTORS",
     "REASON_L2_QUALITY_LOW",
     "REASON_L2_REQUIRED_FOR_EQUITY_LIVE",
