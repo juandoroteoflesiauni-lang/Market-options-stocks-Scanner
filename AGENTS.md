@@ -376,3 +376,47 @@ UNIVERSAL:
 [ ] Sin números mágicos en código
 [ ] Sin secrets hardcodeados
 ```
+
+---
+
+## Cursor Cloud specific instructions
+
+The startup update script already runs `poetry install` (backend) and `npm install`
+in `frontend/` on a fresh VM. Poetry is installed under `~/.local/bin` and that path is
+added to the agent's `~/.bashrc`; the backend venv lives in-project at `.venv`. Standard
+run/lint/test commands live in `README.md`, `pyproject.toml`, and `frontend/package.json`.
+Notes below are non-obvious things only.
+
+### Services
+- **Backend** — FastAPI quant engine + 113 REST/WS routes. Entry `backend/main:app`, port 8000.
+- **Frontend** — Next.js 16 terminal UI. Entry `frontend/app/page.tsx`, port 3000.
+- No Docker/Postgres/Redis in the cloud VM. The backend runs fine without them: Redis
+  caching fails open, and Postgres is declared in settings but not actually wired.
+
+### Backend (works end-to-end)
+- Run from the **repo root**, not from inside `backend/`, because all imports use the
+  `backend.*` package prefix: `.venv/bin/python -m uvicorn backend.main:app --reload --port 8000`.
+- Requires a `.env` at the repo root (gitignored). `backend/config/settings.py` validates that
+  `SECRET_KEY`, `FMP_API_KEY`, `MASSIVE_API_KEY`, `ALPACA_API_KEY`, `ALPACA_API_SECRET` are
+  **non-empty**, and also needs `DATABASE_URL`, `REDIS_URL`, `MASSIVE_WS_URL`. Placeholder
+  values let the app boot; real market-data/broker keys are only needed for live data. With
+  placeholders the startup logs show `401` errors from FMP/Alpaca/Massive — this is expected
+  and gracefully handled (the HTTP server still serves).
+- Operator auth (`/api/v1/auth/*`) needs `QA_SESSION_SECRET` and `QA_APP_PASSWORD_HASH`
+  (`sha256:<hex>` or `pbkdf2_sha256$...`) in `.env`; default username is `admin`.
+- Tests: run from repo root with `--asyncio-mode=auto` and mock keys, e.g.
+  `FMP_API_KEY=x MASSIVE_API_KEY=x MASSIVE_WS_URL=ws://localhost:9999 .venv/bin/python -m pytest tests/ --asyncio-mode=auto`.
+  ~193/197 pass; the ~4 remaining failures are pre-existing config/data drift (e.g. a config
+  value vs. assertion mismatch, a pickled scikit-learn model version skew), not env issues.
+
+### Frontend (currently blocked — needs source restored)
+- `npm run dev` starts and the deps install, but pages 500 and `tsc`/`vitest` fail because
+  **`frontend/lib/` is missing from the repo** (`api-client.ts`, `constants.ts`, `env.ts`,
+  `utils.ts`, `bingx-bot-types.ts`, imported as `@/lib/*`). The directory was never committed
+  because the broad `.gitignore` rule `lib/` matched it; that rule is now anchored to `/lib/`.
+  The frontend cannot build/run until someone restores and commits `frontend/lib/*`. Only the
+  one test file with no `@/lib` import passes (13 tests).
+
+### Lint/type gates
+- `ruff`, `mypy --strict`, `black`, and the frontend `eslint`/`tsc` tooling all run, but the
+  repo currently has many pre-existing violations — these gates are not green on `main` today.
